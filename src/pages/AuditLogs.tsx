@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
+import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Shield, LogIn, Phone, MessageSquare, Bell, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -63,23 +63,22 @@ const AuditLogs: React.FC = () => {
   const [loginAttempts, setLoginAttempts] = useState<LoginAttempt[]>([]);
   const [loadingLogins, setLoadingLogins] = useState(true);
 
-  const fetchLoginAttempts = async () => {
-    setLoadingLogins(true);
-    try {
-      const q = query(collection(db, "login_attempts"), orderBy("timestamp", "desc"), limit(50));
-      const snapshot = await getDocs(q);
-      setLoginAttempts(
-        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as LoginAttempt))
-      );
-    } catch (e) {
-      console.error("Failed to fetch login attempts:", e);
-    } finally {
-      setLoadingLogins(false);
-    }
-  };
-
   useEffect(() => {
-    fetchLoginAttempts();
+    const q = query(collection(db, "login_attempts"), orderBy("timestamp", "desc"), limit(50));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        setLoginAttempts(
+          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as LoginAttempt))
+        );
+        setLoadingLogins(false);
+      },
+      (error) => {
+        console.error("Failed to listen to login attempts:", error);
+        setLoadingLogins(false);
+      }
+    );
+    return unsub;
   }, []);
 
   return (
@@ -90,12 +89,8 @@ const AuditLogs: React.FC = () => {
             <Shield className="h-7 w-7 text-primary" />
             Audit Logs
           </h1>
-          <p className="text-muted-foreground mt-1">Monitor system activity and security events</p>
+          <p className="text-muted-foreground mt-1">Monitor system activity and security events — login attempts update in real-time</p>
         </div>
-        <Button variant="outline" size="sm" className="gap-2" onClick={fetchLoginAttempts}>
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </Button>
       </div>
 
       <Tabs defaultValue="logins" className="space-y-6">

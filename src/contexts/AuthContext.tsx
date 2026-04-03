@@ -62,9 +62,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        const profileDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-        if (profileDoc.exists()) {
-          setProfile(profileDoc.data() as UserProfile);
+        try {
+          const profileDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+          if (profileDoc.exists()) {
+            setProfile(profileDoc.data() as UserProfile);
+          } else {
+            setProfile(null);
+          }
+        } catch (e) {
+          console.error("Failed to fetch user profile:", e);
+          setProfile(null);
         }
       } else {
         setProfile(null);
