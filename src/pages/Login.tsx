@@ -137,13 +137,20 @@ const Login: React.FC = () => {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 space-y-2 text-center">
             <button
               onClick={() => setIsSignUp(!isSignUp)}
               className="text-sm text-primary hover:underline"
             >
               {isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
             </button>
+            {!isSignUp && (
+              <div>
+                <a href="/forgot-password" className="text-sm text-muted-foreground hover:text-primary hover:underline">
+                  Forgot your password?
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </motion.div>
