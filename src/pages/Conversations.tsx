@@ -25,6 +25,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import NewConversationDialog from "@/components/NewConversationDialog";
 
 interface Conversation {
   id: string;
