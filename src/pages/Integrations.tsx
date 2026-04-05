@@ -20,28 +20,17 @@ interface Integration {
 
 const integrations: Integration[] = [
   {
-    id: "sms",
-    name: "SMS",
-    description: "Send and receive text messages from customers directly in threads.",
-    icon: <MessageSquare className="h-6 w-6" />,
-    status: "available",
-    provider: "Twilio",
-    configFields: [
-      { key: "accountSid", label: "Account SID", placeholder: "ACxxxxxxxxxx" },
-      { key: "authToken", label: "Auth Token", placeholder: "Your auth token", type: "password" },
-      { key: "phoneNumber", label: "Twilio Phone Number", placeholder: "+15551234567" },
-    ],
-  },
-  {
-    id: "phone",
-    name: "Phone Calls",
-    description: "Handle inbound and outbound voice calls with automatic transcription.",
+    id: "google-voice",
+    name: "Google Voice",
+    description: "Make and receive calls and SMS via Google Voice. Integrates with your Google Workspace account.",
     icon: <Phone className="h-6 w-6" />,
     status: "available",
-    provider: "Twilio Voice",
+    provider: "Google Workspace",
     configFields: [
-      { key: "accountSid", label: "Account SID", placeholder: "ACxxxxxxxxxx" },
-      { key: "authToken", label: "Auth Token", placeholder: "Your auth token", type: "password" },
+      { key: "googleAccount", label: "Google Account Email", placeholder: "you@yourdomain.com" },
+      { key: "voiceNumber", label: "Google Voice Number", placeholder: "+15551234567" },
+      { key: "clientId", label: "OAuth Client ID", placeholder: "xxxx.apps.googleusercontent.com" },
+      { key: "clientSecret", label: "OAuth Client Secret", placeholder: "GOCSPX-xxxxxxxx", type: "password" },
     ],
   },
   {
