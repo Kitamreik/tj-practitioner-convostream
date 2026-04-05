@@ -12,6 +12,8 @@ import {
   Download,
   Copy,
   FileText,
+  FileSpreadsheet,
+  PackageOpen,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,8 +22,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import {
   collection,
@@ -30,8 +34,7 @@ import {
   onSnapshot,
   addDoc,
   serverTimestamp,
-  doc,
-  where,
+  getDocs,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -41,6 +44,7 @@ interface Conversation {
   id: string;
   customerName: string;
   customerEmail: string;
+  customerPhone?: string;
   lastMessage: string;
   channel: "sms" | "phone" | "email" | "slack";
   timestamp: any;
@@ -70,48 +74,11 @@ const statusColors = {
   resolved: "bg-muted text-muted-foreground",
 };
 
-// Fallback mock data when Firestore collections are empty
 const fallbackConversations: Conversation[] = [
-  {
-    id: "mock-1",
-    customerName: "Sarah Mitchell",
-    customerEmail: "sarah@example.com",
-    lastMessage: "Thanks for helping me with the billing issue!",
-    channel: "email",
-    timestamp: null,
-    unread: true,
-    status: "active",
-  },
-  {
-    id: "mock-2",
-    customerName: "James Rodriguez",
-    customerEmail: "james@example.com",
-    lastMessage: "Can I get an update on my order?",
-    channel: "sms",
-    timestamp: null,
-    unread: true,
-    status: "waiting",
-  },
-  {
-    id: "mock-3",
-    customerName: "Emily Chen",
-    customerEmail: "emily@example.com",
-    lastMessage: "The issue has been resolved, thank you!",
-    channel: "phone",
-    timestamp: null,
-    unread: false,
-    status: "resolved",
-  },
-  {
-    id: "mock-4",
-    customerName: "Michael Brown",
-    customerEmail: "michael@example.com",
-    lastMessage: "I need help with my subscription cancellation.",
-    channel: "slack",
-    timestamp: null,
-    unread: false,
-    status: "active",
-  },
+  { id: "mock-1", customerName: "Sarah Mitchell", customerEmail: "sarah@example.com", customerPhone: "+15550101", lastMessage: "Thanks for helping me with the billing issue!", channel: "email", timestamp: null, unread: true, status: "active" },
+  { id: "mock-2", customerName: "James Rodriguez", customerEmail: "james@example.com", customerPhone: "+15550102", lastMessage: "Can I get an update on my order?", channel: "sms", timestamp: null, unread: true, status: "waiting" },
+  { id: "mock-3", customerName: "Emily Chen", customerEmail: "emily@example.com", customerPhone: "+15550103", lastMessage: "The issue has been resolved, thank you!", channel: "phone", timestamp: null, unread: false, status: "resolved" },
+  { id: "mock-4", customerName: "Michael Brown", customerEmail: "michael@example.com", customerPhone: "+15550104", lastMessage: "I need help with my subscription cancellation.", channel: "slack", timestamp: null, unread: false, status: "active" },
 ];
 
 const fallbackMessages: ConversationMessage[] = [
@@ -146,6 +113,81 @@ function formatMessageTime(ts: any): string {
   return String(ts);
 }
 
+function formatFullTimestamp(ts: any): string {
+  if (!ts) return "N/A";
+  if (ts?.toDate) return ts.toDate().toLocaleString();
+  return String(ts);
+}
+
+// ---------- Export helpers ----------
+
+function buildTranscript(convo: Conversation, msgs: ConversationMessage[]) {
+  const lines = [
+    `Conversation Transcript`,
+    `Customer: ${convo.customerName} (${convo.customerEmail})`,
+    `Channel: ${convo.channel.toUpperCase()}`,
+    `Status: ${convo.status}`,
+    `Exported: ${new Date().toLocaleString()}`,
+    `${"—".repeat(40)}`,
+    "",
+  ];
+  msgs.forEach((msg) => {
+    const time = formatMessageTime(msg.timestamp) || "N/A";
+    const sender = msg.sender === "agent" ? "Agent" : convo.customerName;
+    lines.push(`[${time}] ${sender}: ${msg.text}`);
+  });
+  return lines.join("\n");
+}
+
+function buildCSV(convo: Conversation, msgs: ConversationMessage[]): string {
+  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const rows = [["Timestamp", "Sender", "Channel", "Message"].join(",")];
+  msgs.forEach((msg) => {
+    rows.push(
+      [
+        escape(formatFullTimestamp(msg.timestamp)),
+        escape(msg.sender === "agent" ? "Agent" : convo.customerName),
+        escape(msg.channel),
+        escape(msg.text),
+      ].join(",")
+    );
+  });
+  return rows.join("\n");
+}
+
+function buildPDFHTML(convo: Conversation, msgs: ConversationMessage[]): string {
+  const msgRows = msgs
+    .map(
+      (msg) =>
+        `<tr><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;">${formatFullTimestamp(msg.timestamp)}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;">${msg.sender === "agent" ? "Agent" : convo.customerName}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;">${msg.text}</td></tr>`
+    )
+    .join("");
+  return `<html><head><style>body{font-family:Arial,sans-serif;padding:32px;color:#1a1a1a}h1{font-size:18px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:16px}th{text-align:left;padding:8px;background:#f3f4f6;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #d1d5db}</style></head><body><h1>Conversation Transcript</h1><p style="margin:4px 0;font-size:13px;color:#6b7280">Customer: ${convo.customerName} (${convo.customerEmail})<br/>Channel: ${convo.channel.toUpperCase()} · Status: ${convo.status}<br/>Exported: ${new Date().toLocaleString()}</p><table><thead><tr><th>Time</th><th>Sender</th><th>Message</th></tr></thead><tbody>${msgRows}</tbody></table></body></html>`;
+}
+
+function downloadFile(content: string, filename: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadPDF(html: string, filename: string) {
+  const win = window.open("", "_blank");
+  if (!win) {
+    toast({ title: "Popup blocked", description: "Allow popups to download PDF.", variant: "destructive" });
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => {
+    win.print();
+  }, 400);
+}
+
 const Conversations: React.FC = () => {
   const { profile } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -154,45 +196,81 @@ const Conversations: React.FC = () => {
   const [search, setSearch] = useState("");
   const [replyText, setReplyText] = useState("");
   const [usingFallback, setUsingFallback] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
-  const buildTranscriptText = () => {
-    if (!selected || messages.length === 0) return "";
-    const lines = [
-      `Conversation Transcript`,
-      `Customer: ${selected.customerName} (${selected.customerEmail})`,
-      `Channel: ${selected.channel.toUpperCase()}`,
-      `Status: ${selected.status}`,
-      `Exported: ${new Date().toLocaleString()}`,
-      `${"—".repeat(40)}`,
-      "",
-    ];
-    messages.forEach((msg) => {
-      const time = formatMessageTime(msg.timestamp) || "N/A";
-      const sender = msg.sender === "agent" ? "Agent" : selected.customerName;
-      lines.push(`[${time}] ${sender}: ${msg.text}`);
-    });
-    return lines.join("\n");
-  };
+  // Single conversation export handlers
+  const selected = conversations.find((c) => c.id === selectedId);
 
   const handleCopyTranscript = () => {
-    const text = buildTranscriptText();
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
+    if (!selected || messages.length === 0) return;
+    navigator.clipboard.writeText(buildTranscript(selected, messages)).then(() => {
       toast({ title: "Copied", description: "Transcript copied to clipboard." });
     });
   };
 
-  const handleDownloadTranscript = () => {
-    const text = buildTranscriptText();
-    if (!text) return;
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `transcript-${selected?.customerName.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: "Downloaded", description: "Transcript saved as text file." });
+  const handleDownloadTXT = () => {
+    if (!selected) return;
+    downloadFile(buildTranscript(selected, messages), `transcript-${selected.customerName.replace(/\s+/g, "-").toLowerCase()}.txt`, "text/plain");
+    toast({ title: "Downloaded", description: "Transcript saved as TXT." });
+  };
+
+  const handleDownloadCSV = () => {
+    if (!selected) return;
+    downloadFile(buildCSV(selected, messages), `transcript-${selected.customerName.replace(/\s+/g, "-").toLowerCase()}.csv`, "text/csv");
+    toast({ title: "Downloaded", description: "Transcript saved as CSV." });
+  };
+
+  const handleDownloadPDF = () => {
+    if (!selected) return;
+    downloadPDF(buildPDFHTML(selected, messages), `transcript-${selected.customerName.replace(/\s+/g, "-").toLowerCase()}.pdf`);
+  };
+
+  // Bulk export all conversations
+  const handleBulkExport = async (format: "txt" | "csv") => {
+    toast({ title: "Preparing bulk export…", description: "Fetching all conversations." });
+    try {
+      const allParts: string[] = [];
+      for (const convo of conversations) {
+        let msgs: ConversationMessage[] = [];
+        if (usingFallback) {
+          msgs = fallbackMessages.filter((m) => m.conversationId === convo.id);
+        } else {
+          const q = query(collection(db, "conversations", convo.id, "messages"), orderBy("timestamp", "asc"));
+          const snap = await getDocs(q);
+          msgs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as ConversationMessage));
+        }
+        if (format === "txt") {
+          allParts.push(buildTranscript(convo, msgs));
+          allParts.push("\n\n" + "=".repeat(60) + "\n\n");
+        } else {
+          if (allParts.length === 0) {
+            allParts.push("Customer,Email,Timestamp,Sender,Channel,Message");
+          }
+          msgs.forEach((msg) => {
+            const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+            allParts.push(
+              [escape(convo.customerName), escape(convo.customerEmail), escape(formatFullTimestamp(msg.timestamp)), escape(msg.sender === "agent" ? "Agent" : convo.customerName), escape(msg.channel), escape(msg.text)].join(",")
+            );
+          });
+        }
+      }
+      const mime = format === "csv" ? "text/csv" : "text/plain";
+      downloadFile(allParts.join("\n"), `all-transcripts-${Date.now()}.${format}`, mime);
+      toast({ title: "Bulk export complete", description: `${conversations.length} conversations exported as ${format.toUpperCase()}.` });
+    } catch (e) {
+      console.error("Bulk export error:", e);
+      toast({ title: "Export failed", variant: "destructive" });
+    }
+  };
+
+  // Call client from profile
+  const handleCallClient = () => {
+    const phone = selected?.customerPhone;
+    if (!phone) {
+      toast({ title: "No phone number", description: "This client has no phone number on file.", variant: "destructive" });
+      return;
+    }
+    window.open(`tel:${phone}`, "_self");
   };
 
   // Real-time conversations listener
@@ -231,14 +309,11 @@ const Conversations: React.FC = () => {
       setMessages(fallbackMessages.filter((m) => m.conversationId === selectedId));
       return;
     }
-    const q = query(
-      collection(db, "conversations", selectedId, "messages"),
-      orderBy("timestamp", "asc")
-    );
+    const q = query(collection(db, "conversations", selectedId, "messages"), orderBy("timestamp", "asc"));
     const unsub = onSnapshot(
       q,
       (snapshot) => {
-        setMessages(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as ConversationMessage)));
+        setMessages(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as ConversationMessage));
       },
       (error) => {
         console.error("Messages listener error:", error);
@@ -247,8 +322,6 @@ const Conversations: React.FC = () => {
     );
     return unsub;
   }, [selectedId, usingFallback]);
-
-  const selected = conversations.find((c) => c.id === selectedId);
 
   const filtered = conversations.filter(
     (c) =>
@@ -280,16 +353,29 @@ const Conversations: React.FC = () => {
         <div className="border-b border-border p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-foreground">Conversations</h2>
-            <NewConversationDialog />
+            <div className="flex items-center gap-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1">
+                    <PackageOpen className="h-3.5 w-3.5" />
+                    Bulk Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleBulkExport("txt")} className="gap-2">
+                    <FileText className="h-3.5 w-3.5" /> All as TXT
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkExport("csv")} className="gap-2">
+                    <FileSpreadsheet className="h-3.5 w-3.5" /> All as CSV
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <NewConversationDialog />
+            </div>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search conversations..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <Input placeholder="Search conversations..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
         </div>
 
@@ -298,9 +384,7 @@ const Conversations: React.FC = () => {
             <button
               key={convo.id}
               onClick={() => setSelectedId(convo.id)}
-              className={`w-full border-b border-border p-4 text-left transition-colors ${
-                selectedId === convo.id ? "bg-accent/30" : "hover:bg-muted/50"
-              }`}
+              className={`w-full border-b border-border p-4 text-left transition-colors ${selectedId === convo.id ? "bg-accent/30" : "hover:bg-muted/50"}`}
             >
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
@@ -308,22 +392,16 @@ const Conversations: React.FC = () => {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm font-medium ${convo.unread ? "text-foreground" : "text-muted-foreground"}`}>
-                      {convo.customerName}
-                    </span>
+                    <span className={`text-sm font-medium ${convo.unread ? "text-foreground" : "text-muted-foreground"}`}>{convo.customerName}</span>
                     <span className="text-xs text-muted-foreground">{formatTimestamp(convo.timestamp)}</span>
                   </div>
-                  <p className={`mt-0.5 truncate text-xs ${convo.unread ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                    {convo.lastMessage}
-                  </p>
+                  <p className={`mt-0.5 truncate text-xs ${convo.unread ? "text-foreground font-medium" : "text-muted-foreground"}`}>{convo.lastMessage}</p>
                   <div className="mt-1.5 flex items-center gap-2">
                     <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
                       {channelIcons[convo.channel]}
                       {convo.channel.toUpperCase()}
                     </Badge>
-                    <span className={`inline-flex h-5 items-center rounded-full px-1.5 text-[10px] font-medium ${statusColors[convo.status]}`}>
-                      {convo.status}
-                    </span>
+                    <span className={`inline-flex h-5 items-center rounded-full px-1.5 text-[10px] font-medium ${statusColors[convo.status]}`}>{convo.status}</span>
                   </div>
                 </div>
               </div>
@@ -338,9 +416,7 @@ const Conversations: React.FC = () => {
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border px-6 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                {selected.customerName.charAt(0)}
-              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{selected.customerName.charAt(0)}</div>
               <div>
                 <h3 className="font-semibold text-foreground">{selected.customerName}</h3>
                 <p className="text-xs text-muted-foreground">{selected.customerEmail}</p>
@@ -350,28 +426,30 @@ const Conversations: React.FC = () => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1.5">
-                    <FileText className="h-3.5 w-3.5" />
-                    Export
+                    <FileText className="h-3.5 w-3.5" /> Export
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={handleCopyTranscript} className="gap-2">
-                    <Copy className="h-3.5 w-3.5" />
-                    Copy to Clipboard
+                    <Copy className="h-3.5 w-3.5" /> Copy to Clipboard
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleDownloadTranscript} className="gap-2">
-                    <Download className="h-3.5 w-3.5" />
-                    Download as TXT
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleDownloadTXT} className="gap-2">
+                    <Download className="h-3.5 w-3.5" /> Download TXT
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2">
+                    <FileSpreadsheet className="h-3.5 w-3.5" /> Download CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDownloadPDF} className="gap-2">
+                    <FileText className="h-3.5 w-3.5" /> Download PDF
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <User className="h-3.5 w-3.5" />
-                Profile
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setProfileOpen(true)}>
+                <User className="h-3.5 w-3.5" /> Profile
               </Button>
               <Button variant="outline" size="sm" className="gap-1.5">
-                <Clock className="h-3.5 w-3.5" />
-                History
+                <Clock className="h-3.5 w-3.5" /> History
               </Button>
             </div>
           </div>
@@ -385,18 +463,10 @@ const Conversations: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className={`flex ${msg.sender === "agent" ? "justify-end" : "justify-start"}`}
               >
-                <div
-                  className={`max-w-md rounded-2xl px-4 py-3 ${
-                    msg.sender === "agent"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-foreground"
-                  }`}
-                >
+                <div className={`max-w-md rounded-2xl px-4 py-3 ${msg.sender === "agent" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
                   <p className="text-sm">{msg.text}</p>
                   <div className="mt-1 flex items-center gap-2">
-                    <span className={`text-[10px] ${msg.sender === "agent" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                      {formatMessageTime(msg.timestamp)}
-                    </span>
+                    <span className={`text-[10px] ${msg.sender === "agent" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{formatMessageTime(msg.timestamp)}</span>
                     <Badge variant="outline" className={`h-4 gap-0.5 px-1 text-[9px] border-0 ${msg.sender === "agent" ? "bg-primary-foreground/20 text-primary-foreground" : ""}`}>
                       {channelIcons[msg.channel]}
                       {msg.channel}
@@ -419,17 +489,56 @@ const Conversations: React.FC = () => {
                 disabled={usingFallback}
               />
               <Button disabled={!replyText.trim() || usingFallback} onClick={handleSend}>
-                Send
-                <ChevronRight className="ml-1 h-4 w-4" />
+                Send <ChevronRight className="ml-1 h-4 w-4" />
               </Button>
             </div>
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center text-muted-foreground">
-          Select a conversation to view
-        </div>
+        <div className="flex flex-1 items-center justify-center text-muted-foreground">Select a conversation to view</div>
       )}
+
+      {/* Profile Modal */}
+      <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Customer Profile</DialogTitle>
+          </DialogHeader>
+          {selected && (
+            <div className="space-y-4 mt-2">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary">
+                  {selected.customerName.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">{selected.customerName}</h3>
+                  <p className="text-sm text-muted-foreground">{selected.customerEmail}</p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Phone</span>
+                  <span className="text-sm font-medium text-foreground">{selected.customerPhone || "Not available"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Channel</span>
+                  <Badge variant="outline" className="gap-1">{channelIcons[selected.channel]} {selected.channel.toUpperCase()}</Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Status</span>
+                  <span className={`inline-flex h-6 items-center rounded-full px-2 text-xs font-medium ${statusColors[selected.status]}`}>{selected.status}</span>
+                </div>
+              </div>
+
+              <Button className="w-full gap-2" variant="default" onClick={handleCallClient} disabled={!selected.customerPhone}>
+                <Phone className="h-4 w-4" />
+                Call {selected.customerName.split(" ")[0]}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
