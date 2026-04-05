@@ -201,6 +201,8 @@ const Conversations: React.FC = () => {
   const [replyText, setReplyText] = useState("");
   const [usingFallback, setUsingFallback] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [channelFilter, setChannelFilter] = useState<string>("all");
 
   // Single conversation export handlers
   const selected = conversations.find((c) => c.id === selectedId);
