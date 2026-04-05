@@ -15,6 +15,7 @@ const NewConversationDialog: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [channel, setChannel] = useState<string>("email");
   const [message, setMessage] = useState("");
 
@@ -26,6 +27,7 @@ const NewConversationDialog: React.FC = () => {
       const convoRef = await addDoc(collection(db, "conversations"), {
         customerName: name.trim(),
         customerEmail: email.trim(),
+        customerPhone: phone.trim() || null,
         lastMessage: message.trim(),
         channel,
         timestamp: serverTimestamp(),
@@ -43,6 +45,7 @@ const NewConversationDialog: React.FC = () => {
       setOpen(false);
       setName("");
       setEmail("");
+      setPhone("");
       setMessage("");
       setChannel("email");
     } catch (err: any) {
@@ -71,6 +74,10 @@ const NewConversationDialog: React.FC = () => {
           <div className="space-y-2">
             <Label>Email</Label>
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="john@example.com" />
+          </div>
+          <div className="space-y-2">
+            <Label>Phone Number</Label>
+            <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+15551234567" />
           </div>
           <div className="space-y-2">
             <Label>Channel</Label>

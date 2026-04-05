@@ -14,6 +14,8 @@ import {
   FileText,
   FileSpreadsheet,
   PackageOpen,
+  Filter,
+  X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -39,6 +41,8 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import NewConversationDialog from "@/components/NewConversationDialog";
+import ConversationTemplates, { type MessageTemplate } from "@/components/ConversationTemplates";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Conversation {
   id: string;
@@ -197,6 +201,8 @@ const Conversations: React.FC = () => {
   const [replyText, setReplyText] = useState("");
   const [usingFallback, setUsingFallback] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [channelFilter, setChannelFilter] = useState<string>("all");
 
   // Single conversation export handlers
   const selected = conversations.find((c) => c.id === selectedId);
@@ -323,11 +329,25 @@ const Conversations: React.FC = () => {
     return unsub;
   }, [selectedId, usingFallback]);
 
-  const filtered = conversations.filter(
-    (c) =>
+  const filtered = conversations.filter((c) => {
+    const matchesSearch =
       c.customerName.toLowerCase().includes(search.toLowerCase()) ||
-      c.lastMessage.toLowerCase().includes(search.toLowerCase())
-  );
+      c.lastMessage.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || c.status === statusFilter;
+    const matchesChannel = channelFilter === "all" || c.channel === channelFilter;
+    return matchesSearch && matchesStatus && matchesChannel;
+  });
+
+  const handleInsertTemplate = (template: MessageTemplate) => {
+    const filled = template.body
+      .replace(/\{\{name\}\}/g, selected?.customerName || "Customer")
+      .replace(/\{\{agent\}\}/g, profile?.displayName || "Agent")
+      .replace(/\{\{company\}\}/g, "ConvoHub");
+    setReplyText(filled);
+  };
+
+  const hasActiveFilters = statusFilter !== "all" || channelFilter !== "all";
+  const clearFilters = () => { setStatusFilter("all"); setChannelFilter("all"); };
 
   const handleSend = async () => {
     if (!replyText.trim() || !selectedId || usingFallback) return;
@@ -376,6 +396,36 @@ const Conversations: React.FC = () => {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search conversations..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <div className="flex items-center gap-2 mt-3">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-8 text-xs flex-1">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="waiting">Waiting</SelectItem>
+                <SelectItem value="resolved">Resolved</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={channelFilter} onValueChange={setChannelFilter}>
+              <SelectTrigger className="h-8 text-xs flex-1">
+                <SelectValue placeholder="Channel" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Channels</SelectItem>
+                <SelectItem value="email">Email</SelectItem>
+                <SelectItem value="sms">SMS</SelectItem>
+                <SelectItem value="phone">Phone</SelectItem>
+                <SelectItem value="slack">Slack</SelectItem>
+              </SelectContent>
+            </Select>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0" onClick={clearFilters}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         </div>
 
@@ -445,6 +495,7 @@ const Conversations: React.FC = () => {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <ConversationTemplates onInsertTemplate={handleInsertTemplate} />
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setProfileOpen(true)}>
                 <User className="h-3.5 w-3.5" /> Profile
               </Button>
