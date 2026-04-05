@@ -14,6 +14,8 @@ import {
   FileText,
   FileSpreadsheet,
   PackageOpen,
+  Filter,
+  X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -39,6 +41,8 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import NewConversationDialog from "@/components/NewConversationDialog";
+import ConversationTemplates, { type MessageTemplate } from "@/components/ConversationTemplates";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Conversation {
   id: string;
