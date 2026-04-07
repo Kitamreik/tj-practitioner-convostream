@@ -6,7 +6,6 @@ import {
   Phone,
   MessageSquare,
   Mail,
-  Clock,
   User,
   ChevronRight,
   Download,
