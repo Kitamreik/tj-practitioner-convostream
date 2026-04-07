@@ -1,15 +1,16 @@
-import React, { useState } from "react";
-import { BookTemplate, Plus, Trash2, Mail, MessageSquare, X } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { BookTemplate, Plus, Trash2, Mail, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export interface MessageTemplate {
   id: string;
@@ -20,39 +21,11 @@ export interface MessageTemplate {
 }
 
 const defaultTemplates: MessageTemplate[] = [
-  {
-    id: "t1",
-    name: "Welcome Email",
-    channel: "email",
-    subject: "Welcome to {{company}}!",
-    body: "Hi {{name}},\n\nThank you for reaching out to us. We're here to help with anything you need.\n\nBest regards,\n{{agent}}",
-  },
-  {
-    id: "t2",
-    name: "Follow-up Email",
-    channel: "email",
-    subject: "Following up on your request",
-    body: "Hi {{name}},\n\nI wanted to follow up on our previous conversation. Has the issue been resolved? Let us know if you need any further assistance.\n\nBest,\n{{agent}}",
-  },
-  {
-    id: "t3",
-    name: "Quick SMS Reply",
-    channel: "sms",
-    body: "Hi {{name}}, thanks for contacting us! An agent will be with you shortly.",
-  },
-  {
-    id: "t4",
-    name: "Appointment Reminder",
-    channel: "sms",
-    body: "Hi {{name}}, this is a reminder about your upcoming appointment. Reply YES to confirm or RESCHEDULE to change.",
-  },
-  {
-    id: "t5",
-    name: "Resolution Email",
-    channel: "email",
-    subject: "Your request has been resolved",
-    body: "Hi {{name}},\n\nWe're happy to let you know that your issue has been resolved. If you have any other questions, feel free to reach out.\n\nThank you for your patience!\n{{agent}}",
-  },
+  { id: "t1", name: "Welcome Email", channel: "email", subject: "Welcome to {{company}}!", body: "Hi {{name}},\n\nThank you for reaching out to us. We're here to help with anything you need.\n\nBest regards,\n{{agent}}" },
+  { id: "t2", name: "Follow-up Email", channel: "email", subject: "Following up on your request", body: "Hi {{name}},\n\nI wanted to follow up on our previous conversation. Has the issue been resolved? Let us know if you need any further assistance.\n\nBest,\n{{agent}}" },
+  { id: "t3", name: "Quick SMS Reply", channel: "sms", body: "Hi {{name}}, thanks for contacting us! An agent will be with you shortly." },
+  { id: "t4", name: "Appointment Reminder", channel: "sms", body: "Hi {{name}}, this is a reminder about your upcoming appointment. Reply YES to confirm or RESCHEDULE to change." },
+  { id: "t5", name: "Resolution Email", channel: "email", subject: "Your request has been resolved", body: "Hi {{name}},\n\nWe're happy to let you know that your issue has been resolved. If you have any other questions, feel free to reach out.\n\nThank you for your patience!\n{{agent}}" },
 ];
 
 interface ConversationTemplatesProps {
@@ -62,32 +35,73 @@ interface ConversationTemplatesProps {
 const ConversationTemplates: React.FC<ConversationTemplatesProps> = ({ onInsertTemplate }) => {
   const { toast } = useToast();
   const [templates, setTemplates] = useState<MessageTemplate[]>(defaultTemplates);
+  const [usingFallback, setUsingFallback] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newChannel, setNewChannel] = useState<"email" | "sms">("email");
   const [newSubject, setNewSubject] = useState("");
   const [newBody, setNewBody] = useState("");
 
-  const handleCreate = () => {
+  // Listen to Firestore templates collection
+  useEffect(() => {
+    const q = query(collection(db, "templates"), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        if (snapshot.empty) {
+          setTemplates(defaultTemplates);
+          setUsingFallback(true);
+        } else {
+          setTemplates(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as MessageTemplate)));
+          setUsingFallback(false);
+        }
+      },
+      (error) => {
+        console.error("Templates listener error:", error);
+        setTemplates(defaultTemplates);
+        setUsingFallback(true);
+      }
+    );
+    return unsub;
+  }, []);
+
+  const handleCreate = async () => {
     if (!newName.trim() || !newBody.trim()) return;
-    const tpl: MessageTemplate = {
-      id: `custom-${Date.now()}`,
+    const tplData = {
       name: newName.trim(),
       channel: newChannel,
-      subject: newChannel === "email" ? newSubject.trim() : undefined,
+      subject: newChannel === "email" ? newSubject.trim() : null,
       body: newBody.trim(),
+      createdAt: serverTimestamp(),
     };
-    setTemplates((prev) => [tpl, ...prev]);
+    try {
+      await addDoc(collection(db, "templates"), tplData);
+      toast({ title: "Template created" });
+    } catch (e) {
+      console.error("Failed to create template:", e);
+      // Fallback: add locally
+      setTemplates((prev) => [{ id: `local-${Date.now()}`, ...tplData, subject: tplData.subject || undefined } as MessageTemplate, ...prev]);
+      toast({ title: "Template created locally" });
+    }
     setCreateOpen(false);
     setNewName("");
     setNewSubject("");
     setNewBody("");
-    toast({ title: "Template created" });
   };
 
-  const handleDelete = (id: string) => {
-    setTemplates((prev) => prev.filter((t) => t.id !== id));
-    toast({ title: "Template deleted" });
+  const handleDelete = async (id: string) => {
+    if (usingFallback || id.startsWith("t") || id.startsWith("local-")) {
+      setTemplates((prev) => prev.filter((t) => t.id !== id));
+      toast({ title: "Template deleted" });
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, "templates", id));
+      toast({ title: "Template deleted" });
+    } catch (e) {
+      console.error("Failed to delete template:", e);
+      toast({ title: "Delete failed", variant: "destructive" });
+    }
   };
 
   const emailTemplates = templates.filter((t) => t.channel === "email");
