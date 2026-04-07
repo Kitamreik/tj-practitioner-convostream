@@ -196,6 +196,7 @@ const Conversations: React.FC = () => {
   const { profile } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [allMessages, setAllMessages] = useState<Record<string, ConversationMessage[]>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [replyText, setReplyText] = useState("");
@@ -319,7 +320,9 @@ const Conversations: React.FC = () => {
     const unsub = onSnapshot(
       q,
       (snapshot) => {
-        setMessages(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as ConversationMessage)));
+        const msgs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as ConversationMessage));
+        setMessages(msgs);
+        setAllMessages((prev) => ({ ...prev, [selectedId]: msgs }));
       },
       (error) => {
         console.error("Messages listener error:", error);
@@ -329,10 +332,26 @@ const Conversations: React.FC = () => {
     return unsub;
   }, [selectedId, usingFallback]);
 
+  // Cache fallback messages for search
+  useEffect(() => {
+    if (usingFallback) {
+      const cache: Record<string, ConversationMessage[]> = {};
+      fallbackConversations.forEach((c) => {
+        cache[c.id] = fallbackMessages.filter((m) => m.conversationId === c.id);
+      });
+      setAllMessages(cache);
+    }
+  }, [usingFallback]);
+
   const filtered = conversations.filter((c) => {
-    const matchesSearch =
-      c.customerName.toLowerCase().includes(search.toLowerCase()) ||
-      c.lastMessage.toLowerCase().includes(search.toLowerCase());
+    const lowerSearch = search.toLowerCase();
+    const matchesBasic =
+      c.customerName.toLowerCase().includes(lowerSearch) ||
+      c.lastMessage.toLowerCase().includes(lowerSearch);
+    // Full-text search across cached message contents
+    const matchesMessages = !matchesBasic && search.length >= 2 &&
+      (allMessages[c.id] || []).some((m) => m.text.toLowerCase().includes(lowerSearch));
+    const matchesSearch = matchesBasic || matchesMessages;
     const matchesStatus = statusFilter === "all" || c.status === statusFilter;
     const matchesChannel = channelFilter === "all" || c.channel === channelFilter;
     return matchesSearch && matchesStatus && matchesChannel;
@@ -496,11 +515,34 @@ const Conversations: React.FC = () => {
                 </DropdownMenuContent>
               </DropdownMenu>
               <ConversationTemplates onInsertTemplate={handleInsertTemplate} />
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  if (selected?.customerPhone) {
+                    window.open(`tel:${selected.customerPhone}`, "_self");
+                  } else {
+                    toast({ title: "No phone number", description: "This customer has no phone number on file.", variant: "destructive" });
+                  }
+                }}
+              >
+                <Phone className="h-3.5 w-3.5" /> Call
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  if (selected?.customerEmail) {
+                    window.open(`mailto:${selected.customerEmail}`, "_blank");
+                  }
+                }}
+              >
+                <Mail className="h-3.5 w-3.5" /> Email
+              </Button>
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setProfileOpen(true)}>
                 <User className="h-3.5 w-3.5" /> Profile
-              </Button>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <Clock className="h-3.5 w-3.5" /> History
               </Button>
             </div>
           </div>

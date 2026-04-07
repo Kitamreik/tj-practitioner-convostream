@@ -44,6 +44,8 @@ const AppSidebar: React.FC = () => {
   const location = useLocation();
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({ active: 0, waiting: 0 });
 
+  const [notificationCount, setNotificationCount] = useState(0);
+
   // Listen for unread conversations
   useEffect(() => {
     const q = query(collection(db, "conversations"), where("unread", "==", true));
@@ -60,8 +62,22 @@ const AppSidebar: React.FC = () => {
         setUnreadCounts({ active, waiting });
       },
       () => {
-        // Fallback counts from mock data
         setUnreadCounts({ active: 1, waiting: 1 });
+      }
+    );
+    return unsub;
+  }, []);
+
+  // Listen for unread notifications
+  useEffect(() => {
+    const q = query(collection(db, "notifications"), where("read", "==", false));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        setNotificationCount(snapshot.size);
+      },
+      () => {
+        setNotificationCount(2); // fallback
       }
     );
     return unsub;
@@ -75,7 +91,7 @@ const AppSidebar: React.FC = () => {
 
   const getBadge = (item: NavItem) => {
     if (item.badgeKey === "conversations" && totalUnread > 0) return totalUnread;
-    if (item.badgeKey === "notifications") return 2; // mock unread notifications
+    if (item.badgeKey === "notifications" && notificationCount > 0) return notificationCount;
     return 0;
   };
 
