@@ -378,6 +378,21 @@ const Conversations: React.FC = () => {
   const hasActiveFilters = statusFilter !== "all" || channelFilter !== "all";
   const clearFilters = () => { setStatusFilter("all"); setChannelFilter("all"); };
 
+  const handleAssignAgent = (convoId: string, agent: string) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === convoId ? { ...c, assignedAgent: agent } : c))
+    );
+    toast({ title: "Assigned", description: `Conversation assigned to ${agent}.` });
+  };
+
+  const handleMarkResolved = () => {
+    if (!selectedId) return;
+    setConversations((prev) =>
+      prev.map((c) => (c.id === selectedId ? { ...c, status: "resolved" as const } : c))
+    );
+    toast({ title: "Resolved", description: "Conversation marked as resolved." });
+  };
+
   const handleSend = async () => {
     if (!replyText.trim() || !selectedId || usingFallback) return;
     try {
@@ -394,6 +409,24 @@ const Conversations: React.FC = () => {
       console.error("Failed to send message:", e);
     }
   };
+
+  // Navigate to next/prev conversation
+  const navigateConvo = (dir: 1 | -1) => {
+    const idx = filtered.findIndex((c) => c.id === selectedId);
+    const next = filtered[idx + dir];
+    if (next) setSelectedId(next.id);
+  };
+
+  const shortcuts = useMemo(() => [
+    { key: "r", ctrl: false, shift: false, alt: false, action: () => replyInputRef.current?.focus(), description: "Focus reply box" },
+    { key: "j", ctrl: false, shift: false, alt: false, action: () => navigateConvo(1), description: "Next conversation" },
+    { key: "k", ctrl: false, shift: false, alt: false, action: () => navigateConvo(-1), description: "Previous conversation" },
+    { key: "e", ctrl: false, shift: false, alt: false, action: handleMarkResolved, description: "Mark as resolved" },
+    { key: "Escape", ctrl: false, shift: false, alt: false, action: () => { (document.activeElement as HTMLElement)?.blur(); }, description: "Unfocus / close" },
+    { key: "?", ctrl: false, shift: true, alt: false, action: () => setShowShortcuts((p) => !p), description: "Show shortcuts" },
+  ], [filtered, selectedId])
+
+  useKeyboardShortcuts(shortcuts);
 
   return (
     <div className="flex h-full">
