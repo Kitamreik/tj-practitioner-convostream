@@ -514,6 +514,11 @@ const Conversations: React.FC = () => {
                       {convo.channel.toUpperCase()}
                     </Badge>
                     <span className={`inline-flex h-5 items-center rounded-full px-1.5 text-[10px] font-medium ${statusColors[convo.status]}`}>{convo.status}</span>
+                    {convo.assignedAgent && (
+                      <span className="inline-flex h-5 items-center gap-1 rounded-full bg-primary/5 px-1.5 text-[10px] text-primary">
+                        <UserCheck className="h-2.5 w-2.5" />{convo.assignedAgent.split(" ")[0]}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -587,8 +592,62 @@ const Conversations: React.FC = () => {
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setProfileOpen(true)}>
                 <User className="h-3.5 w-3.5" /> Profile
               </Button>
+              {/* Assign Agent */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <UserCheck className="h-3.5 w-3.5" /> {selected.assignedAgent ? selected.assignedAgent.split(" ")[0] : "Assign"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-2" align="end">
+                  <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">Assign to agent</p>
+                  {agents.map((agent) => (
+                    <button
+                      key={agent}
+                      onClick={() => handleAssignAgent(selected.id, agent)}
+                      className={`w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors ${selected.assignedAgent === agent ? "bg-accent font-medium" : ""}`}
+                    >
+                      {agent}
+                    </button>
+                  ))}
+                </PopoverContent>
+              </Popover>
+              {/* Mark Resolved */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" onClick={handleMarkResolved} disabled={selected.status === "resolved"}>
+                    ✓
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Mark as resolved (E)</TooltipContent>
+              </Tooltip>
+              {/* Shortcuts help */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" onClick={() => setShowShortcuts((p) => !p)}>
+                    <Keyboard className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Keyboard shortcuts (?)</TooltipContent>
+              </Tooltip>
             </div>
           </div>
+
+          {/* Keyboard Shortcuts Help */}
+          {showShortcuts && (
+            <div className="border-b border-border bg-muted/30 px-6 py-3">
+              <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                {shortcuts.map((s) => (
+                  <span key={s.key} className="flex items-center gap-1.5">
+                    <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px]">
+                      {s.shift ? "⇧+" : ""}{s.ctrl ? "⌘+" : ""}{s.key === " " ? "Space" : s.key.toUpperCase()}
+                    </kbd>
+                    {s.description}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -617,6 +676,7 @@ const Conversations: React.FC = () => {
           <div className="border-t border-border p-4">
             <div className="flex gap-3">
               <Input
+                ref={replyInputRef}
                 placeholder={usingFallback ? "Connect Firestore to send messages..." : "Type your reply..."}
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
