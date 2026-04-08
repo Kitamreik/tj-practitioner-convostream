@@ -15,6 +15,7 @@ import Notifications from "./pages/Notifications";
 import Integrations from "./pages/Integrations";
 import AuditLogs from "./pages/AuditLogs";
 import Analytics from "./pages/Analytics";
+import GmailAPI from "./pages/GmailAPI";
 import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -60,6 +61,7 @@ const App = () => (
                 <Route path="/integrations" element={<Integrations />} />
                 <Route path="/audit" element={<ProtectedRoute roles={["webmaster"]}><AuditLogs /></ProtectedRoute>} />
                 <Route path="/analytics" element={<Analytics />} />
+                <Route path="/gmail" element={<GmailAPI />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>
               <Route path="*" element={<NotFound />} />
