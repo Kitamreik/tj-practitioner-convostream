@@ -1007,6 +1007,40 @@ const Conversations: React.FC = () => {
         <div className="hidden flex-1 items-center justify-center text-muted-foreground md:flex">Select a conversation to view</div>
       )}
 
+      {/* Elevate to Webmaster — investigation request */}
+      <Dialog open={elevateOpen} onOpenChange={setElevateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Elevate to webmaster</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <p className="text-sm text-muted-foreground">
+              This will email <strong>kit.tjclasses@gmail.com</strong> asking a webmaster to
+              investigate <strong>{selected?.customerName}</strong>'s conversation. The request is
+              also logged in <code className="rounded bg-muted px-1 py-0.5 text-xs">investigationRequests</code>.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="elevate-reason">Reason (optional)</Label>
+              <Textarea
+                id="elevate-reason"
+                placeholder="What should the webmaster look at?"
+                value={elevateReason}
+                onChange={(e) => setElevateReason(e.target.value)}
+                rows={4}
+                maxLength={1000}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setElevateOpen(false)}>Cancel</Button>
+              <Button onClick={submitElevation} disabled={elevating} className="gap-2">
+                <ShieldAlert className="h-4 w-4" />
+                {elevating ? "Sending…" : "Send investigation request"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Profile Modal */}
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
         <DialogContent>
