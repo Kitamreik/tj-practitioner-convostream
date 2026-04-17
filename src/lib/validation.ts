@@ -104,9 +104,12 @@ export const maskSecret = (value: string | undefined | null): string => {
 };
 
 // Helper: run a Zod schema and return either the parsed value or a friendly error message.
-export function safeValidate<T>(schema: z.ZodSchema<T>, value: unknown): { ok: true; data: T } | { ok: false; error: string } {
+export type ValidateResult<T> = { ok: true; data: T; error?: undefined } | { ok: false; error: string; data?: undefined };
+
+export function safeValidate<T>(schema: z.ZodType<T, any, any>, value: unknown): ValidateResult<T> {
   const result = schema.safeParse(value);
   if (result.success) return { ok: true, data: result.data };
   const first = result.error.errors[0];
   return { ok: false, error: first?.message || "Invalid input" };
 }
+
