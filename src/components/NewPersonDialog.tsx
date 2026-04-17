@@ -61,6 +61,9 @@ const NewPersonDialog: React.FC = () => {
         phone: cleanPhone,
         tags: tagsRes.data,
         conversations: 0,
+        // Explicit archived flag so the People listener's `!p.archived` filter
+        // always matches, even before serverTimestamp resolves on the client.
+        archived: false,
         lastActive: serverTimestamp(),
         createdAt: serverTimestamp(),
       });
