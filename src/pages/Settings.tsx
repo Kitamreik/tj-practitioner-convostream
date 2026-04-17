@@ -695,7 +695,7 @@ const SettingsPage: React.FC = () => {
 
       <div className="space-y-6 md:space-y-8">
         {/* Profile */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div id="profile" className="rounded-xl border border-border bg-card p-6">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-4">
             <User className="h-5 w-5 text-primary" />
             Profile
@@ -722,7 +722,7 @@ const SettingsPage: React.FC = () => {
         </div>
 
         {/* Appearance */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div id="appearance" className="rounded-xl border border-border bg-card p-6">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-4">
             {theme === "light" ? <Sun className="h-5 w-5 text-primary" /> : <Moon className="h-5 w-5 text-primary" />}
             Appearance
@@ -1343,7 +1343,7 @@ const SettingsPage: React.FC = () => {
         )}
 
         {/* Security */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div id="security" className="rounded-xl border border-border bg-card p-6">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-4">
             <Shield className="h-5 w-5 text-primary" />
             Security
