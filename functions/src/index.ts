@@ -315,9 +315,14 @@ export const revokeEscalatedAccess = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Webmasters only.");
   }
 
-  const { targetUid } = (request.data ?? {}) as { targetUid?: unknown };
-  if (typeof targetUid !== "string" || !targetUid) {
+  const data = (request.data ?? {}) as { targetUid?: unknown; reason?: unknown };
+  const targetUid = typeof data.targetUid === "string" ? data.targetUid : "";
+  const reason = typeof data.reason === "string" ? data.reason.trim().slice(0, 1000) : "";
+  if (!targetUid) {
     throw new HttpsError("invalid-argument", "targetUid required.");
+  }
+  if (!reason) {
+    throw new HttpsError("invalid-argument", "A reason for revoking is required.");
   }
 
   const targetRef = db.doc(`users/${targetUid}`);
@@ -346,9 +351,10 @@ export const revokeEscalatedAccess = onCall(async (request) => {
     grantedByEmail: callerSnap.data()?.email ?? null,
     grantedAt: admin.firestore.FieldValue.serverTimestamp(),
     action: "revokeEscalatedAccess",
+    reason,
   });
 
-  logger.info("revokeEscalatedAccess: revoked", { targetUid, by: callerUid });
+  logger.info("revokeEscalatedAccess: revoked", { targetUid, by: callerUid, reason });
   return { ok: true };
 });
 
