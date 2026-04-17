@@ -21,11 +21,81 @@
 
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onRequest } from "firebase-functions/v2/https";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
 import * as admin from "firebase-admin";
 
 admin.initializeApp();
 const db = admin.firestore();
+
+/**
+ * Defense-in-depth: strip any client-supplied `role` field on writes to
+ * users/{uid}. Security rules already prevent non-webmasters from setting or
+ * mutating `role`, but if a privileged actor (or a future bug) lets a write
+ * through, this trigger guarantees the role can never be escalated by the
+ * client. The only legitimate `role` mutation path is server-side admin SDK
+ * code (which bypasses this trigger because it sets a sentinel field).
+ *
+ * Behavior:
+ * - On create: if the new doc contains `role` ≠ "admin", reset it to "admin".
+ * - On update: if `role` changed and the change wasn't marked server-authored,
+ *   restore the previous role.
+ * - To allow legitimate server-side role changes, set the sentinel
+ *   `_serverRoleWrite: true` on the same write; the trigger will accept it
+ *   and clear the sentinel.
+ */
+export const enforceUserRoleOnWrite = onDocumentWritten(
+  "users/{uid}",
+  async (event) => {
+    const after = event.data?.after;
+    const before = event.data?.before;
+    if (!after?.exists) return; // doc was deleted; nothing to do
+
+    const afterData = after.data() as Record<string, unknown> | undefined;
+    const beforeData = before?.data() as Record<string, unknown> | undefined;
+    if (!afterData) return;
+
+    const serverAuthored = afterData._serverRoleWrite === true;
+    const newRole = afterData.role;
+    const oldRole = beforeData?.role ?? "admin";
+
+    // Server-authored writes are trusted — just clear the sentinel.
+    if (serverAuthored) {
+      await after.ref.update({
+        _serverRoleWrite: admin.firestore.FieldValue.delete(),
+      });
+      return;
+    }
+
+    // Determine what (if anything) needs correcting.
+    const updates: Record<string, unknown> = {};
+
+    if (!before?.exists) {
+      // CREATE: force baseline `admin` role regardless of what the client sent.
+      if (newRole !== "admin") {
+        updates.role = "admin";
+        logger.warn("enforceUserRoleOnWrite: stripped non-default role on create", {
+          uid: event.params.uid,
+          attemptedRole: newRole,
+        });
+      }
+    } else {
+      // UPDATE: revert any client-driven change to `role`.
+      if (newRole !== oldRole) {
+        updates.role = oldRole;
+        logger.warn("enforceUserRoleOnWrite: reverted client role change", {
+          uid: event.params.uid,
+          from: oldRole,
+          to: newRole,
+        });
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await after.ref.update(updates);
+    }
+  }
+);
 
 const RETENTION_DAYS = 30;
 const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
