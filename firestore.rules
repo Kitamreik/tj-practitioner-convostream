@@ -62,6 +62,7 @@ service cloud.firestore {
       allow create: if isSelf(uid)
         && (
           !('role' in request.resource.data)
+          || request.resource.data.role == 'agent'
           || request.resource.data.role == 'admin'
           || isWebmaster()
         )
