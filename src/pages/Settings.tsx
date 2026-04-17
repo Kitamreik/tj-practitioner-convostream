@@ -66,6 +66,7 @@ import {
   onSnapshot,
   doc,
   writeBatch,
+  getDocs,
 } from "firebase/firestore";
 import {
   Select,
@@ -554,6 +555,37 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  const [clearingDemo, setClearingDemo] = useState(false);
+  const clearDemoData = async () => {
+    setClearingDemo(true);
+    try {
+      const snap = await getDocs(query(collection(db, "conversations"), where("demo", "==", true)));
+      if (snap.empty) {
+        toast({ title: "No demo conversations to clear" });
+        return;
+      }
+      // Firestore batch limit is 500 ops; chunk to be safe.
+      const docs = snap.docs;
+      for (let i = 0; i < docs.length; i += 400) {
+        const batch = writeBatch(db);
+        for (const d of docs.slice(i, i + 400)) batch.delete(d.ref);
+        await batch.commit();
+      }
+      toast({
+        title: "Demo data cleared",
+        description: `Deleted ${docs.length} demo conversation${docs.length === 1 ? "" : "s"}.`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Could not clear demo data",
+        description: e?.message || "Try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setClearingDemo(false);
+    }
+  };
+
   const submitReassign = async () => {
     if (!reassignFrom || !reassignTo) return;
     if (!sourceRowForReassign) return;
@@ -959,17 +991,30 @@ const SettingsPage: React.FC = () => {
                   <Badge variant="secondary" className="ml-1">{overviewByAgent.length}</Badge>
                 )}
               </h3>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={seedDemoData}
-                disabled={seeding}
-                aria-label="Seed 5 demo conversations assigned to one agent"
-              >
-                <MessageCircle className="h-3.5 w-3.5" />
-                {seeding ? "Seeding..." : "Seed demo data"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={seedDemoData}
+                  disabled={seeding}
+                  aria-label="Seed 5 demo conversations assigned to one agent"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  {seeding ? "Seeding..." : "Seed demo data"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={clearDemoData}
+                  disabled={clearingDemo}
+                  aria-label="Delete every conversation marked as demo"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {clearingDemo ? "Clearing..." : "Clear demo data"}
+                </Button>
+              </div>
             </div>
             <p className="text-xs text-muted-foreground mb-4">
               Live snapshot of every agent and admin with assigned conversations. Click a row
