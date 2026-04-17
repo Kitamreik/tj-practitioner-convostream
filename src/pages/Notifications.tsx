@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Check, AlertCircle, MessageSquare, Phone, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import PullToRefresh from "@/components/PullToRefresh";
+import { toast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Notification {
   id: string;
