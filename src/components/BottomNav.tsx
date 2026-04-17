@@ -16,7 +16,7 @@ interface NavItem {
   path: string;
   badgeKey?: string;
   webmasterOrEscalated?: boolean;
-  roles?: ("admin" | "webmaster")[];
+  roles?: ("agent" | "admin" | "webmaster")[];
 }
 
 const chatsItem: NavItem = { label: "Chats", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" };
