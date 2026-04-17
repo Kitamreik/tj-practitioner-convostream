@@ -449,6 +449,7 @@ const SettingsPage: React.FC = () => {
     });
   };
 
+  const deleteAccount = async (uid: string, email: string) => {
     setDeletingUid(uid);
     try {
       const fn = httpsCallable<{ targetUid: string }, { ok: boolean }>(functions, "deleteUserAccount");
