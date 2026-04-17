@@ -15,19 +15,19 @@ interface NavItem {
   icon: React.ReactNode;
   path: string;
   badgeKey?: string;
+  webmasterOrEscalated?: boolean;
+  roles?: ("admin" | "webmaster")[];
 }
 
-const primaryItems: NavItem[] = [
-  { label: "Chats", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" },
-  { label: "People", icon: <Users className="h-5 w-5" />, path: "/people" },
-  { label: "Alerts", icon: <Bell className="h-5 w-5" />, path: "/notifications", badgeKey: "notifications" },
-  { label: "Stats", icon: <BarChart3 className="h-5 w-5" />, path: "/analytics" },
-];
+const chatsItem: NavItem = { label: "Chats", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" };
+const peopleItem: NavItem = { label: "People", icon: <Users className="h-5 w-5" />, path: "/people" };
+const alertsItem: NavItem = { label: "Alerts", icon: <Bell className="h-5 w-5" />, path: "/notifications", badgeKey: "notifications" };
+const statsItem: NavItem = { label: "Stats", icon: <BarChart3 className="h-5 w-5" />, path: "/analytics", webmasterOrEscalated: true };
 
 const moreItems: NavItem[] = [
-  { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations" },
-  { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit" },
-  { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail" },
+  { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations", webmasterOrEscalated: true },
+  { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit", roles: ["webmaster"] },
+  { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail", webmasterOrEscalated: true },
   { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" },
   { label: "Settings", icon: <SettingsIcon className="h-5 w-5" />, path: "/settings" },
 ];
