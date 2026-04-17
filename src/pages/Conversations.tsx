@@ -814,6 +814,39 @@ const Conversations: React.FC = () => {
             ))}
           </div>
 
+          {/* Mid-conversation status & channel quick-change */}
+          <div className="border-t border-border bg-muted/20 px-4 py-2 flex flex-wrap items-center gap-3 text-xs">
+            <div className="flex items-center gap-1.5">
+              <Tag className="h-3 w-3 text-muted-foreground" />
+              <span className="text-muted-foreground">Status:</span>
+              <Select value={selected.status} onValueChange={(v) => handleChangeStatus(v as any)}>
+                <SelectTrigger className="h-7 w-28 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="waiting">Waiting</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Radio className="h-3 w-3 text-muted-foreground" />
+              <span className="text-muted-foreground">Channel:</span>
+              <Select value={selected.channel} onValueChange={(v) => handleChangeChannel(v as any)}>
+                <SelectTrigger className="h-7 w-28 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="sms">SMS</SelectItem>
+                  <SelectItem value="phone">Phone</SelectItem>
+                  <SelectItem value="slack">Slack</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {/* Reply */}
           <div className="border-t border-border p-4">
             <div className="flex gap-3">
