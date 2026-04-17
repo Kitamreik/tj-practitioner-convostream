@@ -14,7 +14,6 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [role, setRole] = useState<"admin" | "webmaster">("admin");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -23,16 +22,19 @@ const Login: React.FC = () => {
     setLoading(true);
     try {
       if (isSignUp) {
-        await signUp(email, password, role, displayName);
+        // Role is assigned server-side; never accept client-supplied role at signup.
+        await signUp(email, password, displayName);
         toast({ title: "Account created", description: "Welcome to ConvoHub!" });
       } else {
         await signIn(email, password);
         toast({ title: "Welcome back", description: "Signed in successfully." });
       }
     } catch (error: any) {
+      // Generic message — don't leak whether the email exists or which field failed.
+      console.warn("Auth error:", error?.code || error?.message);
       toast({
         title: "Authentication failed",
-        description: error?.message || "Please check your credentials.",
+        description: "Invalid email or password.",
         variant: "destructive",
       });
     } finally {
@@ -73,27 +75,6 @@ const Login: React.FC = () => {
                     placeholder="Your name"
                     required
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant={role === "admin" ? "default" : "outline"}
-                      className="flex-1"
-                      onClick={() => setRole("admin")}
-                    >
-                      Admin
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={role === "webmaster" ? "default" : "outline"}
-                      className="flex-1"
-                      onClick={() => setRole("webmaster")}
-                    >
-                      Webmaster
-                    </Button>
-                  </div>
                 </div>
               </>
             )}
