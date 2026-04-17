@@ -499,6 +499,33 @@ const GmailAPI: React.FC = () => {
     return match ? match[1].trim() : from.split("@")[0];
   };
 
+  // Lightweight, read-only verification that creds + OAuth are valid.
+  // Pings users.getProfile (cheapest authenticated Gmail call).
+  const handleTestConnection = useCallback(async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      if (!clientReady) {
+        throw new Error("Client not initialized. Save credentials first.");
+      }
+      if (!authorized || window.gapi.client.getToken() === null) {
+        throw new Error("Not authorized. Click Authorize to grant Gmail access.");
+      }
+      const res = await window.gapi.client.gmail.users.getProfile({ userId: "me" });
+      const email = res?.result?.emailAddress;
+      const total = res?.result?.messagesTotal;
+      const msg = email ? `Connected as ${email} · ${total ?? 0} messages` : "Connected";
+      setTestResult({ ok: true, message: msg });
+      toast({ title: "Connection OK", description: msg });
+    } catch (e: any) {
+      const m = e?.result?.error?.message || e?.message || "Connection failed";
+      setTestResult({ ok: false, message: m });
+      toast({ title: "Connection failed", description: m, variant: "destructive" });
+    } finally {
+      setTesting(false);
+    }
+  }, [clientReady, authorized]);
+
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
       <div className="mb-6 md:mb-8 flex items-center justify-between gap-3">
