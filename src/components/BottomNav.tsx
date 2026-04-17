@@ -64,6 +64,12 @@ const BottomNav: React.FC = () => {
     setMoreOpen(false);
   };
 
+  const escalated = profile?.role === "webmaster" || profile?.escalatedAccess === true;
+  // Non-escalated admins lose the Stats slot; surface Archive instead so the bar stays useful.
+  const primaryItems: NavItem[] = escalated
+    ? [chatsItem, peopleItem, alertsItem, statsItem]
+    : [chatsItem, peopleItem, alertsItem, { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" }];
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch border-t border-border bg-background pb-[env(safe-area-inset-bottom)] md:hidden">
       {primaryItems.map((item) => {
