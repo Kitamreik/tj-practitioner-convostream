@@ -393,6 +393,13 @@ const AuditLogs: React.FC = () => {
         </TabsList>
 
         <TabsContent value="logins">
+          <div className="flex items-center justify-end mb-3">
+            <ClearAllButton
+              label="login attempts"
+              count={loginAttempts.length}
+              onConfirm={() => handleClearAll("login_attempts", "login attempts")}
+            />
+          </div>
           <div className="rounded-xl border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px]">
@@ -453,6 +460,13 @@ const AuditLogs: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="notes">
+          <div className="flex items-center justify-end mb-3">
+            <ClearAllButton
+              label="notification changes"
+              count={notes.length}
+              onConfirm={() => handleClearAll("noteAudit", "notification changes")}
+            />
+          </div>
           <div className="rounded-xl border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px]">
