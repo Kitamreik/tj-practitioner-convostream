@@ -78,6 +78,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { httpsCallable } from "firebase/functions";
+import { useSearchParams } from "react-router-dom";
 import { functions } from "@/lib/firebase";
 
 interface Conversation {
@@ -302,6 +303,7 @@ const Conversations: React.FC = () => {
   };
   const replyInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const agents = ["Alice Johnson", "Bob Smith", "Carol Davis", "Dan Lee"];
 
@@ -392,19 +394,25 @@ const Conversations: React.FC = () => {
     const unsub = onSnapshot(
       q,
       (snapshot) => {
+        const requestedOpen = searchParams.get("open");
         if (snapshot.empty) {
           setConversations(fallbackConversations);
           setUsingFallback(true);
-          setSelectedId("mock-1");
+          setSelectedId(requestedOpen || "mock-1");
         } else {
           const convos = snapshot.docs.map(
             (d) => ({ id: d.id, ...d.data() } as Conversation)
           );
           setConversations(convos);
           setUsingFallback(false);
-          const visible = convos.filter((c) => (showArchived ? c.archived : !c.archived));
-          if (!selectedId || !visible.find((c) => c.id === selectedId)) {
-            setSelectedId(visible[0]?.id || null);
+          // Honor ?open=<id> deep link if it matches a real conversation.
+          if (requestedOpen && convos.find((c) => c.id === requestedOpen)) {
+            setSelectedId(requestedOpen);
+          } else {
+            const visible = convos.filter((c) => (showArchived ? c.archived : !c.archived));
+            if (!selectedId || !visible.find((c) => c.id === selectedId)) {
+              setSelectedId(visible[0]?.id || null);
+            }
           }
         }
       },
@@ -417,6 +425,20 @@ const Conversations: React.FC = () => {
     );
     return unsub;
   }, []);
+
+  // Honor ?open=<conversationId> deep link, then strip the param so refreshes don't re-trigger.
+  useEffect(() => {
+    const requestedOpen = searchParams.get("open");
+    if (!requestedOpen) return;
+    if (conversations.find((c) => c.id === requestedOpen)) {
+      setSelectedId(requestedOpen);
+      // Clear the param so navigating away/back doesn't pin the selection.
+      const next = new URLSearchParams(searchParams);
+      next.delete("open");
+      setSearchParams(next, { replace: true });
+      toast({ title: "Conversation opened", description: "Linked from Investigation requests." });
+    }
+  }, [conversations, searchParams, setSearchParams]);
 
   // Real-time messages listener for selected conversation
   useEffect(() => {
