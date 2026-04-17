@@ -18,6 +18,8 @@ import {
   ShieldOff,
   Search,
   ExternalLink,
+  Pencil,
+  UserCog,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -73,7 +75,7 @@ interface AccountRow {
   uid: string;
   email: string;
   displayName: string;
-  role: "admin" | "webmaster";
+  role: "agent" | "admin" | "webmaster";
   escalatedAccess?: boolean;
   createdAt?: any;
 }
