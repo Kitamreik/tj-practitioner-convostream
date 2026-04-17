@@ -330,7 +330,9 @@ const Conversations: React.FC = () => {
           setUsingFallback(true);
           setSelectedId("mock-1");
         } else {
-          const convos = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Conversation));
+          const convos = snapshot.docs
+            .map((d) => ({ id: d.id, ...d.data() } as Conversation & { archived?: boolean }))
+            .filter((c) => !c.archived);
           setConversations(convos);
           setUsingFallback(false);
           if (!selectedId || !convos.find((c) => c.id === selectedId)) {
@@ -917,15 +919,15 @@ const Conversations: React.FC = () => {
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this conversation?</AlertDialogTitle>
+            <AlertDialogTitle>Move to Archive?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove the thread and all messages. This action cannot be undone.
+              The thread will be hidden from your active list. You can restore it from the Archive page within 30 days, after which it will be permanently deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteConversation} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
+              Archive
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
