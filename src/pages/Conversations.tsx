@@ -232,6 +232,7 @@ const Conversations: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const replyInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
