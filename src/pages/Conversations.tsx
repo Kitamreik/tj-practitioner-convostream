@@ -17,7 +17,10 @@ import {
   X,
   UserCheck,
   Keyboard,
+  ArrowLeft,
 } from "lucide-react";
+import PullToRefresh from "@/components/PullToRefresh";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +50,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface Conversation {
   id: string;
@@ -211,8 +215,14 @@ const Conversations: React.FC = () => {
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const replyInputRef = useRef<HTMLInputElement>(null);
+  const isMobile = useIsMobile();
 
   const agents = ["Alice Johnson", "Bob Smith", "Carol Davis", "Dan Lee"];
+
+  const handleRefresh = async () => {
+    await new Promise((r) => setTimeout(r, 600));
+    toast({ title: "Refreshed", description: "Conversations are up to date." });
+  };
 
 
   // Single conversation export handlers
@@ -430,8 +440,13 @@ const Conversations: React.FC = () => {
 
   return (
     <div className="flex h-full">
-      {/* Thread List */}
-      <div className="w-80 flex-shrink-0 border-r border-border flex flex-col">
+      {/* Thread List — full width on mobile when nothing selected, hidden on mobile when selected */}
+      <div
+        className={cn(
+          "flex w-full flex-shrink-0 flex-col border-r border-border md:w-80",
+          isMobile && selectedId ? "hidden" : "flex"
+        )}
+      >
         <div className="border-b border-border p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-foreground">Conversations</h2>
@@ -440,7 +455,7 @@ const Conversations: React.FC = () => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1">
                     <PackageOpen className="h-3.5 w-3.5" />
-                    Bulk Export
+                    <span className="hidden sm:inline">Bulk Export</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -491,7 +506,7 @@ const Conversations: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <PullToRefresh onRefresh={handleRefresh} className="flex-1" disabled={!isMobile}>
           {filtered.map((convo) => (
             <button
               key={convo.id}
@@ -508,7 +523,7 @@ const Conversations: React.FC = () => {
                     <span className="text-xs text-muted-foreground">{formatTimestamp(convo.timestamp)}</span>
                   </div>
                   <p className={`mt-0.5 truncate text-xs ${convo.unread ? "text-foreground font-medium" : "text-muted-foreground"}`}>{convo.lastMessage}</p>
-                  <div className="mt-1.5 flex items-center gap-2">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
                       {channelIcons[convo.channel]}
                       {convo.channel.toUpperCase()}
@@ -524,22 +539,27 @@ const Conversations: React.FC = () => {
               </div>
             </button>
           ))}
-        </div>
+        </PullToRefresh>
       </div>
 
       {/* Thread Detail */}
       {selected ? (
-        <div className="flex flex-1 flex-col">
+        <div className={cn("flex flex-1 flex-col", isMobile && !selectedId ? "hidden" : "")}>
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-border px-6 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{selected.customerName.charAt(0)}</div>
-              <div>
-                <h3 className="font-semibold text-foreground">{selected.customerName}</h3>
-                <p className="text-xs text-muted-foreground">{selected.customerEmail}</p>
+          <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 md:px-6 md:py-4">
+            <div className="flex min-w-0 items-center gap-2 md:gap-3">
+              {isMobile && (
+                <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setSelectedId(null)} aria-label="Back">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              )}
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{selected.customerName.charAt(0)}</div>
+              <div className="min-w-0">
+                <h3 className="truncate font-semibold text-foreground">{selected.customerName}</h3>
+                <p className="truncate text-xs text-muted-foreground">{selected.customerEmail}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1.5">
@@ -691,7 +711,7 @@ const Conversations: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center text-muted-foreground">Select a conversation to view</div>
+        <div className="hidden flex-1 items-center justify-center text-muted-foreground md:flex">Select a conversation to view</div>
       )}
 
       {/* Profile Modal */}
