@@ -429,6 +429,52 @@ const AuditLogs: React.FC = () => {
         </TabsList>
 
         <TabsContent value="logins">
+          {/* 14-day login attempts bar chart */}
+          <div className="rounded-xl border border-border bg-card p-4 md:p-5 mb-4">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Login attempts · last 14 days</h2>
+                <p className="text-xs text-muted-foreground">
+                  {loginChart.total} attempt{loginChart.total === 1 ? "" : "s"} in this window
+                </p>
+              </div>
+              <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-sm bg-primary" /> Success
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-sm bg-destructive" /> Failed
+                </span>
+              </div>
+            </div>
+            <div className="flex items-end gap-1.5 h-24" role="img" aria-label="Login attempts per day for the last 14 days">
+              {loginChart.days.map((d) => {
+                const total = d.success + d.failed;
+                const heightPct = (total / loginChart.max) * 100;
+                const successPct = total > 0 ? (d.success / total) * 100 : 0;
+                return (
+                  <div key={d.key} className="flex-1 flex flex-col items-center gap-1 group">
+                    <div
+                      className="w-full rounded-t-sm overflow-hidden bg-muted/40 flex flex-col-reverse transition-opacity hover:opacity-80"
+                      style={{ height: `${Math.max(2, heightPct)}%`, minHeight: total > 0 ? 4 : 2 }}
+                      title={`${d.label}: ${d.success} success, ${d.failed} failed`}
+                    >
+                      {total > 0 && (
+                        <>
+                          <div className="bg-primary w-full" style={{ height: `${successPct}%` }} />
+                          <div className="bg-destructive w-full" style={{ height: `${100 - successPct}%` }} />
+                        </>
+                      )}
+                    </div>
+                    <span className="text-[9px] text-muted-foreground tabular-nums hidden sm:block">
+                      {d.label.split(" ")[1]}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="flex items-center justify-end mb-3">
             <ClearAllButton
               label="login attempts"
