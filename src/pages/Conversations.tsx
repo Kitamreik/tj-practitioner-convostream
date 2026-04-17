@@ -26,6 +26,8 @@ import {
   ShieldAlert,
   MoreHorizontal,
   Link2,
+  Share2,
+  Users as UsersIcon,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -947,13 +949,13 @@ const Conversations: React.FC = () => {
                     variant="outline"
                     size="sm"
                     className="gap-1.5 px-2 sm:px-3"
-                    aria-label="Copy conversation link"
+                    aria-label="Share conversation link"
                     onClick={handleCopyLink}
                   >
-                    <Link2 className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Copy link</span>
+                    <Share2 className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Share</span>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Copy a shareable URL to this conversation</TooltipContent>
+                <TooltipContent>Share via system sheet (mobile) or copy link (desktop)</TooltipContent>
               </Tooltip>
 
               {/* === Secondary actions: visible on md+ === */}
