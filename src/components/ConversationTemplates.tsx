@@ -242,14 +242,18 @@ const ConversationTemplates: React.FC<ConversationTemplatesProps> = ({ onInsertT
                         <p className="text-sm font-medium text-foreground">{tpl.name}</p>
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{tpl.body}</p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-destructive"
-                        onClick={(e) => { e.stopPropagation(); handleDelete(tpl.id); }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                      {tpl.locked ? (
+                        <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mt-0.5">Starter</span>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-destructive"
+                          onClick={(e) => { e.stopPropagation(); handleDelete(tpl.id); }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
                   </button>
                 ))}
