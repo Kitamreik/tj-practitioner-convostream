@@ -24,6 +24,7 @@ import {
   serverTimestamp,
   writeBatch,
   getDocs,
+  where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { z } from "zod";
