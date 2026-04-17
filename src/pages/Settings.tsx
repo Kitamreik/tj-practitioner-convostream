@@ -458,6 +458,74 @@ const SettingsPage: React.FC = () => {
     });
   };
 
+  // ---- Reassign workload (webmaster only) ----
+  // Bulk move N of one agent's open conversations to another agent in one batch
+  // write. Uses the same `assignedAgent` field that the Conversations page reads,
+  // so updates appear live everywhere via the existing onSnapshot listeners.
+  const [reassignFrom, setReassignFrom] = useState<string | null>(null);
+  const [reassignTo, setReassignTo] = useState<string>("");
+  const [reassignCount, setReassignCount] = useState<number>(1);
+  const [reassigning, setReassigning] = useState(false);
+
+  const openReassignDialog = (agent: string) => {
+    setReassignFrom(agent);
+    setReassignTo("");
+    const row = overviewByAgent.find((r) => r.agent === agent);
+    const open = row?.open ?? 0;
+    setReassignCount(Math.max(1, Math.min(open, Math.ceil(open / 2))));
+  };
+
+  const closeReassignDialog = () => {
+    setReassignFrom(null);
+    setReassignTo("");
+    setReassignCount(1);
+  };
+
+  // Other agents available as reassignment targets (live from accounts list,
+  // excluding the source agent and any webmaster).
+  const reassignTargets = useMemo(() => {
+    if (!reassignFrom) return [] as string[];
+    const names = accounts
+      .filter((a) => a.role === "agent" || a.role === "admin")
+      .map((a) => (a.displayName || a.email || "").trim())
+      .filter((n) => !!n && n !== reassignFrom);
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+  }, [accounts, reassignFrom]);
+
+  const sourceRowForReassign = useMemo(
+    () => (reassignFrom ? overviewByAgent.find((r) => r.agent === reassignFrom) ?? null : null),
+    [reassignFrom, overviewByAgent]
+  );
+
+  const submitReassign = async () => {
+    if (!reassignFrom || !reassignTo) return;
+    if (!sourceRowForReassign) return;
+    const eligible = sourceRowForReassign.convos
+      .filter((c) => c.status !== "resolved")
+      .slice(0, Math.max(1, Math.min(reassignCount, sourceRowForReassign.open)));
+    if (eligible.length === 0) {
+      toast({ title: "Nothing to reassign", variant: "destructive" });
+      return;
+    }
+    setReassigning(true);
+    try {
+      const batch = writeBatch(db);
+      for (const c of eligible) {
+        batch.update(doc(db, "conversations", c.id), { assignedAgent: reassignTo });
+      }
+      await batch.commit();
+      toast({
+        title: "Workload reassigned",
+        description: `Moved ${eligible.length} conversation${eligible.length === 1 ? "" : "s"} from ${reassignFrom} to ${reassignTo}.`,
+      });
+      closeReassignDialog();
+    } catch (e: any) {
+      toast({ title: "Reassign failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setReassigning(false);
+    }
+  };
+
   const deleteAccount = async (uid: string, email: string) => {
     setDeletingUid(uid);
     try {
