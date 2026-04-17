@@ -101,6 +101,31 @@ const Notifications: React.FC = () => {
   const [draftTitle, setDraftTitle] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
 
+  // Agent workload — surfaced here for non-escalated admins (Analytics is hidden for them).
+  const showWorkload =
+    profile?.role === "admin" && profile?.escalatedAccess !== true;
+  const [workload, setWorkload] = useState({ active: 0, waiting: 0, unread: 0 });
+  useEffect(() => {
+    if (!showWorkload) return;
+    const unsubs: Array<() => void> = [];
+    unsubs.push(
+      onSnapshot(query(collection(db, "conversations"), where("status", "==", "active")), (s) =>
+        setWorkload((w) => ({ ...w, active: s.size }))
+      )
+    );
+    unsubs.push(
+      onSnapshot(query(collection(db, "conversations"), where("status", "==", "waiting")), (s) =>
+        setWorkload((w) => ({ ...w, waiting: s.size }))
+      )
+    );
+    unsubs.push(
+      onSnapshot(query(collection(db, "conversations"), where("unread", "==", true)), (s) =>
+        setWorkload((w) => ({ ...w, unread: s.size }))
+      )
+    );
+    return () => unsubs.forEach((u) => u());
+  }, [showWorkload]);
+
   // Subscribe to per-user notifications collection.
   useEffect(() => {
     if (!user) {
