@@ -174,6 +174,115 @@ const SettingsPage: React.FC = () => {
   const isWebmaster = profile?.role === "webmaster";
   const hasEscalatedAccess = profile?.escalatedAccess === true;
 
+  // ---- Pending escalation requests (webmaster only) ----
+  const [pending, setPending] = useState<PendingEscalation[]>([]);
+  const [decidingId, setDecidingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isWebmaster) return;
+    const q = query(
+      collection(db, "escalationRequests"),
+      where("status", "==", "pending"),
+      orderBy("createdAt", "desc")
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const rows: PendingEscalation[] = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            requesterUid: data.requesterUid,
+            requesterEmail: data.requesterEmail ?? null,
+            requesterName: data.requesterName ?? null,
+            requesterRole: data.requesterRole ?? "admin",
+            reason: data.reason ?? "",
+            emailSent: !!data.emailSent,
+            createdAt: data.createdAt,
+          };
+        });
+        setPending(rows);
+      },
+      (err) => {
+        console.warn("Pending escalations listener error:", err);
+        setPending([]);
+      }
+    );
+    return unsub;
+  }, [isWebmaster]);
+
+  const decide = async (requestId: string, decision: "approve" | "deny") => {
+    setDecidingId(requestId);
+    try {
+      const fn = httpsCallable<{ requestId: string; decision: "approve" | "deny" }, { ok: boolean; status: string }>(
+        functions,
+        "decideEscalationRequest"
+      );
+      const res = await fn({ requestId, decision });
+      toast({
+        title: decision === "approve" ? "Request approved" : "Request denied",
+        description:
+          decision === "approve"
+            ? "User now has escalated access to Integrations, Analytics, and Gmail API."
+            : `Request ${res.data.status}.`,
+      });
+    } catch (e: any) {
+      toast({ title: "Could not update request", description: e?.message, variant: "destructive" });
+    } finally {
+      setDecidingId(null);
+    }
+  };
+
+  // ---- All accounts (webmaster only) ----
+  const [accounts, setAccounts] = useState<AccountRow[]>([]);
+  const [deletingUid, setDeletingUid] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isWebmaster) return;
+    const unsub = onSnapshot(
+      query(collection(db, "users"), orderBy("createdAt", "desc")),
+      (snap) => {
+        const rows: AccountRow[] = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            uid: d.id,
+            email: data.email ?? "",
+            displayName: data.displayName ?? "",
+            role: data.role ?? "admin",
+            escalatedAccess: !!data.escalatedAccess,
+            createdAt: data.createdAt,
+          };
+        });
+        setAccounts(rows);
+      },
+      (err) => {
+        console.warn("Accounts listener error:", err);
+        setAccounts([]);
+      }
+    );
+    return unsub;
+  }, [isWebmaster]);
+
+  const deleteAccount = async (uid: string, email: string) => {
+    setDeletingUid(uid);
+    try {
+      const fn = httpsCallable<{ targetUid: string }, { ok: boolean }>(functions, "deleteUserAccount");
+      await fn({ targetUid: uid });
+      toast({ title: "Account deleted", description: `${email || uid} removed from Auth + Firestore.` });
+    } catch (e: any) {
+      toast({ title: "Delete failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setDeletingUid(null);
+    }
+  };
+
+  const formatTime = (ts: any) => {
+    try {
+      if (ts?.toDate) return ts.toDate().toLocaleString();
+    } catch { /* noop */ }
+    return "—";
+  };
+
   return (
     <div className="p-4 md:p-8 max-w-2xl mx-auto">
       <div className="mb-6 md:mb-8">
