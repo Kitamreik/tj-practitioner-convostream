@@ -183,6 +183,7 @@ const People: React.FC = () => {
         </table>
       </div>
     </div>
+    </PullToRefresh>
   );
 };
 
