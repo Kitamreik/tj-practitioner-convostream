@@ -285,13 +285,32 @@ const People: React.FC = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <DeleteButton person={person} compact />
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      aria-label={`Edit ${person.name}`}
+                      onClick={() => openEdit(person)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <DeleteButton person={person} compact />
+                  </div>
                 </td>
               </motion.tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      <EditPersonDialog
+        person={editPerson}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        localOnly={usingFallback}
+        onLocalSave={handleLocalEdit}
+      />
     </div>
     </PullToRefresh>
   );
