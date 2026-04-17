@@ -20,13 +20,157 @@
  */
 
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { onRequest } from "firebase-functions/v2/https";
+import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
 import * as admin from "firebase-admin";
+import * as nodemailer from "nodemailer";
 
 admin.initializeApp();
 const db = admin.firestore();
+
+// =============================================================================
+// Role management — callable functions
+// =============================================================================
+
+const ESCALATION_NOTIFY_EMAIL = "kit.tjclasses@gmail.com";
+
+/**
+ * Webmaster-only: promote another user to a given role (typically "webmaster").
+ * Writes the role using the `_serverRoleWrite` sentinel so the
+ * `enforceUserRoleOnWrite` trigger accepts the change, and records an audit
+ * entry under `roleGrants`.
+ *
+ * Request: { targetEmail: string, role: "admin" | "webmaster" }
+ */
+export const promoteToWebmaster = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in required.");
+  }
+  const callerUid = request.auth.uid;
+  const callerSnap = await db.doc(`users/${callerUid}`).get();
+  const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role;
+  if (callerRole !== "webmaster") {
+    throw new HttpsError("permission-denied", "Only webmasters can grant roles.");
+  }
+
+  const data = (request.data ?? {}) as { targetEmail?: unknown; role?: unknown };
+  const targetEmail = typeof data.targetEmail === "string" ? data.targetEmail.trim().toLowerCase() : "";
+  const newRole = data.role === "admin" || data.role === "webmaster" ? data.role : "webmaster";
+  if (!targetEmail || !targetEmail.includes("@")) {
+    throw new HttpsError("invalid-argument", "A valid targetEmail is required.");
+  }
+
+  // Find target user by email.
+  const targetQuery = await db.collection("users").where("email", "==", targetEmail).limit(1).get();
+  if (targetQuery.empty) {
+    throw new HttpsError("not-found", `No user found with email ${targetEmail}.`);
+  }
+  const targetDoc = targetQuery.docs[0];
+  const previousRole = (targetDoc.data() as { role?: string }).role ?? "admin";
+
+  await targetDoc.ref.update({
+    role: newRole,
+    escalatedAccess: newRole === "webmaster" ? true : admin.firestore.FieldValue.delete(),
+    _serverRoleWrite: true,
+  });
+
+  await db.collection("roleGrants").add({
+    targetUid: targetDoc.id,
+    targetEmail,
+    previousRole,
+    newRole,
+    grantedByUid: callerUid,
+    grantedByEmail: callerSnap.data()?.email ?? null,
+    grantedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  logger.info("promoteToWebmaster: role granted", {
+    targetUid: targetDoc.id,
+    targetEmail,
+    previousRole,
+    newRole,
+    grantedByUid: callerUid,
+  });
+
+  return { ok: true, targetUid: targetDoc.id, previousRole, newRole };
+});
+
+/**
+ * Admin escalation request: any signed-in admin can request expanded access
+ * (Integrations / Analytics / Gmail API). Persists a record in
+ * `escalationRequests` and emails ESCALATION_NOTIFY_EMAIL via SMTP if creds
+ * are configured (env: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM).
+ * If SMTP is not configured the request is still recorded so a webmaster can
+ * approve it manually from the audit trail.
+ *
+ * Request: { reason?: string }
+ */
+export const requestWebmasterEscalation = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in required.");
+  }
+  const uid = request.auth.uid;
+  const userSnap = await db.doc(`users/${uid}`).get();
+  if (!userSnap.exists) {
+    throw new HttpsError("not-found", "Profile missing.");
+  }
+  const userData = userSnap.data() as { email?: string; displayName?: string; role?: string };
+
+  const data = (request.data ?? {}) as { reason?: unknown };
+  const reason = typeof data.reason === "string" ? data.reason.slice(0, 500) : "";
+
+  const requestRef = await db.collection("escalationRequests").add({
+    requesterUid: uid,
+    requesterEmail: userData.email ?? null,
+    requesterName: userData.displayName ?? null,
+    requesterRole: userData.role ?? "admin",
+    reason,
+    status: "pending",
+    notifiedEmail: ESCALATION_NOTIFY_EMAIL,
+    emailSent: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Best-effort email notification.
+  let emailSent = false;
+  let emailError: string | null = null;
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
+  if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: SMTP_HOST,
+        port: Number(SMTP_PORT || 587),
+        secure: Number(SMTP_PORT || 587) === 465,
+        auth: { user: SMTP_USER, pass: SMTP_PASS },
+      });
+      await transporter.sendMail({
+        from: SMTP_FROM || SMTP_USER,
+        to: ESCALATION_NOTIFY_EMAIL,
+        subject: `[ConvoHub] Webmaster escalation requested by ${userData.email ?? uid}`,
+        text:
+          `User ${userData.displayName ?? "(no name)"} <${userData.email ?? uid}> ` +
+          `(role: ${userData.role ?? "admin"}) is requesting webmaster escalation.\n\n` +
+          `Reason: ${reason || "(none provided)"}\n\n` +
+          `Request ID: ${requestRef.id}\n\n` +
+          `Approve by promoting them in the ConvoHub Settings page, or directly ` +
+          `via the promoteToWebmaster callable.`,
+      });
+      emailSent = true;
+      await requestRef.update({ emailSent: true });
+    } catch (err: unknown) {
+      emailError = (err as Error).message;
+      logger.error("requestWebmasterEscalation email failed", err);
+      await requestRef.update({ emailError });
+    }
+  } else {
+    logger.warn("requestWebmasterEscalation: SMTP not configured; request recorded only", {
+      requestId: requestRef.id,
+    });
+  }
+
+  return { ok: true, requestId: requestRef.id, emailSent, emailError };
+});
 
 /**
  * Defense-in-depth: strip any client-supplied `role` field on writes to
