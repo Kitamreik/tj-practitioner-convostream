@@ -1231,8 +1231,9 @@ const Conversations: React.FC = () => {
               </Button>
             </div>
           </div>
-        </div>
-      ) : null}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {/* Elevate to Webmaster — investigation request */}
       <Dialog open={elevateOpen} onOpenChange={setElevateOpen}>
