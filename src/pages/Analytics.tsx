@@ -269,6 +269,9 @@ const Analytics: React.FC = () => {
               </div>
             </div>
           ))}
+          {filteredVoiceActivity.length === 0 && (
+            <p className="text-xs text-muted-foreground italic px-1 py-3">No activity for this number yet.</p>
+          )}
         </div>
       </motion.div>
 
