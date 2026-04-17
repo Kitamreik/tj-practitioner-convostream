@@ -47,11 +47,19 @@ const BottomNav: React.FC = () => {
     return unsub;
   }, []);
 
+  const userUid = profile?.uid;
   useEffect(() => {
-    const q = query(collection(db, "notifications"), where("read", "==", false));
-    const unsub = onSnapshot(q, (snap) => setNotifs(snap.size), () => setNotifs(2));
+    if (!userUid) {
+      setNotifs(0);
+      return;
+    }
+    const q = query(
+      collection(db, "users", userUid, "notifications"),
+      where("read", "==", false)
+    );
+    const unsub = onSnapshot(q, (snap) => setNotifs(snap.size), () => setNotifs(0));
     return unsub;
-  }, []);
+  }, [userUid]);
 
   const getBadge = (item: NavItem) => {
     if (item.badgeKey === "conversations") return unread;

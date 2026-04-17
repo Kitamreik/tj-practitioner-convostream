@@ -79,7 +79,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { httpsCallable } from "firebase/functions";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useParams, useNavigate } from "react-router-dom";
 import { functions } from "@/lib/firebase";
 
 interface Conversation {
@@ -309,8 +309,30 @@ const Conversations: React.FC = () => {
   // overlay layout — selecting a conversation now hides the list and shows
   // the detail full-width on every viewport (mobile-style on desktop too).
   const [searchParams, setSearchParams] = useSearchParams();
+  const { id: routeId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
 
-  const agents = ["Alice Johnson", "Bob Smith", "Carol Davis", "Dan Lee"];
+  // Live list of agent display names — pulled from the `users` collection so
+  // renames in Settings → Agents reflect immediately on the assign-agent menu.
+  // Falls back to the legacy hardcoded list when Firestore is unreachable.
+  const FALLBACK_AGENTS = ["Alice Johnson", "Bob Smith", "Carol Davis", "Dan Lee"];
+  const [agents, setAgents] = useState<string[]>(FALLBACK_AGENTS);
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, "users"),
+      (snap) => {
+        const names = snap.docs
+          .map((d) => d.data() as any)
+          .filter((u) => u && (u.role === "agent" || u.role === "admin") && (u.displayName || u.email))
+          .map((u) => (u.displayName || u.email) as string)
+          .filter((v, i, arr) => arr.indexOf(v) === i)
+          .sort((a, b) => a.localeCompare(b));
+        setAgents(names.length > 0 ? names : FALLBACK_AGENTS);
+      },
+      () => setAgents(FALLBACK_AGENTS)
+    );
+    return unsub;
+  }, []);
 
   const handleRefresh = async () => {
     await new Promise((r) => setTimeout(r, 600));
@@ -393,30 +415,30 @@ const Conversations: React.FC = () => {
     window.open(`tel:${phone}`, "_self");
   };
 
-  // Real-time conversations listener
   useEffect(() => {
     const q = query(collection(db, "conversations"), orderBy("timestamp", "desc"));
     const unsub = onSnapshot(
       q,
       (snapshot) => {
-        const requestedOpen = searchParams.get("open");
+        const requestedOpen = searchParams.get("open") || routeId;
         if (snapshot.empty) {
           setConversations(fallbackConversations);
           setUsingFallback(true);
-          setSelectedId(requestedOpen || "mock-1");
+          setSelectedId(requestedOpen || null);
         } else {
           const convos = snapshot.docs.map(
             (d) => ({ id: d.id, ...d.data() } as Conversation)
           );
           setConversations(convos);
           setUsingFallback(false);
-          // Honor ?open=<id> deep link if it matches a real conversation.
+          // Honor /conversations/:id or ?open=<id> deep link if it matches a real conversation.
           if (requestedOpen && convos.find((c) => c.id === requestedOpen)) {
             setSelectedId(requestedOpen);
-          } else {
+          } else if (!routeId) {
+            // Only auto-select on the index route — never override an explicit URL.
             const visible = convos.filter((c) => (showArchived ? c.archived : !c.archived));
             if (!selectedId || !visible.find((c) => c.id === selectedId)) {
-              setSelectedId(visible[0]?.id || null);
+              setSelectedId(null);
             }
           }
         }
@@ -425,11 +447,24 @@ const Conversations: React.FC = () => {
         console.error("Conversations listener error:", error);
         setConversations(fallbackConversations);
         setUsingFallback(true);
-        setSelectedId("mock-1");
+        setSelectedId(routeId || null);
       }
     );
     return unsub;
-  }, []);
+  }, [routeId]);
+
+  // Keep the URL in sync with the currently-selected conversation so reloads
+  // and shared links re-open the same thread. Skip when nothing is selected
+  // (we want the index route to remain "/", not "/conversations/").
+  useEffect(() => {
+    if (!selectedId) {
+      if (routeId) navigate("/", { replace: true });
+      return;
+    }
+    if (selectedId !== routeId) {
+      navigate(`/conversations/${selectedId}`, { replace: true });
+    }
+  }, [selectedId, routeId, navigate]);
 
   // Honor ?open=<conversationId> deep link, then strip the param so refreshes don't re-trigger.
   useEffect(() => {
@@ -783,7 +818,30 @@ const Conversations: React.FC = () => {
 
       {/* Thread Detail */}
       {selected ? (
-        <div className={cn("flex flex-1 flex-col", !selectedId ? "hidden" : "")}>
+        <div
+          className={cn("flex flex-1 flex-col", !selectedId ? "hidden" : "")}
+          onTouchStart={(e) => {
+            const t = e.touches[0];
+            (e.currentTarget as any)._sx = t.clientX;
+            (e.currentTarget as any)._sy = t.clientY;
+            (e.currentTarget as any)._st = Date.now();
+          }}
+          onTouchEnd={(e) => {
+            const el = e.currentTarget as any;
+            const startX = el._sx as number | undefined;
+            const startY = el._sy as number | undefined;
+            const startT = el._st as number | undefined;
+            if (startX == null || startY == null || startT == null) return;
+            const t = e.changedTouches[0];
+            const dx = t.clientX - startX;
+            const dy = t.clientY - startY;
+            const dt = Date.now() - startT;
+            // Right-swipe from near the left edge: ≥80px horizontal, mostly horizontal, < 600ms.
+            if (startX < 60 && dx > 80 && Math.abs(dy) < 60 && dt < 600) {
+              setSelectedId(null);
+            }
+          }}
+        >
           {/* Header */}
           <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 md:px-6 md:py-4">
             <div className="flex min-w-0 items-center gap-2 md:gap-3">
