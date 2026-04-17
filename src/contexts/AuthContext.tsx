@@ -12,6 +12,7 @@ import {
   setDoc,
   collection,
   addDoc,
+  onSnapshot,
   serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
@@ -61,26 +62,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+    let profileUnsub: (() => void) | null = null;
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
+      if (profileUnsub) {
+        profileUnsub();
+        profileUnsub = null;
+      }
       if (firebaseUser) {
-        try {
-          const profileDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-          if (profileDoc.exists()) {
-            setProfile(profileDoc.data() as UserProfile);
-          } else {
+        // Real-time subscription so role/escalatedAccess changes (e.g. webmaster
+        // promoting an admin) propagate immediately without a re-login.
+        profileUnsub = onSnapshot(
+          doc(db, "users", firebaseUser.uid),
+          (snap) => {
+            setProfile(snap.exists() ? (snap.data() as UserProfile) : null);
+            setLoading(false);
+          },
+          (err) => {
+            console.error("Failed to subscribe to user profile:", err);
             setProfile(null);
+            setLoading(false);
           }
-        } catch (e) {
-          console.error("Failed to fetch user profile:", e);
-          setProfile(null);
-        }
+        );
       } else {
         setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
-    return unsub;
+    return () => {
+      if (profileUnsub) profileUnsub();
+      unsub();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
