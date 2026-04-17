@@ -18,7 +18,21 @@ import {
   UserCheck,
   Keyboard,
   ArrowLeft,
+  Trash2,
+  RotateCcw,
+  Tag,
+  Radio,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import PullToRefresh from "@/components/PullToRefresh";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Input } from "@/components/ui/input";
@@ -41,6 +55,10 @@ import {
   addDoc,
   serverTimestamp,
   getDocs,
+  doc,
+  updateDoc,
+  deleteDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
