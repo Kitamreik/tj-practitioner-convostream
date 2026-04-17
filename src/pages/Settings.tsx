@@ -1,12 +1,37 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { Moon, Sun, User, Shield, KeyRound, Send, CheckCircle2, Clock } from "lucide-react";
+import {
+  Moon,
+  Sun,
+  User,
+  Shield,
+  KeyRound,
+  Send,
+  CheckCircle2,
+  Clock,
+  Users,
+  Inbox,
+  Trash2,
+  Check,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { httpsCallable } from "firebase/functions";
 import { functions, db } from "@/lib/firebase";
@@ -20,6 +45,26 @@ import {
 } from "firebase/firestore";
 
 const ESCALATION_NOTIFY_EMAIL = "kit.tjclasses@gmail.com";
+
+interface PendingEscalation {
+  id: string;
+  requesterUid: string;
+  requesterEmail: string | null;
+  requesterName: string | null;
+  requesterRole: string;
+  reason: string;
+  emailSent: boolean;
+  createdAt: any;
+}
+
+interface AccountRow {
+  uid: string;
+  email: string;
+  displayName: string;
+  role: "admin" | "webmaster";
+  escalatedAccess?: boolean;
+  createdAt?: any;
+}
 
 const SettingsPage: React.FC = () => {
   const { user, profile } = useAuth();
