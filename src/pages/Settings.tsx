@@ -284,7 +284,7 @@ const SettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-2xl mx-auto">
+    <div className={`p-4 md:p-8 mx-auto ${isWebmaster ? "max-w-4xl" : "max-w-2xl"}`}>
       <div className="mb-6 md:mb-8">
         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
         <p className="text-muted-foreground mt-1">Manage your account and preferences</p>
