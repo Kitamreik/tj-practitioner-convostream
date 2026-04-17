@@ -851,6 +851,26 @@ const Conversations: React.FC = () => {
           </div>
         </div>
 
+        {/* Agent/admin banner: shows their open assignment count and a one-click filter. */}
+        {showMineBanner && (
+          <div className="flex items-center gap-2 border-b border-border bg-primary/5 px-4 py-2">
+            <UsersIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+            <p className="text-xs text-foreground flex-1 min-w-0">
+              You have <span className="font-semibold text-primary">{myOpenCount}</span>{" "}
+              open conversation{myOpenCount === 1 ? "" : "s"} assigned
+            </p>
+            <Button
+              variant={mineOnly ? "default" : "outline"}
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => setMineOnly((v) => !v)}
+              aria-pressed={mineOnly}
+            >
+              {mineOnly ? "Show all" : "Show mine"}
+            </Button>
+          </div>
+        )}
+
         <PullToRefresh onRefresh={handleRefresh} className="flex-1" disabled={!isMobile}>
           {filtered.map((convo) => (
             <button
