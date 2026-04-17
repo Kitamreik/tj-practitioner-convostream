@@ -483,22 +483,24 @@ const Conversations: React.FC = () => {
     setConfirmDeleteOpen(false);
     if (!usingFallback) {
       try {
-        // Delete subcollection messages, then doc
-        const msgsSnap = await getDocs(collection(db, "conversations", idToDelete, "messages"));
-        const batch = writeBatch(db);
-        msgsSnap.docs.forEach((d) => batch.delete(d.ref));
-        await batch.commit();
-        await deleteDoc(doc(db, "conversations", idToDelete));
+        // Soft-delete: mark as archived with deletion timestamp; restorable for 30 days
+        await updateDoc(doc(db, "conversations", idToDelete), {
+          archived: true,
+          deletedAt: serverTimestamp(),
+        });
       } catch (e) {
-        console.error("Delete failed:", e);
-        toast({ title: "Delete failed", variant: "destructive" });
+        console.error("Archive failed:", e);
+        toast({ title: "Archive failed", variant: "destructive" });
         return;
       }
     } else {
       setConversations((prev) => prev.filter((c) => c.id !== idToDelete));
     }
     setSelectedId(null);
-    toast({ title: "Conversation deleted", description: "Thread and messages removed." });
+    toast({
+      title: "Moved to Archive",
+      description: "Restorable for 30 days from the Archive page.",
+    });
   };
 
   const handleSend = async () => {
