@@ -941,9 +941,18 @@ const Conversations: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+            <div className="ml-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive"
+                onClick={() => setElevateOpen(true)}
+              >
+                <ShieldAlert className="h-3 w-3" />
+                Elevate to webmaster
+              </Button>
+            </div>
           </div>
-
-          {/* Reply */}
           <div className="border-t border-border p-4">
             <div className="flex gap-3">
               <Input
