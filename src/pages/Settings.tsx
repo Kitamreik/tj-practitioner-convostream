@@ -643,6 +643,101 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
 
+        {/* Webmaster-only: Investigation requests */}
+        {isWebmaster && (
+          <div className="rounded-xl border border-border bg-card p-6">
+            <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
+              <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground">
+                <Search className="h-5 w-5 text-primary" />
+                Investigation requests
+                {visibleInvestigations.length > 0 && (
+                  <Badge variant="secondary" className="ml-1">{visibleInvestigations.length}</Badge>
+                )}
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowResolved((v) => !v)}
+              >
+                {showResolved ? "Hide resolved" : "Show resolved"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Conversations flagged by admins for webmaster review. Each entry is also emailed to
+              {" "}<code className="rounded bg-muted px-1 py-0.5">{ESCALATION_NOTIFY_EMAIL}</code>.
+            </p>
+            {visibleInvestigations.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                {showResolved ? "No investigation requests yet." : "No open investigation requests."}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {visibleInvestigations.map((inv) => (
+                  <div
+                    key={inv.id}
+                    className="rounded-lg border border-border bg-background p-3 flex flex-col sm:flex-row gap-3 sm:items-center"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-foreground truncate">
+                          {inv.customerName || "(unnamed conversation)"}
+                        </span>
+                        <Badge
+                          variant={inv.status === "resolved" ? "outline" : "secondary"}
+                          className="capitalize text-[10px]"
+                        >
+                          {inv.status}
+                        </Badge>
+                        {inv.emailSent && (
+                          <Badge variant="outline" className="text-[10px] gap-1">
+                            <Send className="h-2.5 w-2.5" /> Email sent
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">
+                        Requested by {inv.requesterName || inv.requesterEmail || inv.requesterUid}
+                      </p>
+                      {inv.reason && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">"{inv.reason}"</p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-3 mt-1">
+                        <p className="text-[10px] text-muted-foreground">{formatTime(inv.createdAt)}</p>
+                        {inv.conversationId && (
+                          <Link
+                            to={`/conversations?open=${encodeURIComponent(inv.conversationId)}`}
+                            className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                          >
+                            <ExternalLink className="h-2.5 w-2.5" />
+                            Open conversation
+                          </Link>
+                        )}
+                      </div>
+                      {inv.status === "resolved" && inv.resolutionNote && (
+                        <p className="text-[10px] text-muted-foreground mt-1 italic">
+                          Resolved: {inv.resolutionNote}
+                        </p>
+                      )}
+                    </div>
+                    {inv.status !== "resolved" && (
+                      <div className="flex-shrink-0">
+                        <Button
+                          size="sm"
+                          className="gap-1"
+                          disabled={resolvingId === inv.id}
+                          onClick={() => resolveInvestigation(inv.id)}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          {resolvingId === inv.id ? "…" : "Resolve"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Admin-only: Escalate */}
         {!isWebmaster && (
           <div className="rounded-xl border border-accent/40 bg-accent/5 p-6">
