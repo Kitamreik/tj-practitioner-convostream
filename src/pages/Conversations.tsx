@@ -812,22 +812,9 @@ const Conversations: React.FC = () => {
         </PullToRefresh>
       </div>
 
-      {/* Resizable divider — desktop only. Drag to resize the thread list. */}
-      {!isMobile && (
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize conversation list"
-          onMouseDown={startResize}
-          className="group relative w-1 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
-        >
-          <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-border group-hover:bg-primary/40" />
-        </div>
-      )}
-
       {/* Thread Detail */}
       {selected ? (
-        <div className={cn("flex flex-1 flex-col", isMobile && !selectedId ? "hidden" : "")}>
+        <div className={cn("flex flex-1 flex-col", !selectedId ? "hidden" : "")}>
           {/* Header */}
           <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 md:px-6 md:py-4">
             <div className="flex min-w-0 items-center gap-2 md:gap-3">
@@ -1085,9 +1072,7 @@ const Conversations: React.FC = () => {
             </div>
           </div>
         </div>
-      ) : (
-        <div className="hidden flex-1 items-center justify-center text-muted-foreground md:flex">Select a conversation to view</div>
-      )}
+      ) : null}
 
       {/* Elevate to Webmaster — investigation request */}
       <Dialog open={elevateOpen} onOpenChange={setElevateOpen}>
