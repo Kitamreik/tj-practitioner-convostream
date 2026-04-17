@@ -708,6 +708,7 @@ const SettingsPage: React.FC = () => {
     { id: "appearance", label: "Appearance" },
     ...(isWebmaster
       ? [
+          { id: "overview", label: "Overview" },
           { id: "promote", label: "Promote to Webmaster" },
           { id: "pending", label: "Pending escalations" },
           { id: "agents", label: "Agents" },
