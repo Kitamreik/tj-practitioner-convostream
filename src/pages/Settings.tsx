@@ -644,6 +644,65 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
 
+        {/* Shared revoke-escalation dialog (controlled) */}
+        {isWebmaster && (
+          <Dialog
+            open={!!revokeDialogUid}
+            onOpenChange={(o) => {
+              if (!o) {
+                setRevokeDialogUid(null);
+                setRevokeReason("");
+              }
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Revoke escalated access?</DialogTitle>
+                <DialogDescription>
+                  {(() => {
+                    const target = accounts.find((a) => a.uid === revokeDialogUid);
+                    const who = target?.email || target?.displayName || target?.uid || "this user";
+                    return `${who} will lose access to Integrations, Analytics, and the Gmail API. They can request escalation again later. This action and your reason are recorded in roleGrants.`;
+                  })()}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="revoke-reason">Reason for revoking <span className="text-destructive">*</span></Label>
+                <Textarea
+                  id="revoke-reason"
+                  value={revokeReason}
+                  onChange={(e) => setRevokeReason(e.target.value)}
+                  placeholder="e.g. Investigation closed, no longer needs Gmail API access."
+                  rows={4}
+                  maxLength={1000}
+                  autoFocus
+                />
+                <p className="text-[10px] text-muted-foreground text-right">{revokeReason.length}/1000</p>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setRevokeDialogUid(null);
+                    setRevokeReason("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={!revokeReason.trim() || !!revokingUid}
+                  onClick={() => {
+                    const target = accounts.find((a) => a.uid === revokeDialogUid);
+                    if (target) revokeEscalation(target.uid, target.email);
+                  }}
+                >
+                  {revokingUid ? "Revoking…" : "Revoke access"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
         {/* Webmaster-only: Investigation requests */}
         {isWebmaster && (
           <div className="rounded-xl border border-border bg-card p-6">
