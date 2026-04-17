@@ -369,6 +369,54 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  // ---- Rename agent (webmaster only) ----
+  const [renameUid, setRenameUid] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [agentSearch, setAgentSearch] = useState("");
+
+  const openRename = (acc: AccountRow) => {
+    setRenameUid(acc.uid);
+    setRenameValue(acc.displayName || "");
+  };
+
+  const submitRename = async () => {
+    if (!renameUid) return;
+    const value = renameValue.trim();
+    if (!value) {
+      toast({ title: "Name required", variant: "destructive" });
+      return;
+    }
+    if (value.length > 80) {
+      toast({ title: "Name too long", description: "Max 80 characters.", variant: "destructive" });
+      return;
+    }
+    setRenaming(true);
+    try {
+      const fn = httpsCallable<{ targetUid: string; displayName: string }, { ok: boolean }>(
+        functions,
+        "updateAgentDisplayName"
+      );
+      await fn({ targetUid: renameUid, displayName: value });
+      toast({ title: "Agent renamed", description: `Display name updated to "${value}".` });
+      setRenameUid(null);
+      setRenameValue("");
+    } catch (e: any) {
+      toast({ title: "Rename failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setRenaming(false);
+    }
+  };
+
+  // Agents = anyone whose role is "agent" (the new baseline) OR legacy "admin".
+  // Webmasters are excluded — they manage themselves via the Accounts panel.
+  const agentRows = accounts.filter(
+    (a) => (a.role === "agent" || a.role === "admin") &&
+      (agentSearch.trim() === "" ||
+        (a.displayName || "").toLowerCase().includes(agentSearch.toLowerCase()) ||
+        (a.email || "").toLowerCase().includes(agentSearch.toLowerCase()))
+  );
+
   // ---- Investigation requests (webmaster only) ----
   const [investigations, setInvestigations] = useState<InvestigationRow[]>([]);
   const [showResolved, setShowResolved] = useState(false);
