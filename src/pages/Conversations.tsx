@@ -529,7 +529,7 @@ const Conversations: React.FC = () => {
     { key: "r", ctrl: false, shift: false, alt: false, action: () => replyInputRef.current?.focus(), description: "Focus reply box" },
     { key: "j", ctrl: false, shift: false, alt: false, action: () => navigateConvo(1), description: "Next conversation" },
     { key: "k", ctrl: false, shift: false, alt: false, action: () => navigateConvo(-1), description: "Previous conversation" },
-    { key: "e", ctrl: false, shift: false, alt: false, action: handleMarkResolved, description: "Mark as resolved" },
+    { key: "e", ctrl: false, shift: false, alt: false, action: handleToggleResolved, description: "Toggle resolved" },
     { key: "Escape", ctrl: false, shift: false, alt: false, action: () => { (document.activeElement as HTMLElement)?.blur(); }, description: "Unfocus / close" },
     { key: "?", ctrl: false, shift: true, alt: false, action: () => setShowShortcuts((p) => !p), description: "Show shortcuts" },
   ], [filtered, selectedId])
