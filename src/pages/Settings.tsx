@@ -1357,6 +1357,7 @@ const SettingsPage: React.FC = () => {
           </p>
         </div>
       </div>
+      </div>
     </div>
   );
 };
