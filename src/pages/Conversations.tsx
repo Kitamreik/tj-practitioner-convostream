@@ -961,17 +961,46 @@ const Conversations: React.FC = () => {
                       <span className="hidden lg:inline">{selected.assignedAgent ? selected.assignedAgent.split(" ")[0] : "Assign"}</span>
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-48 p-2" align="end">
-                    <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">Assign to agent</p>
-                    {agents.map((agent) => (
-                      <button
-                        key={agent}
-                        onClick={() => handleAssignAgent(selected.id, agent)}
-                        className={`w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors ${selected.assignedAgent === agent ? "bg-accent font-medium" : ""}`}
-                      >
-                        {agent}
-                      </button>
-                    ))}
+                  <PopoverContent className="w-56 p-2" align="end">
+                    <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">
+                      Assign to agent
+                    </p>
+                    {agents.map((agent) => {
+                      const load = agentLoad.get(agent) ?? 0;
+                      const overloaded = load >= 3;
+                      return (
+                        <button
+                          key={agent}
+                          onClick={() => handleAssignAgent(selected.id, agent)}
+                          className={cn(
+                            "w-full flex items-center gap-2 text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors",
+                            selected.assignedAgent === agent && "bg-accent font-medium"
+                          )}
+                        >
+                          <span className="flex-1 truncate">{agent}</span>
+                          {load > 0 && (
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                                overloaded
+                                  ? "bg-destructive/15 text-destructive"
+                                  : "bg-primary/10 text-primary"
+                              )}
+                              aria-label={`${load} open conversation${load === 1 ? "" : "s"} assigned`}
+                              title={`${load} open conversation${load === 1 ? "" : "s"} assigned`}
+                            >
+                              <span
+                                className={cn(
+                                  "h-1.5 w-1.5 rounded-full",
+                                  overloaded ? "bg-destructive" : "bg-primary"
+                                )}
+                              />
+                              {load}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                     {selected.assignedAgent && (
                       <>
                         <div className="my-1 h-px bg-border" />
