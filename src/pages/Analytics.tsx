@@ -43,6 +43,8 @@ const stats = [
 
 const Analytics: React.FC = () => {
   const [agentWorkload, setAgentWorkload] = useState<AgentWorkloadData[]>(fallbackAgentWorkload);
+  const [voiceActivity, setVoiceActivity] = useState<VoiceActivity[]>(fallbackVoiceActivity);
+  const [voiceLive, setVoiceLive] = useState(false);
 
   // Listen to conversations and compute per-agent workload
   useEffect(() => {
@@ -71,6 +73,63 @@ const Analytics: React.FC = () => {
     );
     return unsub;
   }, []);
+
+  // Listen to Google Voice activity (calls + SMS) in real time
+  useEffect(() => {
+    try {
+      const q = query(collection(db, "googleVoiceActivity"), orderBy("timestamp", "desc"), limit(10));
+      const unsub = onSnapshot(
+        q,
+        (snap) => {
+          if (snap.empty) {
+            setVoiceActivity(fallbackVoiceActivity);
+            setVoiceLive(false);
+          } else {
+            setVoiceActivity(snap.docs.map((d) => ({ id: d.id, ...d.data() } as VoiceActivity)));
+            setVoiceLive(true);
+          }
+        },
+        () => {
+          setVoiceActivity(fallbackVoiceActivity);
+          setVoiceLive(false);
+        }
+      );
+      return unsub;
+    } catch {
+      setVoiceActivity(fallbackVoiceActivity);
+      setVoiceLive(false);
+    }
+  }, []);
+
+  const voiceStats = {
+    inboundCalls: voiceActivity.filter((v) => v.type === "call_inbound").length,
+    outboundCalls: voiceActivity.filter((v) => v.type === "call_outbound").length,
+    inboundSms: voiceActivity.filter((v) => v.type === "sms_inbound").length,
+    outboundSms: voiceActivity.filter((v) => v.type === "sms_outbound").length,
+  };
+
+  const formatRelative = (ts: any): string => {
+    const d = ts?.toDate ? ts.toDate() : null;
+    if (!d) return "—";
+    const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    return `${Math.floor(diff / 3600)}h ago`;
+  };
+
+  const formatDuration = (s?: number) => {
+    if (!s) return "";
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  const voiceIcon = (type: VoiceActivity["type"]) => {
+    if (type === "call_inbound") return <PhoneIncoming className="h-4 w-4 text-success" />;
+    if (type === "call_outbound") return <PhoneOutgoing className="h-4 w-4 text-primary" />;
+    if (type === "sms_inbound") return <MessageCircle className="h-4 w-4 text-success" />;
+    return <MessageCircle className="h-4 w-4 text-primary" />;
+  };
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
