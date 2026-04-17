@@ -635,6 +635,119 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
 
+        {/* Webmaster-only: Agents (rename agents) */}
+        {isWebmaster && (
+          <div className="rounded-xl border border-border bg-card p-6">
+            <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
+              <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground">
+                <UserCog className="h-5 w-5 text-primary" />
+                Agents
+                <Badge variant="secondary" className="ml-1">{agentRows.length}</Badge>
+              </h3>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Every signed-up account is registered as an <strong>agent</strong>. Rename them here so
+              their display name is consistent across conversations and assignments. Renames are
+              audited in <code className="rounded bg-muted px-1 py-0.5">roleGrants</code>.
+            </p>
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search agents by name or email..."
+                className="pl-9"
+                value={agentSearch}
+                onChange={(e) => setAgentSearch(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              {agentRows.map((acc) => (
+                <div
+                  key={acc.uid}
+                  className="rounded-lg border border-border bg-background p-3 flex flex-col sm:flex-row gap-3 sm:items-center"
+                >
+                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                    {(acc.displayName || acc.email || "?").charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-foreground truncate">
+                        {acc.displayName || "(no name)"}
+                      </span>
+                      <Badge variant="secondary" className="capitalize text-[10px]">{acc.role}</Badge>
+                      {acc.escalatedAccess && (
+                        <Badge variant="outline" className="text-[10px] gap-1">
+                          <CheckCircle2 className="h-2.5 w-2.5" /> Escalated
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{acc.email || acc.uid}</p>
+                  </div>
+                  <div className="flex flex-shrink-0 gap-2">
+                    <Button size="sm" variant="outline" className="gap-1" onClick={() => openRename(acc)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                      Rename
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {agentRows.length === 0 && (
+                <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  {agentSearch ? "No agents match your search." : "No agents yet."}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Shared rename-agent dialog (controlled) */}
+        {isWebmaster && (
+          <Dialog
+            open={!!renameUid}
+            onOpenChange={(o) => {
+              if (!o) {
+                setRenameUid(null);
+                setRenameValue("");
+              }
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Rename agent</DialogTitle>
+                <DialogDescription>
+                  Update the display name shown across the app for this agent. The previous and new
+                  names are recorded in <code className="rounded bg-muted px-1 py-0.5 text-xs">roleGrants</code>.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="rename-agent-input">Display name</Label>
+                <Input
+                  id="rename-agent-input"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  placeholder="Jane Smith"
+                  maxLength={80}
+                  autoFocus
+                />
+                <p className="text-[10px] text-muted-foreground text-right">{renameValue.length}/80</p>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setRenameUid(null);
+                    setRenameValue("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button disabled={!renameValue.trim() || renaming} onClick={submitRename}>
+                  {renaming ? "Saving…" : "Save name"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
         {/* Webmaster-only: All accounts */}
         {isWebmaster && (
           <div className="rounded-xl border border-border bg-card p-6">
