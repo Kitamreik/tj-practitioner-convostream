@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { nameSchema, emailSchema, phoneSchema, tagsSchema, safeValidate } from "@/lib/validation";
+import { syncPeopleByEmail, syncConversationsByEmail } from "@/lib/profileSync";
 
 export interface EditablePerson {
   id: string;
@@ -83,8 +84,21 @@ const EditPersonDialog: React.FC<EditPersonDialogProps> = ({
     setLoading(true);
     try {
       if (localOnly) {
+        // Editing through a Conversation modal: persist locally + auto-sync any
+        // matching People record by email so both sides stay aligned.
         onLocalSave?.(updated);
-        toast({ title: "Profile updated (local)" });
+        let synced = 0;
+        if (cleanEmail) {
+          synced = await syncPeopleByEmail(cleanEmail, {
+            name: updated.name,
+            email: cleanEmail,
+            phone: cleanPhone,
+          });
+        }
+        toast({
+          title: "Profile updated",
+          description: synced > 0 ? `Synced to ${synced} matching People record${synced === 1 ? "" : "s"}.` : undefined,
+        });
       } else {
         await updateDoc(doc(db, "people", person.id), {
           name: updated.name,
@@ -93,7 +107,21 @@ const EditPersonDialog: React.FC<EditPersonDialogProps> = ({
           tags: updated.tags,
           updatedAt: serverTimestamp(),
         });
-        toast({ title: "Profile updated" });
+        // Editing through People: push name/email/phone to any conversations
+        // for the same email so the thread headers stay current.
+        let synced = 0;
+        const targetEmail = cleanEmail || (person.email || "");
+        if (targetEmail) {
+          synced = await syncConversationsByEmail(targetEmail, {
+            name: updated.name,
+            email: cleanEmail || undefined,
+            phone: cleanPhone,
+          });
+        }
+        toast({
+          title: "Profile updated",
+          description: synced > 0 ? `Synced to ${synced} active conversation${synced === 1 ? "" : "s"}.` : undefined,
+        });
       }
       onOpenChange(false);
     } catch (err: any) {
