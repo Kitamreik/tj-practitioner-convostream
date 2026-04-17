@@ -60,6 +60,23 @@ const People: React.FC = () => {
   const [people, setPeople] = useState<Person[]>([]);
   const [search, setSearch] = useState("");
   const [usingFallback, setUsingFallback] = useState(false);
+  const [editPerson, setEditPerson] = useState<EditablePerson | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+
+  const openEdit = (p: Person) => {
+    setEditPerson({ id: p.id, name: p.name, email: p.email, phone: p.phone, tags: p.tags });
+    setEditOpen(true);
+  };
+
+  const handleLocalEdit = (updated: EditablePerson) => {
+    setPeople((prev) =>
+      prev.map((p) =>
+        p.id === updated.id
+          ? { ...p, name: updated.name, email: updated.email || "", phone: updated.phone || "", tags: updated.tags || [] }
+          : p
+      )
+    );
+  };
 
   useEffect(() => {
     const q = query(collection(db, "people"), orderBy("createdAt", "desc"));
