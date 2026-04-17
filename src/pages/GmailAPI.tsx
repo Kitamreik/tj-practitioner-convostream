@@ -16,6 +16,7 @@ import {
   Reply,
   Lock,
   CheckCircle2,
+  Wifi,
 } from "lucide-react";
 import DOMPurify from "dompurify";
 import { Button } from "@/components/ui/button";
