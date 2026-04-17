@@ -943,6 +943,44 @@ const Conversations: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Customer (within conversation) */}
+      <EditPersonDialog
+        open={editProfileOpen}
+        onOpenChange={setEditProfileOpen}
+        person={
+          selected
+            ? {
+                id: selected.id,
+                name: selected.customerName,
+                email: selected.customerEmail,
+                phone: selected.customerPhone,
+              }
+            : null
+        }
+        localOnly
+        onLocalSave={async (updated) => {
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === updated.id
+                ? { ...c, customerName: updated.name, customerEmail: updated.email || "", customerPhone: updated.phone || undefined }
+                : c
+            )
+          );
+          if (!usingFallback) {
+            try {
+              await updateDoc(doc(db, "conversations", updated.id), {
+                customerName: updated.name,
+                customerEmail: updated.email || "",
+                customerPhone: updated.phone || "",
+              });
+            } catch (e) {
+              console.error("Failed to persist profile edit:", e);
+              toast({ title: "Saved locally", description: "Could not sync to server.", variant: "destructive" });
+            }
+          }
+        }}
+      />
     </div>
   );
 };
