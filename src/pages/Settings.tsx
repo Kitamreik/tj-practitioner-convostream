@@ -297,12 +297,21 @@ const SettingsPage: React.FC = () => {
 
   // ---- Revoke escalated access (webmaster only) ----
   const [revokingUid, setRevokingUid] = useState<string | null>(null);
+  const [revokeDialogUid, setRevokeDialogUid] = useState<string | null>(null);
+  const [revokeReason, setRevokeReason] = useState("");
   const revokeEscalation = async (uid: string, email: string) => {
+    const reason = revokeReason.trim();
+    if (!reason) {
+      toast({ title: "Reason required", description: "Please describe why you're revoking access.", variant: "destructive" });
+      return;
+    }
     setRevokingUid(uid);
     try {
-      const fn = httpsCallable<{ targetUid: string }, { ok: boolean }>(functions, "revokeEscalatedAccess");
-      await fn({ targetUid: uid });
+      const fn = httpsCallable<{ targetUid: string; reason: string }, { ok: boolean }>(functions, "revokeEscalatedAccess");
+      await fn({ targetUid: uid, reason });
       toast({ title: "Escalated access revoked", description: `${email || uid} no longer has expanded access.` });
+      setRevokeDialogUid(null);
+      setRevokeReason("");
     } catch (e: any) {
       toast({ title: "Revoke failed", description: e?.message, variant: "destructive" });
     } finally {
