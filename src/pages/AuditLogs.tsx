@@ -8,6 +8,8 @@ import {
   onSnapshot,
   deleteDoc,
   doc,
+  writeBatch,
+  getDocs,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -24,6 +26,7 @@ import {
   Phone,
   ChevronLeft,
   ChevronRight,
+  Eraser,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
