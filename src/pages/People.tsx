@@ -6,6 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import NewPersonDialog from "@/components/NewPersonDialog";
+import PullToRefresh from "@/components/PullToRefresh";
+import { toast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Person {
   id: string;
@@ -70,12 +73,19 @@ const People: React.FC = () => {
       p.phone.includes(search)
   );
 
+  const isMobile = useIsMobile();
+  const handleRefresh = async () => {
+    await new Promise((r) => setTimeout(r, 600));
+    toast({ title: "Refreshed", description: "People list is up to date." });
+  };
+
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+    <PullToRefresh onRefresh={handleRefresh} disabled={!isMobile} className="h-full">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto">
+      <div className="flex items-center justify-between mb-6 md:mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">People</h1>
-          <p className="text-muted-foreground mt-1">Unified view of every customer</p>
+          <h1 className="hidden md:block text-2xl font-bold text-foreground">People</h1>
+          <p className="text-muted-foreground mt-1 text-sm md:text-base">Unified view of every customer</p>
         </div>
         <NewPersonDialog />
       </div>
@@ -83,14 +93,50 @@ const People: React.FC = () => {
       <div className="relative mb-6">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search people by name, email, or phone..."
+          placeholder="Search people..."
           className="pl-9 max-w-md"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
-      <div className="rounded-xl border border-border overflow-hidden">
+      {/* Mobile card view */}
+      <div className="md:hidden space-y-2">
+        {filtered.map((person, i) => (
+          <motion.div
+            key={person.id}
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.03 }}
+            className="rounded-xl border border-border bg-card p-4"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                {person.name.charAt(0)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-foreground truncate">{person.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{person.email}</p>
+                <p className="text-xs text-muted-foreground">{person.phone}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground">{person.conversations} threads</span>
+                  <span className="text-muted-foreground">· {formatLastActive(person.lastActive)}</span>
+                </div>
+                {(person.tags || []).length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {(person.tags || []).map((tag) => (
+                      <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block rounded-xl border border-border overflow-hidden">
         <table className="w-full">
           <thead>
             <tr className="border-b border-border bg-muted/50">
