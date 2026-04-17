@@ -200,15 +200,29 @@ const People: React.FC = () => {
         <NewPersonDialog />
       </div>
 
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search people..."
-          className="pl-9 max-w-md"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search people..."
+            className="pl-9 max-w-md"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
+          <Switch id="show-archived-people" checked={showArchived} onCheckedChange={setShowArchived} />
+          <Label htmlFor="show-archived-people" className="text-xs cursor-pointer flex items-center gap-1.5">
+            <ArchiveRestore className="h-3.5 w-3.5" /> Show archived
+          </Label>
+        </div>
       </div>
+
+      {showArchived && people.length > 0 && (
+        <p className="text-xs text-muted-foreground mb-3">
+          Viewing archived profiles. Each will be permanently deleted after 30 days.
+        </p>
+      )}
 
       {/* Mobile card view */}
       <div className="md:hidden space-y-2">
