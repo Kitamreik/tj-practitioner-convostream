@@ -1,14 +1,26 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search } from "lucide-react";
+import { Search, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
+import { Button } from "@/components/ui/button";
+import { collection, query, orderBy, onSnapshot, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import NewPersonDialog from "@/components/NewPersonDialog";
 import PullToRefresh from "@/components/PullToRefresh";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Person {
   id: string;
@@ -46,6 +58,7 @@ function formatLastActive(ts: any): string {
 const People: React.FC = () => {
   const [people, setPeople] = useState<Person[]>([]);
   const [search, setSearch] = useState("");
+  const [usingFallback, setUsingFallback] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, "people"), orderBy("createdAt", "desc"));
@@ -54,13 +67,16 @@ const People: React.FC = () => {
       (snapshot) => {
         if (snapshot.empty) {
           setPeople(fallbackPeople);
+          setUsingFallback(true);
         } else {
           setPeople(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Person)));
+          setUsingFallback(false);
         }
       },
       (error) => {
         console.error("People listener error:", error);
         setPeople(fallbackPeople);
+        setUsingFallback(true);
       }
     );
     return unsub;
@@ -78,6 +94,55 @@ const People: React.FC = () => {
     await new Promise((r) => setTimeout(r, 600));
     toast({ title: "Refreshed", description: "People list is up to date." });
   };
+
+  const handleDelete = async (person: Person) => {
+    if (usingFallback) {
+      setPeople((prev) => prev.filter((p) => p.id !== person.id));
+      toast({ title: "Profile removed", description: `${person.name}'s information has been wiped (local).` });
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, "people", person.id));
+      toast({ title: "Profile deleted", description: `${person.name}'s client information has been wiped.` });
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: "Delete failed", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const DeleteButton: React.FC<{ person: Person; compact?: boolean }> = ({ person, compact }) => (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size={compact ? "icon" : "sm"}
+          className={compact ? "h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive" : "text-destructive hover:bg-destructive/10 hover:text-destructive gap-1.5"}
+          aria-label={`Delete ${person.name}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          {!compact && "Delete"}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Wipe client information?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This permanently deletes <strong>{person.name}</strong>'s profile, contact details, and tags. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => handleDelete(person)}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Delete profile
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 
   return (
     <PullToRefresh onRefresh={handleRefresh} disabled={!isMobile} className="h-full">
@@ -115,7 +180,10 @@ const People: React.FC = () => {
                 {person.name.charAt(0)}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-foreground truncate">{person.name}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-foreground truncate">{person.name}</p>
+                  <DeleteButton person={person} compact />
+                </div>
                 <p className="text-xs text-muted-foreground truncate">{person.email}</p>
                 <p className="text-xs text-muted-foreground">{person.phone}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
@@ -145,6 +213,7 @@ const People: React.FC = () => {
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Threads</th>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Last Active</th>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Tags</th>
+              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -154,7 +223,7 @@ const People: React.FC = () => {
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
+                className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
               >
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
@@ -176,6 +245,9 @@ const People: React.FC = () => {
                       <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
                     ))}
                   </div>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <DeleteButton person={person} compact />
                 </td>
               </motion.tr>
             ))}
