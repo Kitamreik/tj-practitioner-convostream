@@ -909,8 +909,20 @@ const Conversations: React.FC = () => {
                   }
                 }}
               >
-                <Mail className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Email</span>
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 px-2 sm:px-3"
+                    aria-label="Copy conversation link"
+                    onClick={handleCopyLink}
+                  >
+                    <Link2 className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Copy link</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Copy a shareable URL to this conversation</TooltipContent>
+              </Tooltip>
 
               {/* === Secondary actions: visible on md+ === */}
               <div className="hidden md:contents">
