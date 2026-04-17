@@ -98,6 +98,7 @@ const Notifications: React.FC = () => {
         </AnimatePresence>
       </div>
     </div>
+    </PullToRefresh>
   );
 };
 
