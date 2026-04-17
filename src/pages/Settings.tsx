@@ -851,6 +851,22 @@ const SettingsPage: React.FC = () => {
                 : `Your admin account doesn't have access to Integrations, Analytics, or the Gmail API. Request escalation to notify a webmaster (${ESCALATION_NOTIFY_EMAIL}).`}
             </p>
 
+            {latestRevoke && !hasEscalatedAccess && (
+              <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs">
+                <div className="flex items-center gap-2 font-medium text-foreground">
+                  <ShieldOff className="h-3.5 w-3.5 text-destructive" />
+                  Your previous escalated access was revoked
+                </div>
+                <p className="mt-1 text-muted-foreground">
+                  <span className="italic">"{latestRevoke.reason || "(no reason recorded)"}"</span>
+                </p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  {latestRevoke.grantedByEmail ? `By ${latestRevoke.grantedByEmail} · ` : ""}
+                  {formatTime(latestRevoke.grantedAt)}
+                </p>
+              </div>
+            )}
+
             {!hasEscalatedAccess && (
               <div className="space-y-3">
                 <div className="space-y-2">
