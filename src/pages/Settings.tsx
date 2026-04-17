@@ -773,36 +773,104 @@ const SettingsPage: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              {agentRows.map((acc) => (
-                <div
-                  key={acc.uid}
-                  className="rounded-lg border border-border bg-background p-3 flex flex-col sm:flex-row gap-3 sm:items-center"
-                >
-                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                    {(acc.displayName || acc.email || "?").charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium text-foreground truncate">
-                        {acc.displayName || "(no name)"}
-                      </span>
-                      <Badge variant="secondary" className="capitalize text-[10px]">{acc.role}</Badge>
-                      {acc.escalatedAccess && (
-                        <Badge variant="outline" className="text-[10px] gap-1">
-                          <CheckCircle2 className="h-2.5 w-2.5" /> Escalated
-                        </Badge>
-                      )}
+              {agentRows.map((acc) => {
+                const history = renamesByUid.get(acc.uid) ?? [];
+                const isOpen = openHistory.has(acc.uid);
+                const isAdminTier = acc.role === "admin";
+                const busy = roleChangingUid === acc.uid;
+                return (
+                  <div
+                    key={acc.uid}
+                    className="rounded-lg border border-border bg-background p-3"
+                  >
+                    <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                        {(acc.displayName || acc.email || "?").charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-foreground truncate">
+                            {acc.displayName || "(no name)"}
+                          </span>
+                          <Badge variant="secondary" className="capitalize text-[10px]">{acc.role}</Badge>
+                          {acc.escalatedAccess && (
+                            <Badge variant="outline" className="text-[10px] gap-1">
+                              <CheckCircle2 className="h-2.5 w-2.5" /> Escalated
+                            </Badge>
+                          )}
+                          {history.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => toggleHistory(acc.uid)}
+                              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                              aria-expanded={isOpen}
+                            >
+                              <History className="h-3 w-3" />
+                              {history.length} rename{history.length === 1 ? "" : "s"}
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{acc.email || acc.uid}</p>
+                      </div>
+                      <div className="flex flex-shrink-0 flex-wrap gap-2">
+                        <Button size="sm" variant="outline" className="gap-1" onClick={() => openRename(acc)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                          Rename
+                        </Button>
+                        {isAdminTier ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1"
+                            disabled={busy}
+                            onClick={() => demoteToAgent(acc)}
+                          >
+                            <ArrowDown className="h-3.5 w-3.5" />
+                            {busy ? "…" : "Demote to agent"}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1"
+                            disabled={busy}
+                            onClick={() => promoteAgentToAdmin(acc)}
+                          >
+                            <ArrowUp className="h-3.5 w-3.5" />
+                            {busy ? "…" : "Promote to admin"}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{acc.email || acc.uid}</p>
+                    {isOpen && history.length > 0 && (
+                      <ul className="mt-3 space-y-1.5 border-t border-border pt-3">
+                        {history.slice(0, 5).map((ev) => (
+                          <li
+                            key={ev.id}
+                            className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground"
+                          >
+                            <span className="line-through opacity-70">
+                              {ev.previousDisplayName || "(blank)"}
+                            </span>
+                            <span aria-hidden>→</span>
+                            <span className="font-medium text-foreground">
+                              {ev.newDisplayName || "(blank)"}
+                            </span>
+                            <span className="opacity-70">
+                              · by {ev.grantedByEmail || "webmaster"} · {formatTime(ev.grantedAt)}
+                            </span>
+                          </li>
+                        ))}
+                        {history.length > 5 && (
+                          <li className="text-[10px] text-muted-foreground italic">
+                            + {history.length - 5} older rename{history.length - 5 === 1 ? "" : "s"} (see Audit Logs)
+                          </li>
+                        )}
+                      </ul>
+                    )}
                   </div>
-                  <div className="flex flex-shrink-0 gap-2">
-                    <Button size="sm" variant="outline" className="gap-1" onClick={() => openRename(acc)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                      Rename
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {agentRows.length === 0 && (
                 <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                   {agentSearch ? "No agents match your search." : "No agents yet."}
