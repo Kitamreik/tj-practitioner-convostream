@@ -711,7 +711,7 @@ const Conversations: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center text-muted-foreground">Select a conversation to view</div>
+        <div className="hidden flex-1 items-center justify-center text-muted-foreground md:flex">Select a conversation to view</div>
       )}
 
       {/* Profile Modal */}
