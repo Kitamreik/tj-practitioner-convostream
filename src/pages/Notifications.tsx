@@ -300,6 +300,26 @@ const Notifications: React.FC = () => {
           </Button>
         </div>
 
+        {showWorkload && (
+          <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-3 md:p-4">
+            <p className="text-xs md:text-sm font-medium text-foreground mb-2">Agent workload</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg bg-card border border-border p-2 text-center">
+                <div className="text-lg md:text-xl font-bold text-foreground">{workload.active}</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Active</div>
+              </div>
+              <div className="rounded-lg bg-card border border-border p-2 text-center">
+                <div className="text-lg md:text-xl font-bold text-foreground">{workload.waiting}</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Waiting</div>
+              </div>
+              <div className="rounded-lg bg-card border border-border p-2 text-center">
+                <div className="text-lg md:text-xl font-bold text-primary">{workload.unread}</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Unread</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Quick-add note: tag by icon */}
         <div className="mb-4 rounded-xl border border-border bg-card/50 p-3 md:p-4">
           <div className="flex items-center justify-between gap-2 mb-2">
