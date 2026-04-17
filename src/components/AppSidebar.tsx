@@ -74,20 +74,25 @@ const AppSidebar: React.FC = () => {
     return unsub;
   }, []);
 
-  // Listen for unread notifications
+  // Listen for unread notifications in the user's per-user subcollection.
+  // Notes created on the Notifications page live under users/{uid}/notifications.
+  const userUid = profile?.uid;
   useEffect(() => {
-    const q = query(collection(db, "notifications"), where("read", "==", false));
+    if (!userUid) {
+      setNotificationCount(0);
+      return;
+    }
+    const q = query(
+      collection(db, "users", userUid, "notifications"),
+      where("read", "==", false)
+    );
     const unsub = onSnapshot(
       q,
-      (snapshot) => {
-        setNotificationCount(snapshot.size);
-      },
-      () => {
-        setNotificationCount(2); // fallback
-      }
+      (snapshot) => setNotificationCount(snapshot.size),
+      () => setNotificationCount(0)
     );
     return unsub;
-  }, []);
+  }, [userUid]);
 
   const totalUnread = unreadCounts.active + unreadCounts.waiting;
 
