@@ -338,13 +338,14 @@ const Conversations: React.FC = () => {
           setUsingFallback(true);
           setSelectedId("mock-1");
         } else {
-          const convos = snapshot.docs
-            .map((d) => ({ id: d.id, ...d.data() } as Conversation & { archived?: boolean }))
-            .filter((c) => !c.archived);
+          const convos = snapshot.docs.map(
+            (d) => ({ id: d.id, ...d.data() } as Conversation)
+          );
           setConversations(convos);
           setUsingFallback(false);
-          if (!selectedId || !convos.find((c) => c.id === selectedId)) {
-            setSelectedId(convos[0]?.id || null);
+          const visible = convos.filter((c) => (showArchived ? c.archived : !c.archived));
+          if (!selectedId || !visible.find((c) => c.id === selectedId)) {
+            setSelectedId(visible[0]?.id || null);
           }
         }
       },
@@ -393,6 +394,8 @@ const Conversations: React.FC = () => {
   }, [usingFallback]);
 
   const filtered = conversations.filter((c) => {
+    const archivedMatch = showArchived ? !!c.archived : !c.archived;
+    if (!archivedMatch) return false;
     const lowerSearch = search.toLowerCase();
     const matchesBasic =
       c.customerName.toLowerCase().includes(lowerSearch) ||
