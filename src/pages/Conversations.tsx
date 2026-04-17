@@ -80,6 +80,7 @@ import { cn } from "@/lib/utils";
 import { httpsCallable } from "firebase/functions";
 import { useSearchParams } from "react-router-dom";
 import { functions } from "@/lib/firebase";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
 interface Conversation {
   id: string;
