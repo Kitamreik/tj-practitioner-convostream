@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, Trash2, Pencil } from "lucide-react";
+import { Search, Trash2, Pencil, ArchiveRestore } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import NewPersonDialog from "@/components/NewPersonDialog";
@@ -11,6 +13,7 @@ import EditPersonDialog, { type EditablePerson } from "@/components/EditPersonDi
 import PullToRefresh from "@/components/PullToRefresh";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { restoreItem, isExpired, daysRemaining } from "@/lib/softDelete";
 import {
   AlertDialog,
   AlertDialogAction,
