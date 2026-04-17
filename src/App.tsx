@@ -17,6 +17,7 @@ import AuditLogs from "./pages/AuditLogs";
 import Analytics from "./pages/Analytics";
 import GmailAPI from "./pages/GmailAPI";
 import SettingsPage from "./pages/Settings";
+import Archive from "./pages/Archive";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
