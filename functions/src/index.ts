@@ -395,6 +395,62 @@ export const resolveInvestigationRequest = onCall(async (request) => {
 });
 
 /**
+ * Webmaster-only: rename an agent (update displayName on users/{uid}).
+ * Used by the Settings → Agents tab. Recorded in `roleGrants` with
+ * action="renameAgent" so all identity changes have an audit trail.
+ *
+ * Request: { targetUid: string, displayName: string }
+ */
+export const updateAgentDisplayName = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerUid = request.auth.uid;
+  const callerSnap = await db.doc(`users/${callerUid}`).get();
+  if ((callerSnap.data() as { role?: string } | undefined)?.role !== "webmaster") {
+    throw new HttpsError("permission-denied", "Webmasters only.");
+  }
+
+  const data = (request.data ?? {}) as { targetUid?: unknown; displayName?: unknown };
+  const targetUid = typeof data.targetUid === "string" ? data.targetUid : "";
+  const displayName =
+    typeof data.displayName === "string" ? data.displayName.trim().slice(0, 80) : "";
+  if (!targetUid) throw new HttpsError("invalid-argument", "targetUid required.");
+  if (!displayName) throw new HttpsError("invalid-argument", "displayName required.");
+  // Reject control characters and angle brackets to mirror client-side nameSchema.
+  if (/[<>\u0000-\u001F\u007F]/.test(displayName)) {
+    throw new HttpsError("invalid-argument", "displayName contains invalid characters.");
+  }
+
+  const targetRef = db.doc(`users/${targetUid}`);
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) throw new HttpsError("not-found", "User not found.");
+  const targetData = targetSnap.data() as { role?: string; displayName?: string; email?: string };
+  const previousName = targetData.displayName ?? "";
+
+  await targetRef.update({ displayName });
+
+  await db.collection("roleGrants").add({
+    targetUid,
+    targetEmail: targetData.email ?? null,
+    previousRole: targetData.role ?? "agent",
+    newRole: targetData.role ?? "agent",
+    grantedByUid: callerUid,
+    grantedByEmail: callerSnap.data()?.email ?? null,
+    grantedAt: admin.firestore.FieldValue.serverTimestamp(),
+    action: "renameAgent",
+    previousDisplayName: previousName,
+    newDisplayName: displayName,
+  });
+
+  logger.info("updateAgentDisplayName: renamed", {
+    targetUid,
+    by: callerUid,
+    from: previousName,
+    to: displayName,
+  });
+  return { ok: true, previousDisplayName: previousName, newDisplayName: displayName };
+});
+
+/**
  * Any signed-in user can flag a conversation for webmaster investigation.
  * Persists to `investigationRequests` and emails ESCALATION_NOTIFY_EMAIL.
  *
@@ -478,7 +534,8 @@ export const enforceUserRoleOnWrite = onDocumentWritten(
 
     const serverAuthored = afterData._serverRoleWrite === true;
     const newRole = afterData.role;
-    const oldRole = beforeData?.role ?? "admin";
+    const oldRole = beforeData?.role ?? "agent";
+    const ALLOWED_BASELINES = new Set(["agent", "admin"]);
 
     // Server-authored writes are trusted — just clear the sentinel.
     if (serverAuthored) {
@@ -492,9 +549,11 @@ export const enforceUserRoleOnWrite = onDocumentWritten(
     const updates: Record<string, unknown> = {};
 
     if (!before?.exists) {
-      // CREATE: force baseline `admin` role regardless of what the client sent.
-      if (newRole !== "admin") {
-        updates.role = "admin";
+      // CREATE: force a baseline role. New signups should be "agent"; legacy
+      // "admin" is also accepted (existing accounts). Anything else gets
+      // demoted to "agent".
+      if (typeof newRole !== "string" || !ALLOWED_BASELINES.has(newRole)) {
+        updates.role = "agent";
         logger.warn("enforceUserRoleOnWrite: stripped non-default role on create", {
           uid: event.params.uid,
           attemptedRole: newRole,
