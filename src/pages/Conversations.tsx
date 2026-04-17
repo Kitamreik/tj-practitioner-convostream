@@ -513,6 +513,21 @@ const Conversations: React.FC = () => {
     toast({
       title: "Moved to Archive",
       description: "Restorable for 30 days from the Archive page.",
+      action: !usingFallback ? (
+        <button
+          onClick={async () => {
+            try {
+              await restoreItem("conversations", idToDelete);
+              toast({ title: "Restored", description: "Conversation is back in your active list." });
+            } catch (e) {
+              toast({ title: "Restore failed", variant: "destructive" });
+            }
+          }}
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs font-medium hover:bg-accent transition-colors"
+        >
+          <RotateCcw className="h-3 w-3" /> Undo
+        </button>
+      ) : undefined,
     });
   };
 
