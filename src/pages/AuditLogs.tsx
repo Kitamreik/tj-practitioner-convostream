@@ -543,6 +543,13 @@ const AuditLogs: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="people">
+          <div className="flex items-center justify-end mb-3">
+            <ClearAllButton
+              label="new people"
+              count={people.length}
+              onConfirm={() => handleClearAll("peopleAudit", "new people")}
+            />
+          </div>
           <div className="rounded-xl border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px]">
