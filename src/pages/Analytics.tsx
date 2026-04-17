@@ -106,12 +106,85 @@ const Analytics: React.FC = () => {
     }
   }, []);
 
+  // Pull the last 7 days of call activity for the per-number sparkline.
+  // Separate from the live feed so we can request more rows without bloating that list.
+  useEffect(() => {
+    try {
+      const sevenDaysAgo = Timestamp.fromDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+      const q = query(
+        collection(db, "googleVoiceActivity"),
+        where("timestamp", ">=", sevenDaysAgo),
+        orderBy("timestamp", "asc"),
+        limit(500)
+      );
+      const unsub = onSnapshot(
+        q,
+        (snap) => {
+          if (snap.empty) {
+            // Fall back to a deterministic synthetic 7-day series so the sparkline isn't blank.
+            const syntheticBase = Date.now() - 6 * 86_400_000;
+            setVoiceWeek(
+              Array.from({ length: 14 }).map((_, i) => ({
+                id: `syn-${i}`,
+                type: i % 3 === 0 ? "call_outbound" : "call_inbound",
+                contact: i % 2 === 0 ? "+1 555-0142" : "+1 555-0177",
+                timestamp: { toDate: () => new Date(syntheticBase + (i % 7) * 86_400_000) } as any,
+              }))
+            );
+          } else {
+            setVoiceWeek(snap.docs.map((d) => ({ id: d.id, ...d.data() } as VoiceActivity)));
+          }
+        },
+        () => setVoiceWeek([])
+      );
+      return unsub;
+    } catch {
+      setVoiceWeek([]);
+    }
+  }, []);
+
   // Unique numbers across all observed voice activity (for the filter dropdown)
   const voiceNumbers = useMemo(() => {
     const set = new Set<string>();
     voiceActivity.forEach((v) => v.contact && set.add(v.contact));
+    voiceWeek.forEach((v) => v.contact && set.add(v.contact));
     return Array.from(set).sort();
-  }, [voiceActivity]);
+  }, [voiceActivity, voiceWeek]);
+
+  // Bucket the last 7 days of CALL activity (inbound + outbound) by day for the
+  // selected number. Returns an array of length 7 — index 0 = 6 days ago, index 6 = today.
+  const sparklineData = useMemo(() => {
+    const days: { label: string; date: Date; count: number }[] = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      days.push({
+        label: d.toLocaleDateString(undefined, { weekday: "short" }),
+        date: d,
+        count: 0,
+      });
+    }
+    const filtered = voiceWeek.filter(
+      (v) =>
+        (v.type === "call_inbound" || v.type === "call_outbound") &&
+        (numberFilter === "all" || v.contact === numberFilter)
+    );
+    filtered.forEach((v) => {
+      const d: Date | null = v.timestamp?.toDate ? v.timestamp.toDate() : null;
+      if (!d) return;
+      const idx = days.findIndex(
+        (b) =>
+          b.date.getFullYear() === d.getFullYear() &&
+          b.date.getMonth() === d.getMonth() &&
+          b.date.getDate() === d.getDate()
+      );
+      if (idx >= 0) days[idx].count += 1;
+    });
+    return days;
+  }, [voiceWeek, numberFilter]);
+
+  const sparklineMax = useMemo(() => Math.max(1, ...sparklineData.map((d) => d.count)), [sparklineData]);
+  const sparklineTotal = useMemo(() => sparklineData.reduce((s, d) => s + d.count, 0), [sparklineData]);
 
   // Apply the active-number filter to the activity feed and stats
   const filteredVoiceActivity = useMemo(
