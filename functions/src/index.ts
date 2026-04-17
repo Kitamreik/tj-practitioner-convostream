@@ -97,6 +97,44 @@ export const promoteToWebmaster = onCall(async (request) => {
 });
 
 /**
+ * Build a nodemailer transport from env vars, or return null if SMTP isn't
+ * configured. Shared by all email-sending callables so we have one source of
+ * truth for credentials and behavior.
+ */
+function buildTransport(): nodemailer.Transporter | null {
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null;
+  const port = Number(SMTP_PORT || 587);
+  return nodemailer.createTransport({
+    host: SMTP_HOST,
+    port,
+    secure: port === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+  });
+}
+
+async function sendEscalationEmail(opts: {
+  subject: string;
+  text: string;
+}): Promise<{ sent: boolean; error: string | null }> {
+  const transport = buildTransport();
+  if (!transport) return { sent: false, error: "SMTP not configured" };
+  try {
+    await transport.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: ESCALATION_NOTIFY_EMAIL,
+      subject: opts.subject,
+      text: opts.text,
+    });
+    return { sent: true, error: null };
+  } catch (err: unknown) {
+    const message = (err as Error).message;
+    logger.error("sendEscalationEmail failed", err);
+    return { sent: false, error: message };
+  }
+}
+
+/**
  * Admin escalation request: any signed-in admin can request expanded access
  * (Integrations / Analytics / Gmail API). Persists a record in
  * `escalationRequests` and emails ESCALATION_NOTIFY_EMAIL via SMTP if creds
@@ -132,44 +170,188 @@ export const requestWebmasterEscalation = onCall(async (request) => {
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  // Best-effort email notification.
-  let emailSent = false;
-  let emailError: string | null = null;
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
-  if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: SMTP_HOST,
-        port: Number(SMTP_PORT || 587),
-        secure: Number(SMTP_PORT || 587) === 465,
-        auth: { user: SMTP_USER, pass: SMTP_PASS },
-      });
-      await transporter.sendMail({
-        from: SMTP_FROM || SMTP_USER,
-        to: ESCALATION_NOTIFY_EMAIL,
-        subject: `[ConvoHub] Webmaster escalation requested by ${userData.email ?? uid}`,
-        text:
-          `User ${userData.displayName ?? "(no name)"} <${userData.email ?? uid}> ` +
-          `(role: ${userData.role ?? "admin"}) is requesting webmaster escalation.\n\n` +
-          `Reason: ${reason || "(none provided)"}\n\n` +
-          `Request ID: ${requestRef.id}\n\n` +
-          `Approve by promoting them in the ConvoHub Settings page, or directly ` +
-          `via the promoteToWebmaster callable.`,
-      });
-      emailSent = true;
-      await requestRef.update({ emailSent: true });
-    } catch (err: unknown) {
-      emailError = (err as Error).message;
-      logger.error("requestWebmasterEscalation email failed", err);
-      await requestRef.update({ emailError });
-    }
-  } else {
-    logger.warn("requestWebmasterEscalation: SMTP not configured; request recorded only", {
-      requestId: requestRef.id,
-    });
+  const { sent, error } = await sendEscalationEmail({
+    subject: `[ConvoHub] Webmaster escalation requested by ${userData.email ?? uid}`,
+    text:
+      `User ${userData.displayName ?? "(no name)"} <${userData.email ?? uid}> ` +
+      `(role: ${userData.role ?? "admin"}) is requesting webmaster escalation.\n\n` +
+      `Reason: ${reason || "(none provided)"}\n\n` +
+      `Request ID: ${requestRef.id}\n\n` +
+      `Approve by promoting them in the ConvoHub Settings page, or directly ` +
+      `via the promoteToWebmaster callable.`,
+  });
+
+  await requestRef.update({
+    emailSent: sent,
+    ...(error ? { emailError: error } : {}),
+  });
+
+  return { ok: true, requestId: requestRef.id, emailSent: sent, emailError: error };
+});
+
+/**
+ * Webmaster approves or denies a pending escalation request.
+ * On approve: also grants escalatedAccess=true to the requester (server-authored).
+ *
+ * Request: { requestId: string, decision: "approve" | "deny" }
+ */
+export const decideEscalationRequest = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
+  if ((callerSnap.data() as { role?: string } | undefined)?.role !== "webmaster") {
+    throw new HttpsError("permission-denied", "Webmasters only.");
   }
 
-  return { ok: true, requestId: requestRef.id, emailSent, emailError };
+  const { requestId, decision } = (request.data ?? {}) as {
+    requestId?: unknown;
+    decision?: unknown;
+  };
+  if (typeof requestId !== "string" || !requestId) {
+    throw new HttpsError("invalid-argument", "requestId required.");
+  }
+  if (decision !== "approve" && decision !== "deny") {
+    throw new HttpsError("invalid-argument", "decision must be 'approve' or 'deny'.");
+  }
+
+  const reqRef = db.collection("escalationRequests").doc(requestId);
+  const reqSnap = await reqRef.get();
+  if (!reqSnap.exists) throw new HttpsError("not-found", "Request not found.");
+  const reqData = reqSnap.data() as { requesterUid?: string; status?: string };
+  if (reqData.status && reqData.status !== "pending") {
+    throw new HttpsError("failed-precondition", `Request already ${reqData.status}.`);
+  }
+  if (!reqData.requesterUid) {
+    throw new HttpsError("failed-precondition", "Request is missing requesterUid.");
+  }
+
+  const newStatus = decision === "approve" ? "approved" : "denied";
+
+  await reqRef.update({
+    status: newStatus,
+    decidedAt: admin.firestore.FieldValue.serverTimestamp(),
+    decidedByUid: request.auth.uid,
+    decidedByEmail: callerSnap.data()?.email ?? null,
+  });
+
+  if (decision === "approve") {
+    await db.doc(`users/${reqData.requesterUid}`).update({
+      escalatedAccess: true,
+      _serverRoleWrite: true,
+    });
+    logger.info("decideEscalationRequest: approved", { requestId, requesterUid: reqData.requesterUid });
+  } else {
+    logger.info("decideEscalationRequest: denied", { requestId });
+  }
+
+  return { ok: true, status: newStatus };
+});
+
+/**
+ * Webmaster-only: permanently delete a user account (Auth + Firestore profile).
+ * Refuses to delete the caller's own account.
+ *
+ * Request: { targetUid: string }
+ */
+export const deleteUserAccount = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerUid = request.auth.uid;
+  const callerSnap = await db.doc(`users/${callerUid}`).get();
+  if ((callerSnap.data() as { role?: string } | undefined)?.role !== "webmaster") {
+    throw new HttpsError("permission-denied", "Webmasters only.");
+  }
+
+  const { targetUid } = (request.data ?? {}) as { targetUid?: unknown };
+  if (typeof targetUid !== "string" || !targetUid) {
+    throw new HttpsError("invalid-argument", "targetUid required.");
+  }
+  if (targetUid === callerUid) {
+    throw new HttpsError("failed-precondition", "Webmasters cannot delete themselves.");
+  }
+
+  const targetRef = db.doc(`users/${targetUid}`);
+  const targetSnap = await targetRef.get();
+  const targetEmail = targetSnap.exists
+    ? (targetSnap.data() as { email?: string }).email ?? null
+    : null;
+
+  // Delete Firebase Auth user (idempotent — ignore "user not found").
+  try {
+    await admin.auth().deleteUser(targetUid);
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code !== "auth/user-not-found") {
+      logger.error("deleteUserAccount: auth delete failed", err);
+      throw new HttpsError("internal", `Auth delete failed: ${(err as Error).message}`);
+    }
+  }
+
+  if (targetSnap.exists) await targetRef.delete();
+
+  await db.collection("accountDeletions").add({
+    targetUid,
+    targetEmail,
+    deletedByUid: callerUid,
+    deletedByEmail: callerSnap.data()?.email ?? null,
+    deletedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  logger.info("deleteUserAccount: deleted", { targetUid, targetEmail, by: callerUid });
+  return { ok: true, targetUid, targetEmail };
+});
+
+/**
+ * Any signed-in user can flag a conversation for webmaster investigation.
+ * Persists to `investigationRequests` and emails ESCALATION_NOTIFY_EMAIL.
+ *
+ * Request: { conversationId: string, customerName?: string, reason?: string }
+ */
+export const requestConversationInvestigation = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const uid = request.auth.uid;
+  const userSnap = await db.doc(`users/${uid}`).get();
+  const userData = (userSnap.data() ?? {}) as { email?: string; displayName?: string };
+
+  const data = (request.data ?? {}) as {
+    conversationId?: unknown;
+    customerName?: unknown;
+    reason?: unknown;
+  };
+  const conversationId = typeof data.conversationId === "string" ? data.conversationId : "";
+  const customerName = typeof data.customerName === "string" ? data.customerName.slice(0, 200) : "";
+  const reason = typeof data.reason === "string" ? data.reason.slice(0, 1000) : "";
+  if (!conversationId) {
+    throw new HttpsError("invalid-argument", "conversationId is required.");
+  }
+
+  const ref = await db.collection("investigationRequests").add({
+    conversationId,
+    customerName,
+    reason,
+    requesterUid: uid,
+    requesterEmail: userData.email ?? null,
+    requesterName: userData.displayName ?? null,
+    notifiedEmail: ESCALATION_NOTIFY_EMAIL,
+    emailSent: false,
+    status: "open",
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  const { sent, error } = await sendEscalationEmail({
+    subject: `[ConvoHub] Conversation investigation requested${customerName ? ` — ${customerName}` : ""}`,
+    text:
+      `${userData.displayName ?? "(no name)"} <${userData.email ?? uid}> is asking a webmaster ` +
+      `to investigate conversation ${conversationId}` +
+      `${customerName ? ` with ${customerName}` : ""}.\n\n` +
+      `Reason: ${reason || "(none provided)"}\n\n` +
+      `Request ID: ${ref.id}`,
+  });
+
+  await ref.update({
+    emailSent: sent,
+    ...(error ? { emailError: error } : {}),
+  });
+
+  return { ok: true, requestId: ref.id, emailSent: sent, emailError: error };
 });
 
 /**

@@ -23,6 +23,7 @@ import {
   Tag,
   Radio,
   Archive as ArchiveIcon,
+  ShieldAlert,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -47,6 +48,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import {
   collection,
@@ -74,6 +77,8 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/lib/firebase";
 
 interface Conversation {
   id: string;
@@ -251,6 +256,37 @@ const Conversations: React.FC = () => {
   const [usingFallback, setUsingFallback] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [elevateOpen, setElevateOpen] = useState(false);
+  const [elevateReason, setElevateReason] = useState("");
+  const [elevating, setElevating] = useState(false);
+
+  const submitElevation = async () => {
+    if (!selected) return;
+    setElevating(true);
+    try {
+      const fn = httpsCallable<
+        { conversationId: string; customerName: string; reason: string },
+        { ok: boolean; emailSent: boolean }
+      >(functions, "requestConversationInvestigation");
+      const res = await fn({
+        conversationId: selected.id,
+        customerName: selected.customerName,
+        reason: elevateReason,
+      });
+      toast({
+        title: res.data.emailSent ? "Webmaster notified" : "Investigation request logged",
+        description: res.data.emailSent
+          ? "Email sent to kit.tjclasses@gmail.com asking for investigation."
+          : "Request recorded. Email will go out once SMTP is configured.",
+      });
+      setElevateOpen(false);
+      setElevateReason("");
+    } catch (e: any) {
+      toast({ title: "Could not send request", description: e?.message, variant: "destructive" });
+    } finally {
+      setElevating(false);
+    }
+  };
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -938,9 +974,18 @@ const Conversations: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+            <div className="ml-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive"
+                onClick={() => setElevateOpen(true)}
+              >
+                <ShieldAlert className="h-3 w-3" />
+                Elevate to webmaster
+              </Button>
+            </div>
           </div>
-
-          {/* Reply */}
           <div className="border-t border-border p-4">
             <div className="flex gap-3">
               <Input
@@ -961,6 +1006,40 @@ const Conversations: React.FC = () => {
       ) : (
         <div className="hidden flex-1 items-center justify-center text-muted-foreground md:flex">Select a conversation to view</div>
       )}
+
+      {/* Elevate to Webmaster — investigation request */}
+      <Dialog open={elevateOpen} onOpenChange={setElevateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Elevate to webmaster</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <p className="text-sm text-muted-foreground">
+              This will email <strong>kit.tjclasses@gmail.com</strong> asking a webmaster to
+              investigate <strong>{selected?.customerName}</strong>'s conversation. The request is
+              also logged in <code className="rounded bg-muted px-1 py-0.5 text-xs">investigationRequests</code>.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="elevate-reason">Reason (optional)</Label>
+              <Textarea
+                id="elevate-reason"
+                placeholder="What should the webmaster look at?"
+                value={elevateReason}
+                onChange={(e) => setElevateReason(e.target.value)}
+                rows={4}
+                maxLength={1000}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setElevateOpen(false)}>Cancel</Button>
+              <Button onClick={submitElevation} disabled={elevating} className="gap-2">
+                <ShieldAlert className="h-4 w-4" />
+                {elevating ? "Sending…" : "Send investigation request"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Profile Modal */}
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
