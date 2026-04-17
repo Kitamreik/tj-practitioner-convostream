@@ -73,9 +73,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // promoting an admin) propagate immediately without a re-login.
         profileUnsub = onSnapshot(
           doc(db, "users", firebaseUser.uid),
-          (snap) => {
-            setProfile(snap.exists() ? (snap.data() as UserProfile) : null);
-            setLoading(false);
+          async (snap) => {
+            if (snap.exists()) {
+              setProfile(snap.data() as UserProfile);
+              setLoading(false);
+              return;
+            }
+            // Self-heal: legacy accounts that exist in Firebase Auth but were
+            // never written to Firestore (e.g. created before signUp persisted
+            // the profile doc). Create a baseline `agent` profile so the user
+            // shows up in the Accounts/Agents lists and can be a Reassign
+            // target. Webmasters are re-promoted out-of-band via the
+            // `promoteToWebmaster` callable. Rules permit self-create with
+            // role `agent`.
+            try {
+              const fallback: UserProfile = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email ?? "",
+                role: "agent",
+                displayName:
+                  firebaseUser.displayName?.trim() ||
+                  (firebaseUser.email ? firebaseUser.email.split("@")[0] : "Unnamed user"),
+                createdAt: new Date(),
+              };
+              await setDoc(doc(db, "users", firebaseUser.uid), {
+                ...fallback,
+                createdAt: serverTimestamp(),
+              });
+              setProfile(fallback);
+            } catch (e) {
+              console.error("Self-heal failed to create users/{uid} doc:", e);
+              setProfile(null);
+            } finally {
+              setLoading(false);
+            }
           },
           (err) => {
             console.error("Failed to subscribe to user profile:", err);
