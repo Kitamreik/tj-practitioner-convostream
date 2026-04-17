@@ -433,12 +433,31 @@ const Conversations: React.FC = () => {
           setConversations(convos);
           setUsingFallback(false);
           // Honor ?open=<id> deep link if it matches a real conversation.
+  // Real-time conversations listener
+  useEffect(() => {
+    const q = query(collection(db, "conversations"), orderBy("timestamp", "desc"));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const requestedOpen = searchParams.get("open") || routeId;
+        if (snapshot.empty) {
+          setConversations(fallbackConversations);
+          setUsingFallback(true);
+          setSelectedId(requestedOpen || null);
+        } else {
+          const convos = snapshot.docs.map(
+            (d) => ({ id: d.id, ...d.data() } as Conversation)
+          );
+          setConversations(convos);
+          setUsingFallback(false);
+          // Honor /conversations/:id or ?open=<id> deep link if it matches a real conversation.
           if (requestedOpen && convos.find((c) => c.id === requestedOpen)) {
             setSelectedId(requestedOpen);
-          } else {
+          } else if (!routeId) {
+            // Only auto-select on the index route — never override an explicit URL.
             const visible = convos.filter((c) => (showArchived ? c.archived : !c.archived));
             if (!selectedId || !visible.find((c) => c.id === selectedId)) {
-              setSelectedId(visible[0]?.id || null);
+              setSelectedId(null);
             }
           }
         }
@@ -447,11 +466,24 @@ const Conversations: React.FC = () => {
         console.error("Conversations listener error:", error);
         setConversations(fallbackConversations);
         setUsingFallback(true);
-        setSelectedId("mock-1");
+        setSelectedId(routeId || null);
       }
     );
     return unsub;
-  }, []);
+  }, [routeId]);
+
+  // Keep the URL in sync with the currently-selected conversation so reloads
+  // and shared links re-open the same thread. Skip when nothing is selected
+  // (we want the index route to remain "/", not "/conversations/").
+  useEffect(() => {
+    if (!selectedId) {
+      if (routeId) navigate("/", { replace: true });
+      return;
+    }
+    if (selectedId !== routeId) {
+      navigate(`/conversations/${selectedId}`, { replace: true });
+    }
+  }, [selectedId, routeId, navigate]);
 
   // Honor ?open=<conversationId> deep link, then strip the param so refreshes don't re-trigger.
   useEffect(() => {
