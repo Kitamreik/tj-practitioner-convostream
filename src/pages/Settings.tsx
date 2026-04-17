@@ -23,6 +23,8 @@ import {
   History,
   ArrowUp,
   ArrowDown,
+  LayoutDashboard,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
