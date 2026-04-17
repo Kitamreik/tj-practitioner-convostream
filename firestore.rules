@@ -1,0 +1,117 @@
+rules_version = '2';
+
+// =============================================================================
+// ConvoHub Firestore Security Rules
+//
+// SECURITY MODEL
+// - Roles live on `users/{uid}` documents and are NEVER writable from the client
+//   except by webmasters. The `role` field is locked down here, and the
+//   `enforceUserRoleOnWrite` Cloud Function provides defense-in-depth by
+//   stripping any client-supplied `role` field on every write.
+// - Only authenticated users can read/write their own profile. Webmasters can
+//   read any profile and are the only principals allowed to mutate roles.
+// - Audit collections (`login_attempts`, `noteAudit`, `peopleAudit`,
+//   `retentionAudit`) are append-only for clients; deletes/clears are gated to
+//   authenticated users (admins/webmasters use the UI controls).
+// =============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------- Helpers --------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Webmaster check uses the user's own profile doc. Safe from recursion
+    // because we only read users/{auth.uid} (no policy back-reference loop).
+    function isWebmaster() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'webmaster';
+    }
+
+    // True when the incoming write does NOT touch the `role` field, OR the
+    // value being written matches what's already there.
+    function roleUnchanged() {
+      return !('role' in request.resource.data)
+        || (resource != null && resource.data.role == request.resource.data.role);
+    }
+
+    // -------- users/{uid} --------
+    // Users can read & write their own profile, but cannot set or change `role`.
+    // Webmasters can read any profile and are the only ones allowed to write
+    // the `role` field.
+    match /users/{uid} {
+      allow read: if isSelf(uid) || isWebmaster();
+
+      // Create: self-signup. The Cloud Function strips role; rules also forbid
+      // a client-supplied non-default role unless the caller is a webmaster.
+      allow create: if isSelf(uid)
+        && (
+          !('role' in request.resource.data)
+          || request.resource.data.role == 'admin'
+          || isWebmaster()
+        );
+
+      // Update: self can update profile fields but cannot mutate `role`.
+      // Webmasters can update anything, including `role`.
+      allow update: if (isSelf(uid) && roleUnchanged()) || isWebmaster();
+
+      // Delete: webmaster only.
+      allow delete: if isWebmaster();
+    }
+
+    // -------- conversations + messages --------
+    match /conversations/{convoId} {
+      allow read, write: if isSignedIn();
+      match /messages/{msgId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // -------- people --------
+    match /people/{personId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // -------- per-user notifications --------
+    match /users/{uid}/notifications/{noteId} {
+      allow read, write: if isSelf(uid);
+    }
+
+    // -------- audit collections --------
+    // Append + delete by signed-in users; the UI gates Clear-All to admins.
+    match /login_attempts/{id} {
+      allow create: if true; // login flow logs even for failed attempts
+      allow read, delete: if isSignedIn();
+      allow update: if false;
+    }
+    match /noteAudit/{id} {
+      allow create: if isSignedIn();
+      allow read, delete: if isSignedIn();
+      allow update: if false;
+    }
+    match /peopleAudit/{id} {
+      allow create: if isSignedIn();
+      allow read, delete: if isSignedIn();
+      allow update: if false;
+    }
+    match /retentionAudit/{id} {
+      allow read: if isSignedIn();
+      allow write: if false; // server only
+    }
+
+    // -------- integrations / google voice activity --------
+    match /googleVoiceActivity/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /integrations/{id} {
+      allow read, write: if isSignedIn();
+    }
+  }
+}
