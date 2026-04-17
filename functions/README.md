@@ -1,23 +1,31 @@
 # ConvoHub Cloud Functions
 
-Server-side retention enforcement for the ConvoHub Firestore database.
+Server-side enforcement for the ConvoHub Firestore database.
 
 ## What it does
 
-`scheduledArchivePurge` runs daily at **03:00 UTC** and permanently deletes:
+### `scheduledArchivePurge`
+Runs daily at **03:00 UTC** and permanently deletes archived conversations + their `messages` subcollection, and archived people, that are older than **30 days**. Each run writes a summary to `retentionAudit/`.
 
-- `conversations` documents where `archived == true` and `deletedAt` is older than **30 days** — including all messages in the `messages/` subcollection.
-- `people` documents matching the same criteria.
+### `enforceUserRoleOnWrite`
+Firestore trigger on `users/{uid}` that strips any client-supplied `role` field as defense-in-depth. The Firestore rules in `/firestore.rules` already block non-webmaster role writes; this trigger guarantees a runaway client cannot escalate privileges. Trusted server code can set `_serverRoleWrite: true` on the write to bypass the check (the sentinel is auto-deleted).
 
-Each run writes a summary entry to `retentionAudit/` with the run time, cutoff, and counts.
-
-A second function, `purgeArchivedHttp`, lets an admin trigger the same purge on demand:
+### `purgeArchivedHttp`
+Manual one-off purge trigger:
 
 ```bash
 curl -X POST https://<region>-<project>.cloudfunctions.net/purgeArchivedHttp \
   -H "Content-Type: application/json" \
   -d '{"secret":"<PURGE_SECRET>"}'
 ```
+
+## Deploy security rules
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+The rules file is at the repo root (`firestore.rules`) and locks the `role` field on `users/{uid}` to webmaster-only writes.
 
 ## First-time setup
 
