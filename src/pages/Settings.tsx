@@ -70,6 +70,21 @@ interface AccountRow {
   createdAt?: any;
 }
 
+interface InvestigationRow {
+  id: string;
+  conversationId: string;
+  customerName: string;
+  reason: string;
+  requesterUid: string;
+  requesterEmail: string | null;
+  requesterName: string | null;
+  status: string;
+  emailSent: boolean;
+  createdAt: any;
+  resolvedAt?: any;
+  resolutionNote?: string;
+}
+
 const SettingsPage: React.FC = () => {
   const { user, profile } = useAuth();
   const { theme, toggleTheme } = useTheme();
