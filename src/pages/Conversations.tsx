@@ -801,16 +801,39 @@ const Conversations: React.FC = () => {
                 </TooltipTrigger>
                 <TooltipContent>{selected.status === "resolved" ? "Reopen conversation (E)" : "Mark as resolved (E)"}</TooltipContent>
               </Tooltip>
-              {/* Delete */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive" aria-label="Delete conversation">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Delete conversation</TooltipContent>
-              </Tooltip>
-              {/* Shortcuts help — desktop only */}
+              {/* Delete or Restore */}
+              {selected.archived ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await restoreItem("conversations", selected.id);
+                          toast({ title: "Restored", description: "Conversation moved back to active." });
+                        } catch {
+                          toast({ title: "Restore failed", variant: "destructive" });
+                        }
+                      }}
+                      className="gap-1.5 px-2 sm:px-3"
+                      aria-label="Restore conversation"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Restore</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Restore from archive</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive" aria-label="Delete conversation">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Delete conversation</TooltipContent>
+                </Tooltip>
+              )}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="ghost" size="sm" onClick={() => setShowShortcuts((p) => !p)} className="hidden md:inline-flex" aria-label="Keyboard shortcuts">
