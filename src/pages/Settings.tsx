@@ -586,6 +586,7 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  const submitReassign = async () => {
     if (!reassignFrom || !reassignTo) return;
     if (!sourceRowForReassign) return;
     const eligible = sourceRowForReassign.convos
