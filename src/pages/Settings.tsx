@@ -991,17 +991,30 @@ const SettingsPage: React.FC = () => {
                   <Badge variant="secondary" className="ml-1">{overviewByAgent.length}</Badge>
                 )}
               </h3>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={seedDemoData}
-                disabled={seeding}
-                aria-label="Seed 5 demo conversations assigned to one agent"
-              >
-                <MessageCircle className="h-3.5 w-3.5" />
-                {seeding ? "Seeding..." : "Seed demo data"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={seedDemoData}
+                  disabled={seeding}
+                  aria-label="Seed 5 demo conversations assigned to one agent"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  {seeding ? "Seeding..." : "Seed demo data"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={clearDemoData}
+                  disabled={clearingDemo}
+                  aria-label="Delete every conversation marked as demo"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {clearingDemo ? "Clearing..." : "Clear demo data"}
+                </Button>
+              </div>
             </div>
             <p className="text-xs text-muted-foreground mb-4">
               Live snapshot of every agent and admin with assigned conversations. Click a row
