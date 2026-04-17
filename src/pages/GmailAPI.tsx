@@ -442,11 +442,20 @@ const GmailAPI: React.FC = () => {
   const handleSend = async () => {
     // Validate every field with Zod — rejects header injection / overlong / empty
     const toV = safeValidate(emailSchema, composeTo);
-    if (!toV.ok) return toast({ title: "Invalid recipient", description: toV.error, variant: "destructive" });
+    if (!toV.ok) {
+      toast({ title: "Invalid recipient", description: toV.error, variant: "destructive" });
+      return;
+    }
     const sV = safeValidate(subjectSchema, composeSubject);
-    if (!sV.ok) return toast({ title: "Invalid subject", description: sV.error, variant: "destructive" });
+    if (!sV.ok) {
+      toast({ title: "Invalid subject", description: sV.error, variant: "destructive" });
+      return;
+    }
     const bV = safeValidate(messageBodySchema, composeBody);
-    if (!bV.ok) return toast({ title: "Invalid message", description: bV.error, variant: "destructive" });
+    if (!bV.ok) {
+      toast({ title: "Invalid message", description: bV.error, variant: "destructive" });
+      return;
+    }
 
     setSending(true);
     try {
