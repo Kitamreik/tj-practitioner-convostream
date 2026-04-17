@@ -16,7 +16,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
-export type UserRole = "admin" | "webmaster";
+export type UserRole = "agent" | "admin" | "webmaster";
 
 interface UserProfile {
   uid: string;
@@ -107,13 +107,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, displayName: string) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     // SECURITY: Role is NEVER accepted from the client. New accounts always get the
-    // baseline "admin" role (no access to webmaster-gated routes like /audit).
-    // Privileged roles must be granted out-of-band by an existing webmaster directly
-    // in Firestore, or via a server-side Cloud Function with proper authorization.
+    // baseline "agent" role (no access to webmaster-gated routes like /audit, and
+    // no access to escalated routes — Integrations / Analytics / Gmail API).
+    // Privileged roles must be granted out-of-band by an existing webmaster via a
+    // server-side Cloud Function (`promoteToWebmaster`) with proper authorization.
     const profileData: UserProfile = {
       uid: cred.user.uid,
       email,
-      role: "admin",
+      role: "agent",
       displayName,
       createdAt: new Date(),
     };

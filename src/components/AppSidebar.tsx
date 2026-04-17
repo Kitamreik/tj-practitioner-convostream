@@ -25,7 +25,7 @@ interface NavItem {
   label: string;
   icon: React.ReactNode;
   path: string;
-  roles?: ("admin" | "webmaster")[];
+  roles?: ("agent" | "admin" | "webmaster")[];
   /** When true, this item is hidden from non-escalated admins. */
   webmasterOrEscalated?: boolean;
   badgeKey?: string;

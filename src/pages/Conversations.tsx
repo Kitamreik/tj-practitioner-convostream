@@ -303,6 +303,42 @@ const Conversations: React.FC = () => {
   };
   const replyInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
+
+  // Resizable list-pane width (desktop only). Persisted in localStorage so the
+  // user's preferred split survives reloads. Bounded to a sensible range.
+  const LIST_WIDTH_KEY = "convohub.conversations.listWidth";
+  const [listWidth, setListWidth] = useState<number>(() => {
+    if (typeof window === "undefined") return 320;
+    const stored = Number(localStorage.getItem(LIST_WIDTH_KEY));
+    return Number.isFinite(stored) && stored >= 240 && stored <= 640 ? stored : 320;
+  });
+  const resizingRef = useRef(false);
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const next = Math.min(640, Math.max(240, e.clientX));
+      setListWidth(next);
+    };
+    const onUp = () => {
+      if (!resizingRef.current) return;
+      resizingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      try { localStorage.setItem(LIST_WIDTH_KEY, String(listWidth)); } catch { /* noop */ }
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [listWidth]);
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    resizingRef.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
   const [searchParams, setSearchParams] = useSearchParams();
 
   const agents = ["Alice Johnson", "Bob Smith", "Carol Davis", "Dan Lee"];
@@ -659,12 +695,14 @@ const Conversations: React.FC = () => {
 
   return (
     <div className="flex h-full">
-      {/* Thread List — full width on mobile when nothing selected, hidden on mobile when selected */}
+      {/* Thread List — full width on mobile when nothing selected, hidden on mobile when selected.
+          Desktop width is controlled by `listWidth` (resizable via ResizeDivider below). */}
       <div
         className={cn(
-          "flex w-full flex-shrink-0 flex-col border-r border-border md:w-80",
+          "flex w-full flex-shrink-0 flex-col border-r border-border",
           isMobile && selectedId ? "hidden" : "flex"
         )}
+        style={!isMobile ? { width: `${listWidth}px` } : undefined}
       >
         <div className="border-b border-border p-4">
           <div className="flex items-center justify-between mb-3">
@@ -774,6 +812,19 @@ const Conversations: React.FC = () => {
           ))}
         </PullToRefresh>
       </div>
+
+      {/* Resizable divider — desktop only. Drag to resize the thread list. */}
+      {!isMobile && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize conversation list"
+          onMouseDown={startResize}
+          className="group relative w-1 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
+        >
+          <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-border group-hover:bg-primary/40" />
+        </div>
+      )}
 
       {/* Thread Detail */}
       {selected ? (
