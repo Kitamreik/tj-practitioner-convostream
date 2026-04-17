@@ -407,19 +407,98 @@ const Conversations: React.FC = () => {
   const hasActiveFilters = statusFilter !== "all" || channelFilter !== "all";
   const clearFilters = () => { setStatusFilter("all"); setChannelFilter("all"); };
 
-  const handleAssignAgent = (convoId: string, agent: string) => {
+  const handleAssignAgent = async (convoId: string, agent: string | null) => {
+    // Optimistic update
     setConversations((prev) =>
-      prev.map((c) => (c.id === convoId ? { ...c, assignedAgent: agent } : c))
+      prev.map((c) => (c.id === convoId ? { ...c, assignedAgent: agent || undefined } : c))
     );
-    toast({ title: "Assigned", description: `Conversation assigned to ${agent}.` });
+    if (!usingFallback) {
+      try {
+        await updateDoc(doc(db, "conversations", convoId), {
+          assignedAgent: agent ?? null,
+        });
+      } catch (e) {
+        console.error("Failed to persist agent assignment:", e);
+        toast({ title: "Could not save assignment", description: "Change is local only.", variant: "destructive" });
+      }
+    }
+    toast({
+      title: agent ? "Assigned" : "Unassigned",
+      description: agent ? `Conversation assigned to ${agent}.` : "Agent removed from conversation.",
+    });
   };
 
-  const handleMarkResolved = () => {
+  const handleToggleResolved = async () => {
+    if (!selectedId || !selected) return;
+    const newStatus = selected.status === "resolved" ? "active" : "resolved";
+    setConversations((prev) =>
+      prev.map((c) => (c.id === selectedId ? { ...c, status: newStatus as any } : c))
+    );
+    if (!usingFallback) {
+      try {
+        await updateDoc(doc(db, "conversations", selectedId), { status: newStatus });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    toast({
+      title: newStatus === "resolved" ? "Resolved" : "Reopened",
+      description: newStatus === "resolved" ? "Conversation marked as resolved." : "Conversation reopened to active.",
+    });
+  };
+
+  const handleChangeStatus = async (newStatus: "active" | "waiting" | "resolved") => {
     if (!selectedId) return;
     setConversations((prev) =>
-      prev.map((c) => (c.id === selectedId ? { ...c, status: "resolved" as const } : c))
+      prev.map((c) => (c.id === selectedId ? { ...c, status: newStatus } : c))
     );
-    toast({ title: "Resolved", description: "Conversation marked as resolved." });
+    if (!usingFallback) {
+      try {
+        await updateDoc(doc(db, "conversations", selectedId), { status: newStatus });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    toast({ title: "Status updated", description: `Conversation is now ${newStatus}.` });
+  };
+
+  const handleChangeChannel = async (newChannel: "sms" | "phone" | "email" | "slack") => {
+    if (!selectedId) return;
+    setConversations((prev) =>
+      prev.map((c) => (c.id === selectedId ? { ...c, channel: newChannel } : c))
+    );
+    if (!usingFallback) {
+      try {
+        await updateDoc(doc(db, "conversations", selectedId), { channel: newChannel });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    toast({ title: "Channel updated", description: `Switched to ${newChannel.toUpperCase()}.` });
+  };
+
+  const handleDeleteConversation = async () => {
+    if (!selectedId) return;
+    const idToDelete = selectedId;
+    setConfirmDeleteOpen(false);
+    if (!usingFallback) {
+      try {
+        // Delete subcollection messages, then doc
+        const msgsSnap = await getDocs(collection(db, "conversations", idToDelete, "messages"));
+        const batch = writeBatch(db);
+        msgsSnap.docs.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+        await deleteDoc(doc(db, "conversations", idToDelete));
+      } catch (e) {
+        console.error("Delete failed:", e);
+        toast({ title: "Delete failed", variant: "destructive" });
+        return;
+      }
+    } else {
+      setConversations((prev) => prev.filter((c) => c.id !== idToDelete));
+    }
+    setSelectedId(null);
+    toast({ title: "Conversation deleted", description: "Thread and messages removed." });
   };
 
   const handleSend = async () => {
