@@ -23,6 +23,7 @@ import {
   Tag,
   Radio,
   Archive as ArchiveIcon,
+  ShieldAlert,
 } from "lucide-react";
 import {
   AlertDialog,
