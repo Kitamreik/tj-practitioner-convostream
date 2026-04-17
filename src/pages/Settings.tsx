@@ -15,7 +15,11 @@ import {
   Trash2,
   Check,
   X,
+  ShieldOff,
+  Search,
+  ExternalLink,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -64,6 +68,21 @@ interface AccountRow {
   role: "admin" | "webmaster";
   escalatedAccess?: boolean;
   createdAt?: any;
+}
+
+interface InvestigationRow {
+  id: string;
+  conversationId: string;
+  customerName: string;
+  reason: string;
+  requesterUid: string;
+  requesterEmail: string | null;
+  requesterName: string | null;
+  status: string;
+  emailSent: boolean;
+  createdAt: any;
+  resolvedAt?: any;
+  resolutionNote?: string;
 }
 
 const SettingsPage: React.FC = () => {
@@ -276,6 +295,75 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  // ---- Revoke escalated access (webmaster only) ----
+  const [revokingUid, setRevokingUid] = useState<string | null>(null);
+  const revokeEscalation = async (uid: string, email: string) => {
+    setRevokingUid(uid);
+    try {
+      const fn = httpsCallable<{ targetUid: string }, { ok: boolean }>(functions, "revokeEscalatedAccess");
+      await fn({ targetUid: uid });
+      toast({ title: "Escalated access revoked", description: `${email || uid} no longer has expanded access.` });
+    } catch (e: any) {
+      toast({ title: "Revoke failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setRevokingUid(null);
+    }
+  };
+
+  // ---- Investigation requests (webmaster only) ----
+  const [investigations, setInvestigations] = useState<InvestigationRow[]>([]);
+  const [showResolved, setShowResolved] = useState(false);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isWebmaster) return;
+    const unsub = onSnapshot(
+      query(collection(db, "investigationRequests"), orderBy("createdAt", "desc"), limit(50)),
+      (snap) => {
+        const rows: InvestigationRow[] = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            conversationId: data.conversationId ?? "",
+            customerName: data.customerName ?? "",
+            reason: data.reason ?? "",
+            requesterUid: data.requesterUid ?? "",
+            requesterEmail: data.requesterEmail ?? null,
+            requesterName: data.requesterName ?? null,
+            status: data.status ?? "open",
+            emailSent: !!data.emailSent,
+            createdAt: data.createdAt,
+            resolvedAt: data.resolvedAt,
+            resolutionNote: data.resolutionNote,
+          };
+        });
+        setInvestigations(rows);
+      },
+      (err) => {
+        console.warn("Investigation requests listener error:", err);
+        setInvestigations([]);
+      }
+    );
+    return unsub;
+  }, [isWebmaster]);
+
+  const resolveInvestigation = async (id: string) => {
+    setResolvingId(id);
+    try {
+      const fn = httpsCallable<{ requestId: string }, { ok: boolean }>(functions, "resolveInvestigationRequest");
+      await fn({ requestId: id });
+      toast({ title: "Investigation resolved" });
+    } catch (e: any) {
+      toast({ title: "Could not resolve", description: e?.message, variant: "destructive" });
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
+  const visibleInvestigations = showResolved
+    ? investigations
+    : investigations.filter((i) => i.status !== "resolved");
+
   const formatTime = (ts: any) => {
     try {
       if (ts?.toDate) return ts.toDate().toLocaleString();
@@ -479,7 +567,38 @@ const SettingsPage: React.FC = () => {
                       <p className="text-xs text-muted-foreground truncate">{acc.email || acc.uid}</p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">Joined {formatTime(acc.createdAt)}</p>
                     </div>
-                    <div className="flex-shrink-0">
+                    <div className="flex flex-shrink-0 gap-2 flex-wrap">
+                      {acc.escalatedAccess && acc.role !== "webmaster" && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1"
+                              disabled={revokingUid === acc.uid}
+                            >
+                              <ShieldOff className="h-3.5 w-3.5" />
+                              {revokingUid === acc.uid ? "Revoking…" : "Revoke escalation"}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Revoke escalated access?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                {acc.email || acc.displayName || acc.uid} will lose access to Integrations,
+                                Analytics, and the Gmail API. They can request escalation again later.
+                                This action is recorded in <code className="rounded bg-muted px-1 py-0.5">roleGrants</code>.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => revokeEscalation(acc.uid, acc.email)}>
+                                Revoke access
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
@@ -521,6 +640,101 @@ const SettingsPage: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Webmaster-only: Investigation requests */}
+        {isWebmaster && (
+          <div className="rounded-xl border border-border bg-card p-6">
+            <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
+              <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground">
+                <Search className="h-5 w-5 text-primary" />
+                Investigation requests
+                {visibleInvestigations.length > 0 && (
+                  <Badge variant="secondary" className="ml-1">{visibleInvestigations.length}</Badge>
+                )}
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowResolved((v) => !v)}
+              >
+                {showResolved ? "Hide resolved" : "Show resolved"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Conversations flagged by admins for webmaster review. Each entry is also emailed to
+              {" "}<code className="rounded bg-muted px-1 py-0.5">{ESCALATION_NOTIFY_EMAIL}</code>.
+            </p>
+            {visibleInvestigations.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                {showResolved ? "No investigation requests yet." : "No open investigation requests."}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {visibleInvestigations.map((inv) => (
+                  <div
+                    key={inv.id}
+                    className="rounded-lg border border-border bg-background p-3 flex flex-col sm:flex-row gap-3 sm:items-center"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-foreground truncate">
+                          {inv.customerName || "(unnamed conversation)"}
+                        </span>
+                        <Badge
+                          variant={inv.status === "resolved" ? "outline" : "secondary"}
+                          className="capitalize text-[10px]"
+                        >
+                          {inv.status}
+                        </Badge>
+                        {inv.emailSent && (
+                          <Badge variant="outline" className="text-[10px] gap-1">
+                            <Send className="h-2.5 w-2.5" /> Email sent
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">
+                        Requested by {inv.requesterName || inv.requesterEmail || inv.requesterUid}
+                      </p>
+                      {inv.reason && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">"{inv.reason}"</p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-3 mt-1">
+                        <p className="text-[10px] text-muted-foreground">{formatTime(inv.createdAt)}</p>
+                        {inv.conversationId && (
+                          <Link
+                            to={`/conversations?open=${encodeURIComponent(inv.conversationId)}`}
+                            className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                          >
+                            <ExternalLink className="h-2.5 w-2.5" />
+                            Open conversation
+                          </Link>
+                        )}
+                      </div>
+                      {inv.status === "resolved" && inv.resolutionNote && (
+                        <p className="text-[10px] text-muted-foreground mt-1 italic">
+                          Resolved: {inv.resolutionNote}
+                        </p>
+                      )}
+                    </div>
+                    {inv.status !== "resolved" && (
+                      <div className="flex-shrink-0">
+                        <Button
+                          size="sm"
+                          className="gap-1"
+                          disabled={resolvingId === inv.id}
+                          onClick={() => resolveInvestigation(inv.id)}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          {resolvingId === inv.id ? "…" : "Resolve"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
