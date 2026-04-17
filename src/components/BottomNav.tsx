@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/co
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
-import { Plug, Shield, Mail, Settings as SettingsIcon, LogOut, Moon, Sun } from "lucide-react";
+import { Plug, Shield, Mail, Settings as SettingsIcon, LogOut, Moon, Sun, Archive as ArchiveIcon } from "lucide-react";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -28,6 +28,7 @@ const moreItems: NavItem[] = [
   { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations" },
   { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit" },
   { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail" },
+  { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" },
   { label: "Settings", icon: <SettingsIcon className="h-5 w-5" />, path: "/settings" },
 ];
 

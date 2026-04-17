@@ -17,6 +17,7 @@ import AuditLogs from "./pages/AuditLogs";
 import Analytics from "./pages/Analytics";
 import GmailAPI from "./pages/GmailAPI";
 import SettingsPage from "./pages/Settings";
+import Archive from "./pages/Archive";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -63,6 +64,7 @@ const App = () => (
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/gmail" element={<GmailAPI />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/archive" element={<Archive />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

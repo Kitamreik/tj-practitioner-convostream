@@ -4,7 +4,7 @@ import { Search, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { collection, query, orderBy, onSnapshot, doc, deleteDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import NewPersonDialog from "@/components/NewPersonDialog";
 import PullToRefresh from "@/components/PullToRefresh";
@@ -69,7 +69,10 @@ const People: React.FC = () => {
           setPeople(fallbackPeople);
           setUsingFallback(true);
         } else {
-          setPeople(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Person)));
+          const docs = snapshot.docs
+            .map((d) => ({ id: d.id, ...d.data() } as Person & { archived?: boolean }))
+            .filter((p) => !p.archived);
+          setPeople(docs);
           setUsingFallback(false);
         }
       },
@@ -98,15 +101,21 @@ const People: React.FC = () => {
   const handleDelete = async (person: Person) => {
     if (usingFallback) {
       setPeople((prev) => prev.filter((p) => p.id !== person.id));
-      toast({ title: "Profile removed", description: `${person.name}'s information has been wiped (local).` });
+      toast({ title: "Profile archived", description: `${person.name}'s profile moved to Archive (local).` });
       return;
     }
     try {
-      await deleteDoc(doc(db, "people", person.id));
-      toast({ title: "Profile deleted", description: `${person.name}'s client information has been wiped.` });
+      await updateDoc(doc(db, "people", person.id), {
+        archived: true,
+        deletedAt: serverTimestamp(),
+      });
+      toast({
+        title: "Profile archived",
+        description: `${person.name}'s profile is restorable from Archive for 30 days.`,
+      });
     } catch (e: any) {
       console.error(e);
-      toast({ title: "Delete failed", description: e?.message, variant: "destructive" });
+      toast({ title: "Archive failed", description: e?.message, variant: "destructive" });
     }
   };
 
@@ -126,9 +135,9 @@ const People: React.FC = () => {
       </AlertDialogTrigger>
       <AlertDialogContent onClick={(e) => e.stopPropagation()}>
         <AlertDialogHeader>
-          <AlertDialogTitle>Wipe client information?</AlertDialogTitle>
+          <AlertDialogTitle>Archive this profile?</AlertDialogTitle>
           <AlertDialogDescription>
-            This permanently deletes <strong>{person.name}</strong>'s profile, contact details, and tags. This action cannot be undone.
+            <strong>{person.name}</strong>'s profile will be hidden from your People list. You can restore it from the Archive page within 30 days, after which it is permanently deleted.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -137,7 +146,7 @@ const People: React.FC = () => {
             onClick={() => handleDelete(person)}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            Delete profile
+            Archive profile
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
