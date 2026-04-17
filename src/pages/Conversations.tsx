@@ -26,6 +26,8 @@ import {
   ShieldAlert,
   MoreHorizontal,
   Link2,
+  Share2,
+  Users as UsersIcon,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -293,6 +295,8 @@ const Conversations: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [showShortcuts, setShowShortcuts] = useState(false);
+  // "Show only my assigned conversations" filter for agents/admins.
+  const [mineOnly, setMineOnly] = useState<boolean>(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   // Persist 'Show archived' across refresh, namespaced per Firebase UID.
   const [showArchived, setShowArchivedState] = useState<boolean>(false);
@@ -358,10 +362,34 @@ const Conversations: React.FC = () => {
     return map;
   }, [conversations]);
 
-  // Copy a deep link to the currently-selected conversation to the clipboard.
+  // Share/copy a deep link to the currently-selected conversation.
+  // Prefers the native Web Share API (mobile share sheet) when available;
+  // falls back to clipboard on desktop browsers without share support.
   const handleCopyLink = async () => {
     if (!selected) return;
     const url = `${window.location.origin}/conversations/${selected.id}`;
+    const title = `Conversation with ${selected.customerName}`;
+    const shareData: ShareData = {
+      title,
+      text: `${title} on ConvoHub`,
+      url,
+    };
+    // Web Share API: only use when the browser can actually share this payload.
+    // `canShare` guards against desktop Chrome which exposes `share` but rejects URLs.
+    const canNativeShare =
+      typeof navigator !== "undefined" &&
+      typeof navigator.share === "function" &&
+      (typeof navigator.canShare !== "function" || navigator.canShare(shareData));
+    if (canNativeShare) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err: any) {
+        // User dismissed the share sheet — don't fall through to clipboard.
+        if (err?.name === "AbortError") return;
+        // Any other error (e.g. permission denied): fall through to clipboard.
+      }
+    }
     try {
       await navigator.clipboard.writeText(url);
       toast({ title: "Link copied", description: "Conversation URL copied to clipboard." });
@@ -551,9 +579,25 @@ const Conversations: React.FC = () => {
     }
   }, [usingFallback]);
 
+  // The agent name as it appears on conversations.assignedAgent — matches what
+  // the assign dropdown writes (displayName preferred, falling back to email).
+  const myAgentName = (profile?.displayName?.trim() || profile?.email?.trim() || "").toLowerCase();
+  const myOpenCount = useMemo(() => {
+    if (!myAgentName) return 0;
+    return conversations.filter(
+      (c) =>
+        !c.archived &&
+        c.status !== "resolved" &&
+        (c.assignedAgent || "").toLowerCase() === myAgentName
+    ).length;
+  }, [conversations, myAgentName]);
+  // Hide banner+filter for webmasters (they have the Overview panel instead).
+  const showMineBanner = profile?.role !== "webmaster" && myOpenCount > 0;
+
   const filtered = conversations.filter((c) => {
     const archivedMatch = showArchived ? !!c.archived : !c.archived;
     if (!archivedMatch) return false;
+    if (mineOnly && (c.assignedAgent || "").toLowerCase() !== myAgentName) return false;
     const lowerSearch = search.toLowerCase();
     const matchesBasic =
       c.customerName.toLowerCase().includes(lowerSearch) ||
@@ -807,6 +851,26 @@ const Conversations: React.FC = () => {
           </div>
         </div>
 
+        {/* Agent/admin banner: shows their open assignment count and a one-click filter. */}
+        {showMineBanner && (
+          <div className="flex items-center gap-2 border-b border-border bg-primary/5 px-4 py-2">
+            <UsersIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+            <p className="text-xs text-foreground flex-1 min-w-0">
+              You have <span className="font-semibold text-primary">{myOpenCount}</span>{" "}
+              open conversation{myOpenCount === 1 ? "" : "s"} assigned
+            </p>
+            <Button
+              variant={mineOnly ? "default" : "outline"}
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => setMineOnly((v) => !v)}
+              aria-pressed={mineOnly}
+            >
+              {mineOnly ? "Show all" : "Show mine"}
+            </Button>
+          </div>
+        )}
+
         <PullToRefresh onRefresh={handleRefresh} className="flex-1" disabled={!isMobile}>
           {filtered.map((convo) => (
             <button
@@ -923,13 +987,13 @@ const Conversations: React.FC = () => {
                     variant="outline"
                     size="sm"
                     className="gap-1.5 px-2 sm:px-3"
-                    aria-label="Copy conversation link"
+                    aria-label="Share conversation link"
                     onClick={handleCopyLink}
                   >
-                    <Link2 className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Copy link</span>
+                    <Share2 className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Share</span>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Copy a shareable URL to this conversation</TooltipContent>
+                <TooltipContent>Share via system sheet (mobile) or copy link (desktop)</TooltipContent>
               </Tooltip>
 
               {/* === Secondary actions: visible on md+ === */}

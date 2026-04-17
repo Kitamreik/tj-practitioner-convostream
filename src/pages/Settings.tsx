@@ -25,6 +25,7 @@ import {
   ArrowDown,
   LayoutDashboard,
   MessageCircle,
+  ArrowRightLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -63,7 +64,16 @@ import {
   orderBy,
   limit,
   onSnapshot,
+  doc,
+  writeBatch,
 } from "firebase/firestore";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const ESCALATION_NOTIFY_EMAIL = "kit.tjclasses@gmail.com";
 
@@ -142,7 +152,6 @@ const SettingsPage: React.FC = () => {
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
   };
-
 
   // ---- Promote (webmaster only) ----
   const [promoteEmail, setPromoteEmail] = useState("");
@@ -447,6 +456,74 @@ const SettingsPage: React.FC = () => {
       else next.add(agent);
       return next;
     });
+  };
+
+  // ---- Reassign workload (webmaster only) ----
+  // Bulk move N of one agent's open conversations to another agent in one batch
+  // write. Uses the same `assignedAgent` field that the Conversations page reads,
+  // so updates appear live everywhere via the existing onSnapshot listeners.
+  const [reassignFrom, setReassignFrom] = useState<string | null>(null);
+  const [reassignTo, setReassignTo] = useState<string>("");
+  const [reassignCount, setReassignCount] = useState<number>(1);
+  const [reassigning, setReassigning] = useState(false);
+
+  const openReassignDialog = (agent: string) => {
+    setReassignFrom(agent);
+    setReassignTo("");
+    const row = overviewByAgent.find((r) => r.agent === agent);
+    const open = row?.open ?? 0;
+    setReassignCount(Math.max(1, Math.min(open, Math.ceil(open / 2))));
+  };
+
+  const closeReassignDialog = () => {
+    setReassignFrom(null);
+    setReassignTo("");
+    setReassignCount(1);
+  };
+
+  // Other agents available as reassignment targets (live from accounts list,
+  // excluding the source agent and any webmaster).
+  const reassignTargets = useMemo(() => {
+    if (!reassignFrom) return [] as string[];
+    const names = accounts
+      .filter((a) => a.role === "agent" || a.role === "admin")
+      .map((a) => (a.displayName || a.email || "").trim())
+      .filter((n) => !!n && n !== reassignFrom);
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+  }, [accounts, reassignFrom]);
+
+  const sourceRowForReassign = useMemo(
+    () => (reassignFrom ? overviewByAgent.find((r) => r.agent === reassignFrom) ?? null : null),
+    [reassignFrom, overviewByAgent]
+  );
+
+  const submitReassign = async () => {
+    if (!reassignFrom || !reassignTo) return;
+    if (!sourceRowForReassign) return;
+    const eligible = sourceRowForReassign.convos
+      .filter((c) => c.status !== "resolved")
+      .slice(0, Math.max(1, Math.min(reassignCount, sourceRowForReassign.open)));
+    if (eligible.length === 0) {
+      toast({ title: "Nothing to reassign", variant: "destructive" });
+      return;
+    }
+    setReassigning(true);
+    try {
+      const batch = writeBatch(db);
+      for (const c of eligible) {
+        batch.update(doc(db, "conversations", c.id), { assignedAgent: reassignTo });
+      }
+      await batch.commit();
+      toast({
+        title: "Workload reassigned",
+        description: `Moved ${eligible.length} conversation${eligible.length === 1 ? "" : "s"} from ${reassignFrom} to ${reassignTo}.`,
+      });
+      closeReassignDialog();
+    } catch (e: any) {
+      toast({ title: "Reassign failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setReassigning(false);
+    }
   };
 
   const deleteAccount = async (uid: string, email: string) => {
@@ -845,49 +922,66 @@ const SettingsPage: React.FC = () => {
                       key={row.agent}
                       className="rounded-lg border border-border bg-background"
                     >
-                      <button
-                        type="button"
-                        onClick={() => toggleOverview(row.agent)}
-                        className="w-full flex items-center gap-3 p-3 text-left hover:bg-muted/40 transition-colors rounded-lg"
-                        aria-expanded={isOpen}
-                      >
-                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                          {row.agent.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-medium text-foreground truncate">
-                              {row.agent}
-                            </span>
-                            {overloaded && (
-                              <Badge variant="outline" className="text-[10px] gap-1 border-destructive/40 text-destructive">
-                                <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
-                                Overloaded
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                            <span className="inline-flex items-center gap-1">
-                              <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                              {row.active} active
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <span className="h-1.5 w-1.5 rounded-full bg-warning" />
-                              {row.waiting} waiting
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
-                              {row.resolved} resolved
-                            </span>
-                          </div>
-                        </div>
-                        <Badge
-                          variant={overloaded ? "destructive" : "secondary"}
-                          className="flex-shrink-0"
+                      <div className="w-full flex items-center gap-3 p-3 rounded-lg">
+                        <button
+                          type="button"
+                          onClick={() => toggleOverview(row.agent)}
+                          className="flex flex-1 min-w-0 items-center gap-3 text-left hover:bg-muted/40 transition-colors rounded-md -m-1 p-1"
+                          aria-expanded={isOpen}
                         >
-                          {row.open} open
-                        </Badge>
-                      </button>
+                          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                            {row.agent.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-medium text-foreground truncate">
+                                {row.agent}
+                              </span>
+                              {overloaded && (
+                                <Badge variant="outline" className="text-[10px] gap-1 border-destructive/40 text-destructive">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                                  Overloaded
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                              <span className="inline-flex items-center gap-1">
+                                <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                                {row.active} active
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <span className="h-1.5 w-1.5 rounded-full bg-warning" />
+                                {row.waiting} waiting
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+                                {row.resolved} resolved
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                        <div className="flex flex-shrink-0 items-center gap-2">
+                          {overloaded && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 gap-1 px-2 text-[11px] border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openReassignDialog(row.agent);
+                              }}
+                              aria-label={`Reassign workload from ${row.agent}`}
+                            >
+                              <ArrowRightLeft className="h-3 w-3" /> Reassign
+                            </Button>
+                          )}
+                          <Badge
+                            variant={overloaded ? "destructive" : "secondary"}
+                          >
+                            {row.open} open
+                          </Badge>
+                        </div>
+                      </div>
                       {isOpen && (
                         <ul className="space-y-1 border-t border-border p-3">
                           {row.convos.slice(0, 10).map((c) => (
@@ -927,6 +1021,91 @@ const SettingsPage: React.FC = () => {
             )}
           </div>
         )}
+
+        {/* Bulk reassignment dialog (webmaster only). Opened from an overloaded
+            Overview row; moves N most-recent open conversations from one agent
+            to another in a single Firestore batch write. */}
+        <Dialog
+          open={!!reassignFrom}
+          onOpenChange={(open) => {
+            if (!open) closeReassignDialog();
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ArrowRightLeft className="h-4 w-4 text-primary" />
+                Reassign workload
+              </DialogTitle>
+              <DialogDescription>
+                Move open conversations from <span className="font-medium text-foreground">{reassignFrom}</span>{" "}
+                to another agent in one click.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reassign-to">Reassign to</Label>
+                <Select value={reassignTo} onValueChange={setReassignTo}>
+                  <SelectTrigger id="reassign-to">
+                    <SelectValue placeholder="Choose an agent…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {reassignTargets.length === 0 ? (
+                      <div className="px-2 py-3 text-xs text-muted-foreground">
+                        No other agents available.
+                      </div>
+                    ) : (
+                      reassignTargets.map((name) => (
+                        <SelectItem key={name} value={name}>
+                          {name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reassign-count">
+                  Number of conversations to move
+                  {sourceRowForReassign && (
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      (1–{sourceRowForReassign.open})
+                    </span>
+                  )}
+                </Label>
+                <Input
+                  id="reassign-count"
+                  type="number"
+                  min={1}
+                  max={sourceRowForReassign?.open ?? 1}
+                  value={reassignCount}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10);
+                    if (!Number.isFinite(n)) return;
+                    const max = sourceRowForReassign?.open ?? 1;
+                    setReassignCount(Math.max(1, Math.min(max, n)));
+                  }}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Most-recent open conversations are moved first. Resolved threads are skipped.
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={closeReassignDialog} disabled={reassigning}>
+                Cancel
+              </Button>
+              <Button
+                onClick={submitReassign}
+                disabled={reassigning || !reassignTo || (sourceRowForReassign?.open ?? 0) === 0}
+                className="gap-2"
+              >
+                <ArrowRightLeft className="h-4 w-4" />
+                {reassigning ? "Reassigning…" : `Move ${Math.min(reassignCount, sourceRowForReassign?.open ?? 0)}`}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Webmaster-only: Promote */}
         {isWebmaster && (
