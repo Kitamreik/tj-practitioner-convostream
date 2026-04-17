@@ -78,6 +78,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { httpsCallable } from "firebase/functions";
+import { useSearchParams } from "react-router-dom";
 import { functions } from "@/lib/firebase";
 
 interface Conversation {
