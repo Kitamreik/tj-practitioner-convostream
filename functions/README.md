@@ -18,18 +18,43 @@ const fn = httpsCallable(functions, "promoteToWebmaster");
 await fn({ targetEmail: "user@example.com", role: "webmaster" });
 ```
 
-### `requestWebmasterEscalation` (callable)
-Any signed-in user can request escalation to webmaster. The request is persisted under `escalationRequests/` and emailed to **kit.tjclasses@gmail.com** when SMTP is configured. Without SMTP the request is still recorded so a webmaster can approve from the Settings page.
+### `decideEscalationRequest` (callable)
+Webmaster-only. Approves or denies a pending entry in `escalationRequests/`. On approve, sets `escalatedAccess: true` on the requester's profile (server-authored via the `_serverRoleWrite` sentinel).
 
-To enable email delivery, set the following Firebase function secrets (Gmail SMTP shown):
+### `deleteUserAccount` (callable)
+Webmaster-only. Deletes the target user from Firebase Auth **and** Firestore. Refuses to delete the caller's own account. Each deletion is appended to `accountDeletions/`.
 
-```bash
-firebase functions:secrets:set SMTP_HOST   # e.g. smtp.gmail.com
-firebase functions:secrets:set SMTP_PORT   # e.g. 587
-firebase functions:secrets:set SMTP_USER   # sender Gmail address
-firebase functions:secrets:set SMTP_PASS   # Gmail app password (not account password)
-firebase functions:secrets:set SMTP_FROM   # optional, defaults to SMTP_USER
-```
+### `requestConversationInvestigation` (callable)
+Any signed-in user. Persists to `investigationRequests/` and emails `kit.tjclasses@gmail.com` (when SMTP is configured) asking a webmaster to investigate a specific conversation.
+
+### Configuring SMTP for outgoing escalation / investigation emails
+
+Both `requestWebmasterEscalation` and `requestConversationInvestigation` send mail to `kit.tjclasses@gmail.com` via SMTP. To enable delivery via Gmail:
+
+1. **Generate a Gmail App Password** (the function cannot use your regular Google password):
+   - Sign in to the Google Account that will *send* the emails.
+   - Enable 2-Step Verification at https://myaccount.google.com/security if it isn't already on.
+   - Go to https://myaccount.google.com/apppasswords
+   - Choose **Mail** as the app and **Other (Custom name)** as the device, name it `ConvoHub`, and click **Generate**.
+   - Copy the 16-character password (spaces don't matter — Gmail strips them).
+
+2. **Set the secrets on the Firebase project** (run in this `functions/` directory after `firebase login` and `firebase use convo-hub-71514`):
+   ```bash
+   firebase functions:secrets:set SMTP_HOST   # enter: smtp.gmail.com
+   firebase functions:secrets:set SMTP_PORT   # enter: 587
+   firebase functions:secrets:set SMTP_USER   # enter: your-sender@gmail.com
+   firebase functions:secrets:set SMTP_PASS   # paste the 16-char App Password
+   firebase functions:secrets:set SMTP_FROM   # optional, defaults to SMTP_USER
+   ```
+
+3. **Bind the secrets to the callables and redeploy**:
+   ```bash
+   npm run deploy
+   ```
+
+   The first deploy will print a one-time prompt asking which functions should access each secret — answer **yes** for `requestWebmasterEscalation`, `requestConversationInvestigation`, and `decideEscalationRequest`.
+
+4. **Verify** by clicking **Request escalation** on the Settings page (as an admin). Within a few seconds the request should appear in `escalationRequests/` with `emailSent: true`, and a notification email should arrive at `kit.tjclasses@gmail.com`. If `emailSent` stays `false`, check `firebase functions:log` for the `sendEscalationEmail failed` line — the most common cause is using a regular Gmail password instead of an App Password.
 
 ### `purgeArchivedHttp`
 Manual one-off purge trigger:
