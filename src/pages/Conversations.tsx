@@ -309,8 +309,30 @@ const Conversations: React.FC = () => {
   // overlay layout — selecting a conversation now hides the list and shows
   // the detail full-width on every viewport (mobile-style on desktop too).
   const [searchParams, setSearchParams] = useSearchParams();
+  const { id: routeId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
 
-  const agents = ["Alice Johnson", "Bob Smith", "Carol Davis", "Dan Lee"];
+  // Live list of agent display names — pulled from the `users` collection so
+  // renames in Settings → Agents reflect immediately on the assign-agent menu.
+  // Falls back to the legacy hardcoded list when Firestore is unreachable.
+  const FALLBACK_AGENTS = ["Alice Johnson", "Bob Smith", "Carol Davis", "Dan Lee"];
+  const [agents, setAgents] = useState<string[]>(FALLBACK_AGENTS);
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, "users"),
+      (snap) => {
+        const names = snap.docs
+          .map((d) => d.data() as any)
+          .filter((u) => u && (u.role === "agent" || u.role === "admin") && (u.displayName || u.email))
+          .map((u) => (u.displayName || u.email) as string)
+          .filter((v, i, arr) => arr.indexOf(v) === i)
+          .sort((a, b) => a.localeCompare(b));
+        setAgents(names.length > 0 ? names : FALLBACK_AGENTS);
+      },
+      () => setAgents(FALLBACK_AGENTS)
+    );
+    return unsub;
+  }, []);
 
   const handleRefresh = async () => {
     await new Promise((r) => setTimeout(r, 600));
