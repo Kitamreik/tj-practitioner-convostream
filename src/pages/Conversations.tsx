@@ -295,6 +295,8 @@ const Conversations: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [showShortcuts, setShowShortcuts] = useState(false);
+  // "Show only my assigned conversations" filter for agents/admins.
+  const [mineOnly, setMineOnly] = useState<boolean>(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   // Persist 'Show archived' across refresh, namespaced per Firebase UID.
   const [showArchived, setShowArchivedState] = useState<boolean>(false);
