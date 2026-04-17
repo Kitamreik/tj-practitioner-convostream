@@ -344,6 +344,32 @@ const Conversations: React.FC = () => {
   // Single conversation export handlers
   const selected = conversations.find((c) => c.id === selectedId);
 
+  // Per-agent open-load count: conversations that are assigned and not resolved.
+  // Used to show a dot + count in the assign-agent dropdown so it's easy to
+  // spot who's already overloaded before assigning more work.
+  const agentLoad = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of conversations) {
+      if (c.archived) continue;
+      if (c.status === "resolved") continue;
+      if (!c.assignedAgent) continue;
+      map.set(c.assignedAgent, (map.get(c.assignedAgent) ?? 0) + 1);
+    }
+    return map;
+  }, [conversations]);
+
+  // Copy a deep link to the currently-selected conversation to the clipboard.
+  const handleCopyLink = async () => {
+    if (!selected) return;
+    const url = `${window.location.origin}/conversations/${selected.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({ title: "Link copied", description: "Conversation URL copied to clipboard." });
+    } catch {
+      toast({ title: "Copy failed", description: url, variant: "destructive" });
+    }
+  };
+
   const handleCopyTranscript = () => {
     if (!selected || messages.length === 0) return;
     navigator.clipboard.writeText(buildTranscript(selected, messages)).then(() => {
