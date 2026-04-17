@@ -1022,6 +1022,91 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
 
+        {/* Bulk reassignment dialog (webmaster only). Opened from an overloaded
+            Overview row; moves N most-recent open conversations from one agent
+            to another in a single Firestore batch write. */}
+        <Dialog
+          open={!!reassignFrom}
+          onOpenChange={(open) => {
+            if (!open) closeReassignDialog();
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ArrowRightLeft className="h-4 w-4 text-primary" />
+                Reassign workload
+              </DialogTitle>
+              <DialogDescription>
+                Move open conversations from <span className="font-medium text-foreground">{reassignFrom}</span>{" "}
+                to another agent in one click.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reassign-to">Reassign to</Label>
+                <Select value={reassignTo} onValueChange={setReassignTo}>
+                  <SelectTrigger id="reassign-to">
+                    <SelectValue placeholder="Choose an agent…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {reassignTargets.length === 0 ? (
+                      <div className="px-2 py-3 text-xs text-muted-foreground">
+                        No other agents available.
+                      </div>
+                    ) : (
+                      reassignTargets.map((name) => (
+                        <SelectItem key={name} value={name}>
+                          {name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reassign-count">
+                  Number of conversations to move
+                  {sourceRowForReassign && (
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      (1–{sourceRowForReassign.open})
+                    </span>
+                  )}
+                </Label>
+                <Input
+                  id="reassign-count"
+                  type="number"
+                  min={1}
+                  max={sourceRowForReassign?.open ?? 1}
+                  value={reassignCount}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10);
+                    if (!Number.isFinite(n)) return;
+                    const max = sourceRowForReassign?.open ?? 1;
+                    setReassignCount(Math.max(1, Math.min(max, n)));
+                  }}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Most-recent open conversations are moved first. Resolved threads are skipped.
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={closeReassignDialog} disabled={reassigning}>
+                Cancel
+              </Button>
+              <Button
+                onClick={submitReassign}
+                disabled={reassigning || !reassignTo || (sourceRowForReassign?.open ?? 0) === 0}
+                className="gap-2"
+              >
+                <ArrowRightLeft className="h-4 w-4" />
+                {reassigning ? "Reassigning…" : `Move ${Math.min(reassignCount, sourceRowForReassign?.open ?? 0)}`}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Webmaster-only: Promote */}
         {isWebmaster && (
           <div id="promote" className="rounded-xl border border-primary/30 bg-primary/5 p-6">
