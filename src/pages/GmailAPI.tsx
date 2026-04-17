@@ -272,9 +272,15 @@ const GmailAPI: React.FC = () => {
       return;
     }
     const cidV = safeValidate(googleClientIdSchema, clientId);
-    if (!cidV.ok) return toast({ title: "Invalid Client ID", description: cidV.error, variant: "destructive" });
+    if (!cidV.ok) {
+      toast({ title: "Invalid Client ID", description: cidV.error, variant: "destructive" });
+      return;
+    }
     const akV = safeValidate(googleApiKeySchema, apiKey);
-    if (!akV.ok) return toast({ title: "Invalid API Key", description: akV.error, variant: "destructive" });
+    if (!akV.ok) {
+      toast({ title: "Invalid API Key", description: akV.error, variant: "destructive" });
+      return;
+    }
 
     try {
       await saveIntegration(user.uid, "gmail-api", { clientId: cidV.data, apiKey: akV.data }, true);
