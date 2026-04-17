@@ -358,10 +358,34 @@ const Conversations: React.FC = () => {
     return map;
   }, [conversations]);
 
-  // Copy a deep link to the currently-selected conversation to the clipboard.
+  // Share/copy a deep link to the currently-selected conversation.
+  // Prefers the native Web Share API (mobile share sheet) when available;
+  // falls back to clipboard on desktop browsers without share support.
   const handleCopyLink = async () => {
     if (!selected) return;
     const url = `${window.location.origin}/conversations/${selected.id}`;
+    const title = `Conversation with ${selected.customerName}`;
+    const shareData: ShareData = {
+      title,
+      text: `${title} on ConvoHub`,
+      url,
+    };
+    // Web Share API: only use when the browser can actually share this payload.
+    // `canShare` guards against desktop Chrome which exposes `share` but rejects URLs.
+    const canNativeShare =
+      typeof navigator !== "undefined" &&
+      typeof navigator.share === "function" &&
+      (typeof navigator.canShare !== "function" || navigator.canShare(shareData));
+    if (canNativeShare) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err: any) {
+        // User dismissed the share sheet — don't fall through to clipboard.
+        if (err?.name === "AbortError") return;
+        // Any other error (e.g. permission denied): fall through to clipboard.
+      }
+    }
     try {
       await navigator.clipboard.writeText(url);
       toast({ title: "Link copied", description: "Conversation URL copied to clipboard." });
