@@ -666,8 +666,8 @@ const Conversations: React.FC = () => {
             <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5">
-                    <FileText className="h-3.5 w-3.5" /> Export
+                  <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Export transcript">
+                    <FileText className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Export</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -690,7 +690,8 @@ const Conversations: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5"
+                className="gap-1.5 px-2 sm:px-3"
+                aria-label="Call customer"
                 onClick={() => {
                   if (selected?.customerPhone) {
                     window.open(`tel:${selected.customerPhone}`, "_self");
@@ -699,28 +700,30 @@ const Conversations: React.FC = () => {
                   }
                 }}
               >
-                <Phone className="h-3.5 w-3.5" /> Call
+                <Phone className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Call</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5"
+                className="gap-1.5 px-2 sm:px-3"
+                aria-label="Email customer"
                 onClick={() => {
                   if (selected?.customerEmail) {
                     window.open(`mailto:${selected.customerEmail}`, "_blank");
                   }
                 }}
               >
-                <Mail className="h-3.5 w-3.5" /> Email
+                <Mail className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Email</span>
               </Button>
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setProfileOpen(true)}>
-                <User className="h-3.5 w-3.5" /> Profile
+              <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Open profile" onClick={() => setProfileOpen(true)}>
+                <User className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Profile</span>
               </Button>
               {/* Assign Agent */}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5">
-                    <UserCheck className="h-3.5 w-3.5" /> {selected.assignedAgent ? selected.assignedAgent.split(" ")[0] : "Assign"}
+                  <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Assign agent">
+                    <UserCheck className="h-3.5 w-3.5" />
+                    <span className="hidden lg:inline">{selected.assignedAgent ? selected.assignedAgent.split(" ")[0] : "Assign"}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-48 p-2" align="end">
@@ -750,11 +753,11 @@ const Conversations: React.FC = () => {
               {/* Toggle Resolved / Reopen */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="sm" onClick={handleToggleResolved} className="gap-1.5">
+                  <Button variant="outline" size="sm" onClick={handleToggleResolved} className="gap-1.5 px-2 sm:px-3" aria-label={selected.status === "resolved" ? "Reopen" : "Resolve"}>
                     {selected.status === "resolved" ? (
-                      <><RotateCcw className="h-3.5 w-3.5" /> Reopen</>
+                      <><RotateCcw className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Reopen</span></>
                     ) : (
-                      <>✓ Resolve</>
+                      <>✓ <span className="hidden lg:inline">Resolve</span></>
                     )}
                   </Button>
                 </TooltipTrigger>
@@ -763,16 +766,16 @@ const Conversations: React.FC = () => {
               {/* Delete */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+                  <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive" aria-label="Delete conversation">
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Delete conversation</TooltipContent>
               </Tooltip>
-              {/* Shortcuts help */}
+              {/* Shortcuts help — desktop only */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" onClick={() => setShowShortcuts((p) => !p)}>
+                  <Button variant="ghost" size="sm" onClick={() => setShowShortcuts((p) => !p)} className="hidden md:inline-flex" aria-label="Keyboard shortcuts">
                     <Keyboard className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
