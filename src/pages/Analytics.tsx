@@ -200,15 +200,36 @@ const Analytics: React.FC = () => {
 
       {/* Google Voice Live Engagement */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="rounded-xl border border-border bg-card p-6 mb-8">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h3 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
             <PhoneIncoming className="h-5 w-5 text-primary" />
             Google Voice — Live Engagement
           </h3>
-          <span className="flex items-center gap-1.5 text-xs">
-            <span className={`h-2 w-2 rounded-full ${voiceLive ? "bg-success animate-pulse" : "bg-muted-foreground/40"}`} />
-            <span className="text-muted-foreground">{voiceLive ? "Live" : "Sample data"}</span>
-          </span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+              <Select value={numberFilter} onValueChange={setNumberFilter}>
+                <SelectTrigger className="h-8 w-[180px] text-xs" aria-label="Filter by Google Voice number">
+                  <SelectValue placeholder="All numbers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All numbers</SelectItem>
+                  {voiceNumbers.map((n) => (
+                    <SelectItem key={n} value={n}>{n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {numberFilter !== "all" && (
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setNumberFilter("all")} aria-label="Clear filter">
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+            <span className="flex items-center gap-1.5 text-xs">
+              <span className={`h-2 w-2 rounded-full ${voiceLive ? "bg-success animate-pulse" : "bg-muted-foreground/40"}`} />
+              <span className="text-muted-foreground">{voiceLive ? "Live" : "Sample data"}</span>
+            </span>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
@@ -232,7 +253,7 @@ const Analytics: React.FC = () => {
 
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent activity</p>
-          {voiceActivity.slice(0, 6).map((v) => (
+          {filteredVoiceActivity.slice(0, 6).map((v) => (
             <div key={v.id} className="flex items-center gap-3 rounded-lg border border-border/60 p-3 hover:bg-muted/30 transition-colors">
               <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-muted">
                 {voiceIcon(v.type)}
