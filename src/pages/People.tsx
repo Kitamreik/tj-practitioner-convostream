@@ -120,6 +120,15 @@ const People: React.FC = () => {
     toast({ title: "Refreshed", description: "People list is up to date." });
   };
 
+  const handleInlineRestore = async (person: Person) => {
+    try {
+      await restoreItem("people", person.id);
+      toast({ title: "Restored", description: `${person.name} is back in your active list.` });
+    } catch (e: any) {
+      toast({ title: "Restore failed", description: e?.message, variant: "destructive" });
+    }
+  };
+
   const handleDelete = async (person: Person) => {
     if (usingFallback) {
       setPeople((prev) => prev.filter((p) => p.id !== person.id));
@@ -133,7 +142,12 @@ const People: React.FC = () => {
       });
       toast({
         title: "Profile archived",
-        description: `${person.name}'s profile is restorable from Archive for 30 days.`,
+        description: `${person.name} restorable for 30 days.`,
+        action: (
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => handleInlineRestore(person)}>
+            <ArchiveRestore className="h-3.5 w-3.5" /> Undo
+          </Button>
+        ) as any,
       });
     } catch (e: any) {
       console.error(e);
