@@ -633,6 +633,15 @@ const GmailAPI: React.FC = () => {
               <Button onClick={handleAuth} className="gap-2" disabled={!clientReady}>
                 <LogIn className="h-4 w-4" /> Authorize
               </Button>
+              <Button
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={!clientReady || testing}
+                className="gap-2"
+              >
+                <Wifi className={`h-4 w-4 ${testing ? "animate-pulse" : ""}`} />
+                {testing ? "Testing…" : "Test Connection"}
+              </Button>
               {!credsSaved && (
                 <p className="text-xs text-muted-foreground self-center">Save credentials above to enable.</p>
               )}
@@ -648,6 +657,15 @@ const GmailAPI: React.FC = () => {
               <Button variant="outline" onClick={fetchMessages} className="gap-2" disabled={loadingMessages}>
                 <RefreshCw className={`h-4 w-4 ${loadingMessages ? "animate-spin" : ""}`} /> Refresh
               </Button>
+              <Button
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={testing}
+                className="gap-2"
+              >
+                <Wifi className={`h-4 w-4 ${testing ? "animate-pulse" : ""}`} />
+                {testing ? "Testing…" : "Test Connection"}
+              </Button>
               <Button variant="ghost" onClick={handleSignout} className="gap-2 text-destructive">
                 <LogOut className="h-4 w-4" /> Sign Out
               </Button>
@@ -659,6 +677,18 @@ const GmailAPI: React.FC = () => {
             </>
           )}
         </div>
+        {testResult && (
+          <div
+            className={`mt-3 rounded-md border px-3 py-2 text-xs flex items-center gap-2 ${
+              testResult.ok
+                ? "border-success/30 bg-success/5 text-success"
+                : "border-destructive/30 bg-destructive/5 text-destructive"
+            }`}
+          >
+            {testResult.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+            <span className="break-all">{testResult.message}</span>
+          </div>
+        )}
       </motion.div>
 
       {error && (
