@@ -368,6 +368,162 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
 
+        {/* Webmaster-only: Pending escalation requests */}
+        {isWebmaster && (
+          <div className="rounded-xl border border-border bg-card p-6">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
+              <Inbox className="h-5 w-5 text-primary" />
+              Pending escalation requests
+              {pending.length > 0 && (
+                <Badge variant="secondary" className="ml-1">{pending.length}</Badge>
+              )}
+            </h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Approve to grant the user escalated access to Integrations, Analytics, and Gmail API.
+              Both decisions are written to <code className="rounded bg-muted px-1 py-0.5">escalationRequests</code>.
+            </p>
+            {pending.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                No pending requests.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {pending.map((req) => (
+                  <div
+                    key={req.id}
+                    className="rounded-lg border border-border bg-background p-3 flex flex-col sm:flex-row gap-3 sm:items-center"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-foreground truncate">
+                          {req.requesterName || req.requesterEmail || req.requesterUid}
+                        </span>
+                        <Badge variant="outline" className="capitalize text-[10px]">{req.requesterRole}</Badge>
+                        {req.emailSent && (
+                          <Badge variant="outline" className="text-[10px] gap-1">
+                            <Send className="h-2.5 w-2.5" /> Email sent
+                          </Badge>
+                        )}
+                      </div>
+                      {req.requesterEmail && req.requesterName && (
+                        <p className="text-xs text-muted-foreground truncate">{req.requesterEmail}</p>
+                      )}
+                      {req.reason && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">"{req.reason}"</p>
+                      )}
+                      <p className="text-[10px] text-muted-foreground mt-1">{formatTime(req.createdAt)}</p>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1"
+                        disabled={decidingId === req.id}
+                        onClick={() => decide(req.id, "deny")}
+                      >
+                        <X className="h-3.5 w-3.5" /> Deny
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="gap-1"
+                        disabled={decidingId === req.id}
+                        onClick={() => decide(req.id, "approve")}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        {decidingId === req.id ? "…" : "Approve"}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Webmaster-only: All accounts */}
+        {isWebmaster && (
+          <div className="rounded-xl border border-border bg-card p-6">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
+              <Users className="h-5 w-5 text-primary" />
+              Accounts
+              <Badge variant="secondary" className="ml-1">{accounts.length}</Badge>
+            </h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Every account in the system. Deletion removes the user from Firebase Auth and Firestore — it cannot be undone.
+              Each deletion is written to <code className="rounded bg-muted px-1 py-0.5">accountDeletions</code>.
+            </p>
+            <div className="space-y-2">
+              {accounts.map((acc) => {
+                const isSelf = acc.uid === user?.uid;
+                return (
+                  <div
+                    key={acc.uid}
+                    className="rounded-lg border border-border bg-background p-3 flex flex-col sm:flex-row gap-3 sm:items-center"
+                  >
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                      {(acc.displayName || acc.email || "?").charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-foreground truncate">
+                          {acc.displayName || "(no name)"}
+                        </span>
+                        <Badge variant="secondary" className="capitalize text-[10px]">{acc.role}</Badge>
+                        {acc.escalatedAccess && acc.role !== "webmaster" && (
+                          <Badge variant="outline" className="text-[10px] gap-1">
+                            <CheckCircle2 className="h-2.5 w-2.5" /> Escalated
+                          </Badge>
+                        )}
+                        {isSelf && <Badge variant="outline" className="text-[10px]">You</Badge>}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{acc.email || acc.uid}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Joined {formatTime(acc.createdAt)}</p>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 text-destructive hover:text-destructive"
+                            disabled={isSelf || deletingUid === acc.uid}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {deletingUid === acc.uid ? "Deleting…" : "Delete"}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete this account?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This permanently removes {acc.email || acc.displayName || acc.uid} from
+                              Firebase Auth and Firestore. They will lose access immediately and cannot sign in again.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={() => deleteAccount(acc.uid, acc.email)}
+                            >
+                              Delete account
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                );
+              })}
+              {accounts.length === 0 && (
+                <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  No accounts yet.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Admin-only: Escalate */}
         {!isWebmaster && (
           <div className="rounded-xl border border-accent/40 bg-accent/5 p-6">
