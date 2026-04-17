@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, Trash2 } from "lucide-react";
+import { Search, Trash2, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import NewPersonDialog from "@/components/NewPersonDialog";
+import EditPersonDialog, { type EditablePerson } from "@/components/EditPersonDialog";
 import PullToRefresh from "@/components/PullToRefresh";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -59,6 +60,23 @@ const People: React.FC = () => {
   const [people, setPeople] = useState<Person[]>([]);
   const [search, setSearch] = useState("");
   const [usingFallback, setUsingFallback] = useState(false);
+  const [editPerson, setEditPerson] = useState<EditablePerson | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+
+  const openEdit = (p: Person) => {
+    setEditPerson({ id: p.id, name: p.name, email: p.email, phone: p.phone, tags: p.tags });
+    setEditOpen(true);
+  };
+
+  const handleLocalEdit = (updated: EditablePerson) => {
+    setPeople((prev) =>
+      prev.map((p) =>
+        p.id === updated.id
+          ? { ...p, name: updated.name, email: updated.email || "", phone: updated.phone || "", tags: updated.tags || [] }
+          : p
+      )
+    );
+  };
 
   useEffect(() => {
     const q = query(collection(db, "people"), orderBy("createdAt", "desc"));
@@ -191,7 +209,18 @@ const People: React.FC = () => {
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-medium text-foreground truncate">{person.name}</p>
-                  <DeleteButton person={person} compact />
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      aria-label={`Edit ${person.name}`}
+                      onClick={() => openEdit(person)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <DeleteButton person={person} compact />
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{person.email}</p>
                 <p className="text-xs text-muted-foreground">{person.phone}</p>
@@ -256,13 +285,32 @@ const People: React.FC = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <DeleteButton person={person} compact />
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      aria-label={`Edit ${person.name}`}
+                      onClick={() => openEdit(person)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <DeleteButton person={person} compact />
+                  </div>
                 </td>
               </motion.tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      <EditPersonDialog
+        person={editPerson}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        localOnly={usingFallback}
+        onLocalSave={handleLocalEdit}
+      />
     </div>
     </PullToRefresh>
   );

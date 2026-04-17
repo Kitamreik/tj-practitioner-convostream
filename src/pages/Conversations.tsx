@@ -64,6 +64,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import NewConversationDialog from "@/components/NewConversationDialog";
 import ConversationTemplates, { type MessageTemplate } from "@/components/ConversationTemplates";
+import EditPersonDialog, { type EditablePerson } from "@/components/EditPersonDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -229,6 +230,7 @@ const Conversations: React.FC = () => {
   const [replyText, setReplyText] = useState("");
   const [usingFallback, setUsingFallback] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -664,8 +666,8 @@ const Conversations: React.FC = () => {
             <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5">
-                    <FileText className="h-3.5 w-3.5" /> Export
+                  <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Export transcript">
+                    <FileText className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Export</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -688,7 +690,8 @@ const Conversations: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5"
+                className="gap-1.5 px-2 sm:px-3"
+                aria-label="Call customer"
                 onClick={() => {
                   if (selected?.customerPhone) {
                     window.open(`tel:${selected.customerPhone}`, "_self");
@@ -697,28 +700,30 @@ const Conversations: React.FC = () => {
                   }
                 }}
               >
-                <Phone className="h-3.5 w-3.5" /> Call
+                <Phone className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Call</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5"
+                className="gap-1.5 px-2 sm:px-3"
+                aria-label="Email customer"
                 onClick={() => {
                   if (selected?.customerEmail) {
                     window.open(`mailto:${selected.customerEmail}`, "_blank");
                   }
                 }}
               >
-                <Mail className="h-3.5 w-3.5" /> Email
+                <Mail className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Email</span>
               </Button>
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setProfileOpen(true)}>
-                <User className="h-3.5 w-3.5" /> Profile
+              <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Open profile" onClick={() => setProfileOpen(true)}>
+                <User className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Profile</span>
               </Button>
               {/* Assign Agent */}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5">
-                    <UserCheck className="h-3.5 w-3.5" /> {selected.assignedAgent ? selected.assignedAgent.split(" ")[0] : "Assign"}
+                  <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Assign agent">
+                    <UserCheck className="h-3.5 w-3.5" />
+                    <span className="hidden lg:inline">{selected.assignedAgent ? selected.assignedAgent.split(" ")[0] : "Assign"}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-48 p-2" align="end">
@@ -748,11 +753,11 @@ const Conversations: React.FC = () => {
               {/* Toggle Resolved / Reopen */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="sm" onClick={handleToggleResolved} className="gap-1.5">
+                  <Button variant="outline" size="sm" onClick={handleToggleResolved} className="gap-1.5 px-2 sm:px-3" aria-label={selected.status === "resolved" ? "Reopen" : "Resolve"}>
                     {selected.status === "resolved" ? (
-                      <><RotateCcw className="h-3.5 w-3.5" /> Reopen</>
+                      <><RotateCcw className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Reopen</span></>
                     ) : (
-                      <>✓ Resolve</>
+                      <>✓ <span className="hidden lg:inline">Resolve</span></>
                     )}
                   </Button>
                 </TooltipTrigger>
@@ -761,16 +766,16 @@ const Conversations: React.FC = () => {
               {/* Delete */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+                  <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive" aria-label="Delete conversation">
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Delete conversation</TooltipContent>
               </Tooltip>
-              {/* Shortcuts help */}
+              {/* Shortcuts help — desktop only */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" onClick={() => setShowShortcuts((p) => !p)}>
+                  <Button variant="ghost" size="sm" onClick={() => setShowShortcuts((p) => !p)} className="hidden md:inline-flex" aria-label="Keyboard shortcuts">
                     <Keyboard className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
@@ -906,10 +911,16 @@ const Conversations: React.FC = () => {
                 </div>
               </div>
 
-              <Button className="w-full gap-2" variant="default" onClick={handleCallClient} disabled={!selected.customerPhone}>
-                <Phone className="h-4 w-4" />
-                Call {selected.customerName.split(" ")[0]}
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button className="flex-1 gap-2" variant="outline" onClick={() => setEditProfileOpen(true)}>
+                  <User className="h-4 w-4" />
+                  Edit profile
+                </Button>
+                <Button className="flex-1 gap-2" variant="default" onClick={handleCallClient} disabled={!selected.customerPhone}>
+                  <Phone className="h-4 w-4" />
+                  Call {selected.customerName.split(" ")[0]}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
@@ -932,6 +943,44 @@ const Conversations: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Customer (within conversation) */}
+      <EditPersonDialog
+        open={editProfileOpen}
+        onOpenChange={setEditProfileOpen}
+        person={
+          selected
+            ? {
+                id: selected.id,
+                name: selected.customerName,
+                email: selected.customerEmail,
+                phone: selected.customerPhone,
+              }
+            : null
+        }
+        localOnly
+        onLocalSave={async (updated) => {
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === updated.id
+                ? { ...c, customerName: updated.name, customerEmail: updated.email || "", customerPhone: updated.phone || undefined }
+                : c
+            )
+          );
+          if (!usingFallback) {
+            try {
+              await updateDoc(doc(db, "conversations", updated.id), {
+                customerName: updated.name,
+                customerEmail: updated.email || "",
+                customerPhone: updated.phone || "",
+              });
+            } catch (e) {
+              console.error("Failed to persist profile edit:", e);
+              toast({ title: "Saved locally", description: "Could not sync to server.", variant: "destructive" });
+            }
+          }
+        }}
+      />
     </div>
   );
 };
