@@ -99,6 +99,60 @@ function formatTs(ts: any): string {
 }
 
 /**
+ * Escape a single CSV field per RFC 4180: wrap in quotes when the value
+ * contains a comma, quote, newline, or carriage return; double any internal
+ * quotes. Null/undefined become an empty cell.
+ */
+function csvEscape(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const s = String(value);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+/**
+ * Build a CSV string from headers + row arrays and trigger a browser download.
+ * Filename gets a YYYY-MM-DD suffix so successive exports don't overwrite.
+ */
+function downloadCsv(filenameBase: string, headers: string[], rows: (string | number | undefined | null)[][]) {
+  const csv = [headers.map(csvEscape).join(","), ...rows.map((r) => r.map(csvEscape).join(","))].join("\r\n");
+  const today = new Date().toISOString().slice(0, 10);
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }); // BOM for Excel
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${filenameBase}-${today}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Single export trigger. Disabled when there's nothing to export so the user
+ * doesn't get an empty file.
+ */
+const ExportCsvButton: React.FC<{ label: string; count: number; onExport: () => void }> = ({
+  label,
+  count,
+  onExport,
+}) => (
+  <Button
+    variant="outline"
+    size="sm"
+    className="gap-1.5"
+    disabled={count === 0}
+    onClick={onExport}
+    aria-label={`Export ${label} as CSV`}
+  >
+    <Download className="h-3.5 w-3.5" />
+    <span className="hidden sm:inline">Export CSV</span>
+    <span className="sm:hidden">CSV</span>
+    {count > 0 && <span className="text-[10px] opacity-70">({count})</span>}
+  </Button>
+);
+
+/**
  * Tiny pagination control. Keeps state local — caller controls slicing.
  */
 const Pagination: React.FC<{
