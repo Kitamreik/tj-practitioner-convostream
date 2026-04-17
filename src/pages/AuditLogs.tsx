@@ -359,6 +359,42 @@ const AuditLogs: React.FC = () => {
     </AlertDialog>
   );
 
+  // ---------- 14-day login attempts bar chart ----------
+  /**
+   * Bucket login attempts into the last 14 daily buckets (oldest → newest).
+   * Each bucket counts both success + failed attempts so admins can spot spikes.
+   * Recomputed via useMemo whenever the login attempts list changes.
+   */
+  const loginChart = useMemo(() => {
+    const days: { key: string; label: string; date: Date; success: number; failed: number }[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      days.push({
+        key: d.toISOString().slice(0, 10),
+        label: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+        date: d,
+        success: 0,
+        failed: 0,
+      });
+    }
+    const indexByKey = new Map(days.map((d, i) => [d.key, i]));
+    for (const a of loginAttempts) {
+      const ts: Date | undefined = a.timestamp?.toDate?.();
+      if (!ts) continue;
+      const key = new Date(ts.getFullYear(), ts.getMonth(), ts.getDate()).toISOString().slice(0, 10);
+      const idx = indexByKey.get(key);
+      if (idx === undefined) continue;
+      if (a.success) days[idx].success += 1;
+      else days[idx].failed += 1;
+    }
+    const max = Math.max(1, ...days.map((d) => d.success + d.failed));
+    const total = days.reduce((acc, d) => acc + d.success + d.failed, 0);
+    return { days, max, total };
+  }, [loginAttempts]);
+
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6 md:mb-8">
