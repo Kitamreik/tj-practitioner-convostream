@@ -24,6 +24,8 @@ interface UserProfile {
   role: UserRole;
   displayName: string;
   createdAt: Date;
+  /** Set by webmasters; grants an admin temporary access to advanced pages. */
+  escalatedAccess?: boolean;
 }
 
 interface AuthContextType {
