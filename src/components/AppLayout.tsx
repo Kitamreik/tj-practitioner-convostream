@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { MessageCircle } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import BottomNav from "@/components/BottomNav";
+import PWAInstallBanner from "@/components/PWAInstallBanner";
 
 const titleMap: Record<string, string> = {
   "/": "Conversations",
@@ -13,6 +14,7 @@ const titleMap: Record<string, string> = {
   "/analytics": "Analytics",
   "/gmail": "Gmail API",
   "/settings": "Settings",
+  "/archive": "Archive",
 };
 
 const AppLayout: React.FC = () => {
@@ -43,6 +45,7 @@ const AppLayout: React.FC = () => {
       </div>
 
       <BottomNav />
+      <PWAInstallBanner />
     </div>
   );
 };
