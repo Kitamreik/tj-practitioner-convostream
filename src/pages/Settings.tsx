@@ -922,49 +922,66 @@ const SettingsPage: React.FC = () => {
                       key={row.agent}
                       className="rounded-lg border border-border bg-background"
                     >
-                      <button
-                        type="button"
-                        onClick={() => toggleOverview(row.agent)}
-                        className="w-full flex items-center gap-3 p-3 text-left hover:bg-muted/40 transition-colors rounded-lg"
-                        aria-expanded={isOpen}
-                      >
-                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                          {row.agent.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-medium text-foreground truncate">
-                              {row.agent}
-                            </span>
-                            {overloaded && (
-                              <Badge variant="outline" className="text-[10px] gap-1 border-destructive/40 text-destructive">
-                                <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
-                                Overloaded
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                            <span className="inline-flex items-center gap-1">
-                              <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                              {row.active} active
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <span className="h-1.5 w-1.5 rounded-full bg-warning" />
-                              {row.waiting} waiting
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
-                              {row.resolved} resolved
-                            </span>
-                          </div>
-                        </div>
-                        <Badge
-                          variant={overloaded ? "destructive" : "secondary"}
-                          className="flex-shrink-0"
+                      <div className="w-full flex items-center gap-3 p-3 rounded-lg">
+                        <button
+                          type="button"
+                          onClick={() => toggleOverview(row.agent)}
+                          className="flex flex-1 min-w-0 items-center gap-3 text-left hover:bg-muted/40 transition-colors rounded-md -m-1 p-1"
+                          aria-expanded={isOpen}
                         >
-                          {row.open} open
-                        </Badge>
-                      </button>
+                          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                            {row.agent.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-medium text-foreground truncate">
+                                {row.agent}
+                              </span>
+                              {overloaded && (
+                                <Badge variant="outline" className="text-[10px] gap-1 border-destructive/40 text-destructive">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                                  Overloaded
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                              <span className="inline-flex items-center gap-1">
+                                <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                                {row.active} active
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <span className="h-1.5 w-1.5 rounded-full bg-warning" />
+                                {row.waiting} waiting
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+                                {row.resolved} resolved
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                        <div className="flex flex-shrink-0 items-center gap-2">
+                          {overloaded && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 gap-1 px-2 text-[11px] border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openReassignDialog(row.agent);
+                              }}
+                              aria-label={`Reassign workload from ${row.agent}`}
+                            >
+                              <ArrowRightLeft className="h-3 w-3" /> Reassign
+                            </Button>
+                          )}
+                          <Badge
+                            variant={overloaded ? "destructive" : "secondary"}
+                          >
+                            {row.open} open
+                          </Badge>
+                        </div>
+                      </div>
                       {isOpen && (
                         <ul className="space-y-1 border-t border-border p-3">
                           {row.convos.slice(0, 10).map((c) => (
