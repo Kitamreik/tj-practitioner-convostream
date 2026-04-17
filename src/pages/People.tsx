@@ -92,9 +92,9 @@ const People: React.FC = () => {
           setUsingFallback(true);
         } else {
           const docs = snapshot.docs
-            .map((d) => ({ id: d.id, ...d.data() } as Person & { archived?: boolean }))
-            .filter((p) => !p.archived);
-          setPeople(docs);
+            .map((d) => ({ id: d.id, ...d.data() } as Person & { archived?: boolean; deletedAt?: any }))
+            .filter((p) => (showArchived ? p.archived && !isExpired(p.deletedAt) : !p.archived));
+          setPeople(docs as Person[]);
           setUsingFallback(false);
         }
       },
@@ -105,7 +105,7 @@ const People: React.FC = () => {
       }
     );
     return unsub;
-  }, []);
+  }, [showArchived]);
 
   const filtered = people.filter(
     (p) =>
