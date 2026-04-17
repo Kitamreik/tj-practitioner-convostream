@@ -24,6 +24,7 @@ import {
   Radio,
   Archive as ArchiveIcon,
   ShieldAlert,
+  MoreHorizontal,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -304,41 +305,9 @@ const Conversations: React.FC = () => {
   const replyInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
-  // Resizable list-pane width (desktop only). Persisted in localStorage so the
-  // user's preferred split survives reloads. Bounded to a sensible range.
-  const LIST_WIDTH_KEY = "convohub.conversations.listWidth";
-  const [listWidth, setListWidth] = useState<number>(() => {
-    if (typeof window === "undefined") return 320;
-    const stored = Number(localStorage.getItem(LIST_WIDTH_KEY));
-    return Number.isFinite(stored) && stored >= 240 && stored <= 640 ? stored : 320;
-  });
-  const resizingRef = useRef(false);
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!resizingRef.current) return;
-      const next = Math.min(640, Math.max(240, e.clientX));
-      setListWidth(next);
-    };
-    const onUp = () => {
-      if (!resizingRef.current) return;
-      resizingRef.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      try { localStorage.setItem(LIST_WIDTH_KEY, String(listWidth)); } catch { /* noop */ }
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [listWidth]);
-  const startResize = (e: React.MouseEvent) => {
-    e.preventDefault();
-    resizingRef.current = true;
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-  };
+  // Note: the previous resizable thread-list pane was removed in favor of an
+  // overlay layout — selecting a conversation now hides the list and shows
+  // the detail full-width on every viewport (mobile-style on desktop too).
   const [searchParams, setSearchParams] = useSearchParams();
 
   const agents = ["Alice Johnson", "Bob Smith", "Carol Davis", "Dan Lee"];
@@ -695,14 +664,13 @@ const Conversations: React.FC = () => {
 
   return (
     <div className="flex h-full">
-      {/* Thread List — full width on mobile when nothing selected, hidden on mobile when selected.
-          Desktop width is controlled by `listWidth` (resizable via ResizeDivider below). */}
+      {/* Thread List — hidden when a conversation is open on ALL viewports
+          (overlay-style; the detail covers the list). */}
       <div
         className={cn(
           "flex w-full flex-shrink-0 flex-col border-r border-border",
-          isMobile && selectedId ? "hidden" : "flex"
+          selectedId ? "hidden" : "flex"
         )}
-        style={!isMobile ? { width: `${listWidth}px` } : undefined}
       >
         <div className="border-b border-border p-4">
           <div className="flex items-center justify-between mb-3">
@@ -813,60 +781,23 @@ const Conversations: React.FC = () => {
         </PullToRefresh>
       </div>
 
-      {/* Resizable divider — desktop only. Drag to resize the thread list. */}
-      {!isMobile && (
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize conversation list"
-          onMouseDown={startResize}
-          className="group relative w-1 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
-        >
-          <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-border group-hover:bg-primary/40" />
-        </div>
-      )}
-
       {/* Thread Detail */}
       {selected ? (
-        <div className={cn("flex flex-1 flex-col", isMobile && !selectedId ? "hidden" : "")}>
+        <div className={cn("flex flex-1 flex-col", !selectedId ? "hidden" : "")}>
           {/* Header */}
           <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 md:px-6 md:py-4">
             <div className="flex min-w-0 items-center gap-2 md:gap-3">
-              {isMobile && (
-                <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setSelectedId(null)} aria-label="Back">
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              )}
+              <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setSelectedId(null)} aria-label="Back to conversation list">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{selected.customerName.charAt(0)}</div>
               <div className="min-w-0">
                 <h3 className="truncate font-semibold text-foreground">{selected.customerName}</h3>
                 <p className="truncate text-xs text-muted-foreground">{selected.customerEmail}</p>
               </div>
             </div>
-            <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Export transcript">
-                    <FileText className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Export</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleCopyTranscript} className="gap-2">
-                    <Copy className="h-3.5 w-3.5" /> Copy to Clipboard
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleDownloadTXT} className="gap-2">
-                    <Download className="h-3.5 w-3.5" /> Download TXT
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2">
-                    <FileSpreadsheet className="h-3.5 w-3.5" /> Download CSV
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleDownloadPDF} className="gap-2">
-                    <FileText className="h-3.5 w-3.5" /> Download PDF
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <ConversationTemplates onInsertTemplate={handleInsertTemplate} />
+            <div className="flex flex-shrink-0 flex-nowrap items-center justify-end gap-1.5 sm:gap-2">
+              {/* === Always-visible primary actions === */}
               <Button
                 variant="outline"
                 size="sm"
@@ -895,61 +826,154 @@ const Conversations: React.FC = () => {
               >
                 <Mail className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Email</span>
               </Button>
-              <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Open profile" onClick={() => setProfileOpen(true)}>
-                <User className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Profile</span>
-              </Button>
-              {/* Assign Agent */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Assign agent">
-                    <UserCheck className="h-3.5 w-3.5" />
-                    <span className="hidden lg:inline">{selected.assignedAgent ? selected.assignedAgent.split(" ")[0] : "Assign"}</span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-48 p-2" align="end">
-                  <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">Assign to agent</p>
-                  {agents.map((agent) => (
-                    <button
-                      key={agent}
-                      onClick={() => handleAssignAgent(selected.id, agent)}
-                      className={`w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors ${selected.assignedAgent === agent ? "bg-accent font-medium" : ""}`}
-                    >
-                      {agent}
-                    </button>
-                  ))}
-                  {selected.assignedAgent && (
-                    <>
-                      <div className="my-1 h-px bg-border" />
+
+              {/* === Secondary actions: visible on md+ === */}
+              <div className="hidden md:contents">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Export transcript">
+                      <FileText className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Export</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleCopyTranscript} className="gap-2">
+                      <Copy className="h-3.5 w-3.5" /> Copy to Clipboard
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleDownloadTXT} className="gap-2">
+                      <Download className="h-3.5 w-3.5" /> Download TXT
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2">
+                      <FileSpreadsheet className="h-3.5 w-3.5" /> Download CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleDownloadPDF} className="gap-2">
+                      <FileText className="h-3.5 w-3.5" /> Download PDF
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <ConversationTemplates onInsertTemplate={handleInsertTemplate} />
+                <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Open profile" onClick={() => setProfileOpen(true)}>
+                  <User className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Profile</span>
+                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Assign agent">
+                      <UserCheck className="h-3.5 w-3.5" />
+                      <span className="hidden lg:inline">{selected.assignedAgent ? selected.assignedAgent.split(" ")[0] : "Assign"}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 p-2" align="end">
+                    <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">Assign to agent</p>
+                    {agents.map((agent) => (
                       <button
-                        onClick={() => handleAssignAgent(selected.id, null)}
-                        className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors flex items-center gap-2"
+                        key={agent}
+                        onClick={() => handleAssignAgent(selected.id, agent)}
+                        className={`w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors ${selected.assignedAgent === agent ? "bg-accent font-medium" : ""}`}
                       >
-                        <X className="h-3.5 w-3.5" /> Unassign
+                        {agent}
                       </button>
-                    </>
-                  )}
-                </PopoverContent>
-              </Popover>
-              {/* Toggle Resolved / Reopen */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="sm" onClick={handleToggleResolved} className="gap-1.5 px-2 sm:px-3" aria-label={selected.status === "resolved" ? "Reopen" : "Resolve"}>
-                    {selected.status === "resolved" ? (
-                      <><RotateCcw className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Reopen</span></>
-                    ) : (
-                      <>✓ <span className="hidden lg:inline">Resolve</span></>
+                    ))}
+                    {selected.assignedAgent && (
+                      <>
+                        <div className="my-1 h-px bg-border" />
+                        <button
+                          onClick={() => handleAssignAgent(selected.id, null)}
+                          className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors flex items-center gap-2"
+                        >
+                          <X className="h-3.5 w-3.5" /> Unassign
+                        </button>
+                      </>
                     )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{selected.status === "resolved" ? "Reopen conversation (E)" : "Mark as resolved (E)"}</TooltipContent>
-              </Tooltip>
-              {/* Delete or Restore */}
-              {selected.archived ? (
+                  </PopoverContent>
+                </Popover>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
+                    <Button variant="outline" size="sm" onClick={handleToggleResolved} className="gap-1.5 px-2 sm:px-3" aria-label={selected.status === "resolved" ? "Reopen" : "Resolve"}>
+                      {selected.status === "resolved" ? (
+                        <><RotateCcw className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Reopen</span></>
+                      ) : (
+                        <>✓ <span className="hidden lg:inline">Resolve</span></>
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{selected.status === "resolved" ? "Reopen conversation (E)" : "Mark as resolved (E)"}</TooltipContent>
+                </Tooltip>
+                {selected.archived ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await restoreItem("conversations", selected.id);
+                            toast({ title: "Restored", description: "Conversation moved back to active." });
+                          } catch {
+                            toast({ title: "Restore failed", variant: "destructive" });
+                          }
+                        }}
+                        className="gap-1.5 px-2 sm:px-3"
+                        aria-label="Restore conversation"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Restore</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Restore from archive</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive" aria-label="Delete conversation">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete conversation</TooltipContent>
+                  </Tooltip>
+                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" onClick={() => setShowShortcuts((p) => !p)} aria-label="Keyboard shortcuts">
+                      <Keyboard className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Keyboard shortcuts (?)</TooltipContent>
+                </Tooltip>
+              </div>
+
+              {/* === More menu: visible only below md, collapses all secondary actions === */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5 px-2 md:hidden" aria-label="More actions">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={() => setProfileOpen(true)} className="gap-2">
+                    <User className="h-3.5 w-3.5" /> View profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleToggleResolved} className="gap-2">
+                    {selected.status === "resolved" ? (
+                      <><RotateCcw className="h-3.5 w-3.5" /> Reopen</>
+                    ) : (
+                      <><span className="inline-block w-3.5 text-center">✓</span> Resolve</>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleCopyTranscript} className="gap-2">
+                    <Copy className="h-3.5 w-3.5" /> Copy transcript
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDownloadTXT} className="gap-2">
+                    <Download className="h-3.5 w-3.5" /> Download TXT
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2">
+                    <FileSpreadsheet className="h-3.5 w-3.5" /> Download CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDownloadPDF} className="gap-2">
+                    <FileText className="h-3.5 w-3.5" /> Download PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {selected.archived ? (
+                    <DropdownMenuItem
                       onClick={async () => {
                         try {
                           await restoreItem("conversations", selected.id);
@@ -958,32 +982,20 @@ const Conversations: React.FC = () => {
                           toast({ title: "Restore failed", variant: "destructive" });
                         }
                       }}
-                      className="gap-1.5 px-2 sm:px-3"
-                      aria-label="Restore conversation"
+                      className="gap-2"
                     >
-                      <RotateCcw className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Restore</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Restore from archive</TooltipContent>
-                </Tooltip>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive" aria-label="Delete conversation">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Delete conversation</TooltipContent>
-                </Tooltip>
-              )}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" onClick={() => setShowShortcuts((p) => !p)} className="hidden md:inline-flex" aria-label="Keyboard shortcuts">
-                    <Keyboard className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Keyboard shortcuts (?)</TooltipContent>
-              </Tooltip>
+                      <RotateCcw className="h-3.5 w-3.5" /> Restore
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      onClick={() => setConfirmDeleteOpen(true)}
+                      className="gap-2 text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -1086,9 +1098,7 @@ const Conversations: React.FC = () => {
             </div>
           </div>
         </div>
-      ) : (
-        <div className="hidden flex-1 items-center justify-center text-muted-foreground md:flex">Select a conversation to view</div>
-      )}
+      ) : null}
 
       {/* Elevate to Webmaster — investigation request */}
       <Dialog open={elevateOpen} onOpenChange={setElevateOpen}>
