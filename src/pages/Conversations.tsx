@@ -214,8 +214,14 @@ const Conversations: React.FC = () => {
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const replyInputRef = useRef<HTMLInputElement>(null);
+  const isMobile = useIsMobile();
 
   const agents = ["Alice Johnson", "Bob Smith", "Carol Davis", "Dan Lee"];
+
+  const handleRefresh = async () => {
+    await new Promise((r) => setTimeout(r, 600));
+    toast({ title: "Refreshed", description: "Conversations are up to date." });
+  };
 
 
   // Single conversation export handlers
