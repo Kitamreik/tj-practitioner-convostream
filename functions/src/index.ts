@@ -300,6 +300,95 @@ export const deleteUserAccount = onCall(async (request) => {
 });
 
 /**
+ * Webmaster-only: revoke a previously-granted escalated access flag for an
+ * admin. Uses the `_serverRoleWrite` sentinel so the
+ * `enforceUserRoleOnWrite` trigger accepts the change. Recorded in
+ * `roleGrants` for the audit trail (newRole = "admin", escalated=false).
+ *
+ * Request: { targetUid: string }
+ */
+export const revokeEscalatedAccess = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerUid = request.auth.uid;
+  const callerSnap = await db.doc(`users/${callerUid}`).get();
+  if ((callerSnap.data() as { role?: string } | undefined)?.role !== "webmaster") {
+    throw new HttpsError("permission-denied", "Webmasters only.");
+  }
+
+  const { targetUid } = (request.data ?? {}) as { targetUid?: unknown };
+  if (typeof targetUid !== "string" || !targetUid) {
+    throw new HttpsError("invalid-argument", "targetUid required.");
+  }
+
+  const targetRef = db.doc(`users/${targetUid}`);
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) throw new HttpsError("not-found", "User not found.");
+  const targetData = targetSnap.data() as { email?: string; role?: string; escalatedAccess?: boolean };
+
+  if (targetData.role === "webmaster") {
+    throw new HttpsError("failed-precondition", "Cannot revoke escalation from a webmaster. Demote first.");
+  }
+  if (!targetData.escalatedAccess) {
+    return { ok: true, alreadyRevoked: true };
+  }
+
+  await targetRef.update({
+    escalatedAccess: false,
+    _serverRoleWrite: true,
+  });
+
+  await db.collection("roleGrants").add({
+    targetUid,
+    targetEmail: targetData.email ?? null,
+    previousRole: "admin+escalated",
+    newRole: "admin",
+    grantedByUid: callerUid,
+    grantedByEmail: callerSnap.data()?.email ?? null,
+    grantedAt: admin.firestore.FieldValue.serverTimestamp(),
+    action: "revokeEscalatedAccess",
+  });
+
+  logger.info("revokeEscalatedAccess: revoked", { targetUid, by: callerUid });
+  return { ok: true };
+});
+
+/**
+ * Webmaster-only: resolve an investigation request.
+ * Request: { requestId: string, resolutionNote?: string }
+ */
+export const resolveInvestigationRequest = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
+  if ((callerSnap.data() as { role?: string } | undefined)?.role !== "webmaster") {
+    throw new HttpsError("permission-denied", "Webmasters only.");
+  }
+
+  const { requestId, resolutionNote } = (request.data ?? {}) as {
+    requestId?: unknown;
+    resolutionNote?: unknown;
+  };
+  if (typeof requestId !== "string" || !requestId) {
+    throw new HttpsError("invalid-argument", "requestId required.");
+  }
+  const note = typeof resolutionNote === "string" ? resolutionNote.slice(0, 1000) : "";
+
+  const ref = db.collection("investigationRequests").doc(requestId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Request not found.");
+
+  await ref.update({
+    status: "resolved",
+    resolutionNote: note,
+    resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+    resolvedByUid: request.auth.uid,
+    resolvedByEmail: callerSnap.data()?.email ?? null,
+  });
+
+  logger.info("resolveInvestigationRequest: resolved", { requestId, by: request.auth.uid });
+  return { ok: true };
+});
+
+/**
  * Any signed-in user can flag a conversation for webmaster investigation.
  * Persists to `investigationRequests` and emails ESCALATION_NOTIFY_EMAIL.
  *
