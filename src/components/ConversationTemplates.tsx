@@ -64,19 +64,15 @@ const ConversationTemplates: React.FC<ConversationTemplatesProps> = ({ onInsertT
   const [newSubject, setNewSubject] = useState("");
   const [newBody, setNewBody] = useState("");
 
-  // Listen to Firestore templates collection
+  // Listen to Firestore templates — always include locked starter templates
   useEffect(() => {
     const q = query(collection(db, "templates"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(
       q,
       (snapshot) => {
-        if (snapshot.empty) {
-          setTemplates(defaultTemplates);
-          setUsingFallback(true);
-        } else {
-          setTemplates(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as MessageTemplate)));
-          setUsingFallback(false);
-        }
+        const custom = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as MessageTemplate));
+        setTemplates([...defaultTemplates, ...custom]);
+        setUsingFallback(snapshot.empty);
       },
       (error) => {
         console.error("Templates listener error:", error);
