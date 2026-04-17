@@ -439,8 +439,13 @@ const Conversations: React.FC = () => {
 
   return (
     <div className="flex h-full">
-      {/* Thread List */}
-      <div className="w-80 flex-shrink-0 border-r border-border flex flex-col">
+      {/* Thread List — full width on mobile when nothing selected, hidden on mobile when selected */}
+      <div
+        className={cn(
+          "flex w-full flex-shrink-0 flex-col border-r border-border md:w-80",
+          isMobile && selectedId ? "hidden" : "flex"
+        )}
+      >
         <div className="border-b border-border p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-foreground">Conversations</h2>
@@ -449,7 +454,7 @@ const Conversations: React.FC = () => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1">
                     <PackageOpen className="h-3.5 w-3.5" />
-                    Bulk Export
+                    <span className="hidden sm:inline">Bulk Export</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
