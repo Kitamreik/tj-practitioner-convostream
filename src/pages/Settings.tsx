@@ -23,6 +23,8 @@ import {
   History,
   ArrowUp,
   ArrowDown,
+  LayoutDashboard,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -375,6 +377,78 @@ const SettingsPage: React.FC = () => {
     return unsub;
   }, [isWebmaster]);
 
+  // ---- Overview: live conversations grouped by assigned agent (webmaster only) ----
+  interface OverviewConvo {
+    id: string;
+    customerName: string;
+    status: "active" | "waiting" | "resolved";
+    channel: string;
+    assignedAgent: string;
+    archived?: boolean;
+    timestamp?: any;
+    unread?: boolean;
+  }
+  const [overviewConvos, setOverviewConvos] = useState<OverviewConvo[]>([]);
+  useEffect(() => {
+    if (!isWebmaster) return;
+    const unsub = onSnapshot(
+      query(collection(db, "conversations"), orderBy("timestamp", "desc")),
+      (snap) => {
+        const rows: OverviewConvo[] = snap.docs
+          .map((d) => {
+            const data = d.data() as any;
+            return {
+              id: d.id,
+              customerName: data.customerName ?? "(no name)",
+              status: (data.status ?? "active") as OverviewConvo["status"],
+              channel: data.channel ?? "email",
+              assignedAgent: data.assignedAgent ?? "",
+              archived: !!data.archived,
+              timestamp: data.timestamp,
+              unread: !!data.unread,
+            };
+          })
+          .filter((c) => !!c.assignedAgent && !c.archived);
+        setOverviewConvos(rows);
+      },
+      (err) => {
+        console.warn("Overview conversations listener error:", err);
+        setOverviewConvos([]);
+      }
+    );
+    return unsub;
+  }, [isWebmaster]);
+
+  // Group by assignedAgent, sorted by total open load (active+waiting) descending.
+  const overviewByAgent = useMemo(() => {
+    const map = new Map<string, OverviewConvo[]>();
+    for (const c of overviewConvos) {
+      const arr = map.get(c.assignedAgent) ?? [];
+      arr.push(c);
+      map.set(c.assignedAgent, arr);
+    }
+    return Array.from(map.entries())
+      .map(([agent, convos]) => {
+        const open = convos.filter((c) => c.status !== "resolved").length;
+        const active = convos.filter((c) => c.status === "active").length;
+        const waiting = convos.filter((c) => c.status === "waiting").length;
+        const resolved = convos.filter((c) => c.status === "resolved").length;
+        return { agent, convos, open, active, waiting, resolved };
+      })
+      .sort((a, b) => b.open - a.open || a.agent.localeCompare(b.agent));
+  }, [overviewConvos]);
+
+  // Track which agent rows are expanded in the Overview list.
+  const [openOverview, setOpenOverview] = useState<Set<string>>(new Set());
+  const toggleOverview = (agent: string) => {
+    setOpenOverview((prev) => {
+      const next = new Set(prev);
+      if (next.has(agent)) next.delete(agent);
+      else next.add(agent);
+      return next;
+    });
+  };
+
   const deleteAccount = async (uid: string, email: string) => {
     setDeletingUid(uid);
     try {
@@ -634,6 +708,7 @@ const SettingsPage: React.FC = () => {
     { id: "appearance", label: "Appearance" },
     ...(isWebmaster
       ? [
+          { id: "overview", label: "Overview" },
           { id: "promote", label: "Promote to Webmaster" },
           { id: "pending", label: "Pending escalations" },
           { id: "agents", label: "Agents" },
@@ -738,6 +813,120 @@ const SettingsPage: React.FC = () => {
             </Button>
           </div>
         </div>
+
+        {/* Webmaster-only: Overview — at-a-glance assigned conversations per agent */}
+        {isWebmaster && (
+          <div id="overview" className="rounded-xl border border-border bg-card p-6">
+            <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
+              <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground">
+                <LayoutDashboard className="h-5 w-5 text-primary" />
+                Overview
+                {overviewByAgent.length > 0 && (
+                  <Badge variant="secondary" className="ml-1">{overviewByAgent.length}</Badge>
+                )}
+              </h3>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Live snapshot of every agent and admin with assigned conversations. Click a row
+              to expand the list of threads, or open one directly. The same auto-push logic
+              sends each agent to one of these conversations the next time they sign in.
+            </p>
+            {overviewByAgent.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                No conversations are currently assigned to anyone.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {overviewByAgent.map((row) => {
+                  const isOpen = openOverview.has(row.agent);
+                  const overloaded = row.open >= 3;
+                  return (
+                    <div
+                      key={row.agent}
+                      className="rounded-lg border border-border bg-background"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleOverview(row.agent)}
+                        className="w-full flex items-center gap-3 p-3 text-left hover:bg-muted/40 transition-colors rounded-lg"
+                        aria-expanded={isOpen}
+                      >
+                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                          {row.agent.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium text-foreground truncate">
+                              {row.agent}
+                            </span>
+                            {overloaded && (
+                              <Badge variant="outline" className="text-[10px] gap-1 border-destructive/40 text-destructive">
+                                <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                                Overloaded
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                            <span className="inline-flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                              {row.active} active
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-warning" />
+                              {row.waiting} waiting
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+                              {row.resolved} resolved
+                            </span>
+                          </div>
+                        </div>
+                        <Badge
+                          variant={overloaded ? "destructive" : "secondary"}
+                          className="flex-shrink-0"
+                        >
+                          {row.open} open
+                        </Badge>
+                      </button>
+                      {isOpen && (
+                        <ul className="space-y-1 border-t border-border p-3">
+                          {row.convos.slice(0, 10).map((c) => (
+                            <li key={c.id}>
+                              <Link
+                                to={`/conversations/${c.id}`}
+                                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-accent transition-colors"
+                              >
+                                <MessageCircle className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                <span className="font-medium text-foreground truncate">{c.customerName}</span>
+                                <Badge
+                                  variant="outline"
+                                  className="ml-auto text-[10px] capitalize flex-shrink-0"
+                                >
+                                  {c.status}
+                                </Badge>
+                                <Badge variant="outline" className="text-[10px] uppercase flex-shrink-0">
+                                  {c.channel}
+                                </Badge>
+                                {c.unread && (
+                                  <span className="h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
+                                )}
+                              </Link>
+                            </li>
+                          ))}
+                          {row.convos.length > 10 && (
+                            <li className="px-2 py-1 text-[10px] text-muted-foreground italic">
+                              + {row.convos.length - 10} more
+                            </li>
+                          )}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Webmaster-only: Promote */}
         {isWebmaster && (

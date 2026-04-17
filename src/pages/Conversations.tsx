@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
   Plus,
@@ -25,6 +25,7 @@ import {
   Archive as ArchiveIcon,
   ShieldAlert,
   MoreHorizontal,
+  Link2,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -342,6 +343,32 @@ const Conversations: React.FC = () => {
 
   // Single conversation export handlers
   const selected = conversations.find((c) => c.id === selectedId);
+
+  // Per-agent open-load count: conversations that are assigned and not resolved.
+  // Used to show a dot + count in the assign-agent dropdown so it's easy to
+  // spot who's already overloaded before assigning more work.
+  const agentLoad = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of conversations) {
+      if (c.archived) continue;
+      if (c.status === "resolved") continue;
+      if (!c.assignedAgent) continue;
+      map.set(c.assignedAgent, (map.get(c.assignedAgent) ?? 0) + 1);
+    }
+    return map;
+  }, [conversations]);
+
+  // Copy a deep link to the currently-selected conversation to the clipboard.
+  const handleCopyLink = async () => {
+    if (!selected) return;
+    const url = `${window.location.origin}/conversations/${selected.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({ title: "Link copied", description: "Conversation URL copied to clipboard." });
+    } catch {
+      toast({ title: "Copy failed", description: url, variant: "destructive" });
+    }
+  };
 
   const handleCopyTranscript = () => {
     if (!selected || messages.length === 0) return;
@@ -816,33 +843,39 @@ const Conversations: React.FC = () => {
         </PullToRefresh>
       </div>
 
-      {/* Thread Detail */}
-      {selected ? (
-        <div
-          className={cn("flex flex-1 flex-col", !selectedId ? "hidden" : "")}
-          onTouchStart={(e) => {
-            const t = e.touches[0];
-            (e.currentTarget as any)._sx = t.clientX;
-            (e.currentTarget as any)._sy = t.clientY;
-            (e.currentTarget as any)._st = Date.now();
-          }}
-          onTouchEnd={(e) => {
-            const el = e.currentTarget as any;
-            const startX = el._sx as number | undefined;
-            const startY = el._sy as number | undefined;
-            const startT = el._st as number | undefined;
-            if (startX == null || startY == null || startT == null) return;
-            const t = e.changedTouches[0];
-            const dx = t.clientX - startX;
-            const dy = t.clientY - startY;
-            const dt = Date.now() - startT;
-            // Right-swipe from near the left edge: ≥80px horizontal, mostly horizontal, < 600ms.
-            if (startX < 60 && dx > 80 && Math.abs(dy) < 60 && dt < 600) {
-              setSelectedId(null);
-            }
-          }}
-        >
-          {/* Header */}
+      {/* Thread Detail — animated overlay sliding in from the right */}
+      <AnimatePresence mode="wait">
+        {selected ? (
+          <motion.div
+            key={selected.id}
+            initial={{ x: "100%", opacity: 0.6 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: "100%", opacity: 0.6 }}
+            transition={{ type: "tween", duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+            className={cn("flex flex-1 flex-col", !selectedId ? "hidden" : "")}
+            onTouchStart={(e) => {
+              const t = e.touches[0];
+              (e.currentTarget as any)._sx = t.clientX;
+              (e.currentTarget as any)._sy = t.clientY;
+              (e.currentTarget as any)._st = Date.now();
+            }}
+            onTouchEnd={(e) => {
+              const el = e.currentTarget as any;
+              const startX = el._sx as number | undefined;
+              const startY = el._sy as number | undefined;
+              const startT = el._st as number | undefined;
+              if (startX == null || startY == null || startT == null) return;
+              const t = e.changedTouches[0];
+              const dx = t.clientX - startX;
+              const dy = t.clientY - startY;
+              const dt = Date.now() - startT;
+              // Right-swipe from near the left edge: ≥80px horizontal, mostly horizontal, < 600ms.
+              if (startX < 60 && dx > 80 && Math.abs(dy) < 60 && dt < 600) {
+                setSelectedId(null);
+              }
+            }}
+          >
+            {/* Header */}
           <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 md:px-6 md:py-4">
             <div className="flex min-w-0 items-center gap-2 md:gap-3">
               <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setSelectedId(null)} aria-label="Back to conversation list">
@@ -884,6 +917,20 @@ const Conversations: React.FC = () => {
               >
                 <Mail className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Email</span>
               </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 px-2 sm:px-3"
+                    aria-label="Copy conversation link"
+                    onClick={handleCopyLink}
+                  >
+                    <Link2 className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Copy link</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Copy a shareable URL to this conversation</TooltipContent>
+              </Tooltip>
 
               {/* === Secondary actions: visible on md+ === */}
               <div className="hidden md:contents">
@@ -920,17 +967,46 @@ const Conversations: React.FC = () => {
                       <span className="hidden lg:inline">{selected.assignedAgent ? selected.assignedAgent.split(" ")[0] : "Assign"}</span>
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-48 p-2" align="end">
-                    <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">Assign to agent</p>
-                    {agents.map((agent) => (
-                      <button
-                        key={agent}
-                        onClick={() => handleAssignAgent(selected.id, agent)}
-                        className={`w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors ${selected.assignedAgent === agent ? "bg-accent font-medium" : ""}`}
-                      >
-                        {agent}
-                      </button>
-                    ))}
+                  <PopoverContent className="w-56 p-2" align="end">
+                    <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">
+                      Assign to agent
+                    </p>
+                    {agents.map((agent) => {
+                      const load = agentLoad.get(agent) ?? 0;
+                      const overloaded = load >= 3;
+                      return (
+                        <button
+                          key={agent}
+                          onClick={() => handleAssignAgent(selected.id, agent)}
+                          className={cn(
+                            "w-full flex items-center gap-2 text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors",
+                            selected.assignedAgent === agent && "bg-accent font-medium"
+                          )}
+                        >
+                          <span className="flex-1 truncate">{agent}</span>
+                          {load > 0 && (
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                                overloaded
+                                  ? "bg-destructive/15 text-destructive"
+                                  : "bg-primary/10 text-primary"
+                              )}
+                              aria-label={`${load} open conversation${load === 1 ? "" : "s"} assigned`}
+                              title={`${load} open conversation${load === 1 ? "" : "s"} assigned`}
+                            >
+                              <span
+                                className={cn(
+                                  "h-1.5 w-1.5 rounded-full",
+                                  overloaded ? "bg-destructive" : "bg-primary"
+                                )}
+                              />
+                              {load}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                     {selected.assignedAgent && (
                       <>
                         <div className="my-1 h-px bg-border" />
@@ -1155,8 +1231,9 @@ const Conversations: React.FC = () => {
               </Button>
             </div>
           </div>
-        </div>
-      ) : null}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {/* Elevate to Webmaster — investigation request */}
       <Dialog open={elevateOpen} onOpenChange={setElevateOpen}>
