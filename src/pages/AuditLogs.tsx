@@ -530,7 +530,24 @@ const AuditLogs: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-end mb-3">
+          <div className="flex items-center justify-end gap-2 mb-3">
+            <ExportCsvButton
+              label="login attempts"
+              count={loginAttempts.length}
+              onExport={() =>
+                downloadCsv(
+                  "login-attempts",
+                  ["Email", "Status", "Timestamp", "UID", "User Agent"],
+                  loginAttempts.map((a) => [
+                    a.email,
+                    a.success ? "Success" : "Failed",
+                    a.timestamp?.toDate?.()?.toISOString() ?? "",
+                    (a as any).uid ?? "",
+                    a.userAgent ?? "",
+                  ])
+                )
+              }
+            />
             <ClearAllButton
               label="login attempts"
               count={loginAttempts.length}
@@ -597,7 +614,25 @@ const AuditLogs: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="notes">
-          <div className="flex items-center justify-end mb-3">
+          <div className="flex items-center justify-end gap-2 mb-3">
+            <ExportCsvButton
+              label="notification changes"
+              count={notes.length}
+              onExport={() =>
+                downloadCsv(
+                  "notification-changes",
+                  ["Action", "Type", "Title", "Description", "Actor", "Timestamp"],
+                  notes.map((n) => [
+                    n.action,
+                    n.type,
+                    n.title,
+                    n.description ?? "",
+                    n.actor,
+                    n.timestamp?.toDate?.()?.toISOString() ?? "",
+                  ])
+                )
+              }
+            />
             <ClearAllButton
               label="notification changes"
               count={notes.length}
@@ -680,7 +715,25 @@ const AuditLogs: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="people">
-          <div className="flex items-center justify-end mb-3">
+          <div className="flex items-center justify-end gap-2 mb-3">
+            <ExportCsvButton
+              label="new people"
+              count={people.length}
+              onExport={() =>
+                downloadCsv(
+                  "new-people",
+                  ["Name", "Email", "Phone", "Person ID", "Added By", "Timestamp"],
+                  people.map((p) => [
+                    p.name,
+                    p.email ?? "",
+                    p.phone ?? "",
+                    p.personId,
+                    p.actor,
+                    p.timestamp?.toDate?.()?.toISOString() ?? "",
+                  ])
+                )
+              }
+            />
             <ClearAllButton
               label="new people"
               count={people.length}
