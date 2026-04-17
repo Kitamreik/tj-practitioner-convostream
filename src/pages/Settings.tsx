@@ -497,6 +497,63 @@ const SettingsPage: React.FC = () => {
     [reassignFrom, overviewByAgent]
   );
 
+  // ---- Seed demo data (webmaster only) ----
+  // Quickly creates 5 fake "active" conversations all assigned to a single agent
+  // so the Overloaded badge, the assignment banner, and the Reassign workload
+  // dialog have realistic data to exercise during end-to-end tests.
+  const [seeding, setSeeding] = useState(false);
+  const seedDemoData = async () => {
+    // Prefer an existing agent/admin account; fall back to a synthetic name
+    // so the seeder works even on a brand-new project with only a webmaster.
+    const targetAccount = accounts.find((a) => a.role === "agent")
+      ?? accounts.find((a) => a.role === "admin");
+    const targetAgent =
+      (targetAccount?.displayName || targetAccount?.email || "Demo Agent").trim();
+
+    setSeeding(true);
+    try {
+      const samples = [
+        { customerName: "Ava Patel",       channel: "email", status: "active",  lastMessage: "My order hasn't arrived yet — can you check?" },
+        { customerName: "Marcus Chen",     channel: "sms",   status: "active",  lastMessage: "Hey, the discount code isn't working at checkout." },
+        { customerName: "Sofia Rodriguez", channel: "email", status: "waiting", lastMessage: "Following up on the refund request from last week." },
+        { customerName: "Jamal Williams",  channel: "phone", status: "active",  lastMessage: "Left a voicemail about the billing question." },
+        { customerName: "Priya Sharma",    channel: "slack", status: "active",  lastMessage: "Quick q — does your plan include API access?" },
+      ];
+      // Use a batch so all 5 conversations land atomically and the Overview
+      // jumps straight from 0 → 5 (triggering the Overloaded threshold of 3).
+      const batch = writeBatch(db);
+      for (const s of samples) {
+        const ref = doc(collection(db, "conversations"));
+        batch.set(ref, {
+          customerName: s.customerName,
+          customerEmail: `${s.customerName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
+          customerPhone: null,
+          lastMessage: s.lastMessage,
+          channel: s.channel,
+          status: s.status,
+          assignedAgent: targetAgent,
+          unread: true,
+          archived: false,
+          demo: true,
+          timestamp: new Date(),
+        });
+      }
+      await batch.commit();
+      toast({
+        title: "Demo data seeded",
+        description: `Created 5 conversations assigned to ${targetAgent}.`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Could not seed demo data",
+        description: e?.message || "Try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   const submitReassign = async () => {
     if (!reassignFrom || !reassignTo) return;
     if (!sourceRowForReassign) return;
@@ -902,6 +959,17 @@ const SettingsPage: React.FC = () => {
                   <Badge variant="secondary" className="ml-1">{overviewByAgent.length}</Badge>
                 )}
               </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={seedDemoData}
+                disabled={seeding}
+                aria-label="Seed 5 demo conversations assigned to one agent"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                {seeding ? "Seeding..." : "Seed demo data"}
+              </Button>
             </div>
             <p className="text-xs text-muted-foreground mb-4">
               Live snapshot of every agent and admin with assigned conversations. Click a row
