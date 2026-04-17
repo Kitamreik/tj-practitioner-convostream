@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
   Plus,
@@ -25,6 +25,7 @@ import {
   Archive as ArchiveIcon,
   ShieldAlert,
   MoreHorizontal,
+  Link2,
 } from "lucide-react";
 import {
   AlertDialog,
