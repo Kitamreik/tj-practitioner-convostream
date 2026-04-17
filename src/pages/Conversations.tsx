@@ -85,6 +85,8 @@ interface Conversation {
   unread: boolean;
   status: "active" | "waiting" | "resolved";
   assignedAgent?: string;
+  archived?: boolean;
+  deletedAt?: any;
 }
 
 interface ConversationMessage {
@@ -238,6 +240,7 @@ const Conversations: React.FC = () => {
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const replyInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
