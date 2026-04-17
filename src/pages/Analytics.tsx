@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck, PhoneIncoming, PhoneOutgoing, MessageCircle } from "lucide-react";
+import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck, PhoneIncoming, PhoneOutgoing, MessageCircle, Filter, X } from "lucide-react";
 import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 
 interface AgentWorkloadData {
   name: string;
