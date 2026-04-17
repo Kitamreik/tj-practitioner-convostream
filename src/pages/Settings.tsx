@@ -66,6 +66,7 @@ import {
   onSnapshot,
   doc,
   writeBatch,
+  getDocs,
 } from "firebase/firestore";
 import {
   Select,
@@ -554,7 +555,37 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const submitReassign = async () => {
+  const [clearingDemo, setClearingDemo] = useState(false);
+  const clearDemoData = async () => {
+    setClearingDemo(true);
+    try {
+      const snap = await getDocs(query(collection(db, "conversations"), where("demo", "==", true)));
+      if (snap.empty) {
+        toast({ title: "No demo conversations to clear" });
+        return;
+      }
+      // Firestore batch limit is 500 ops; chunk to be safe.
+      const docs = snap.docs;
+      for (let i = 0; i < docs.length; i += 400) {
+        const batch = writeBatch(db);
+        for (const d of docs.slice(i, i + 400)) batch.delete(d.ref);
+        await batch.commit();
+      }
+      toast({
+        title: "Demo data cleared",
+        description: `Deleted ${docs.length} demo conversation${docs.length === 1 ? "" : "s"}.`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Could not clear demo data",
+        description: e?.message || "Try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setClearingDemo(false);
+    }
+  };
+
     if (!reassignFrom || !reassignTo) return;
     if (!sourceRowForReassign) return;
     const eligible = sourceRowForReassign.convos
