@@ -828,30 +828,8 @@ const Conversations: React.FC = () => {
                 <p className="truncate text-xs text-muted-foreground">{selected.customerEmail}</p>
               </div>
             </div>
-            <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Export transcript">
-                    <FileText className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Export</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleCopyTranscript} className="gap-2">
-                    <Copy className="h-3.5 w-3.5" /> Copy to Clipboard
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleDownloadTXT} className="gap-2">
-                    <Download className="h-3.5 w-3.5" /> Download TXT
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2">
-                    <FileSpreadsheet className="h-3.5 w-3.5" /> Download CSV
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleDownloadPDF} className="gap-2">
-                    <FileText className="h-3.5 w-3.5" /> Download PDF
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <ConversationTemplates onInsertTemplate={handleInsertTemplate} />
+            <div className="flex flex-shrink-0 flex-nowrap items-center justify-end gap-1.5 sm:gap-2">
+              {/* === Always-visible primary actions === */}
               <Button
                 variant="outline"
                 size="sm"
@@ -880,61 +858,154 @@ const Conversations: React.FC = () => {
               >
                 <Mail className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Email</span>
               </Button>
-              <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Open profile" onClick={() => setProfileOpen(true)}>
-                <User className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Profile</span>
-              </Button>
-              {/* Assign Agent */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Assign agent">
-                    <UserCheck className="h-3.5 w-3.5" />
-                    <span className="hidden lg:inline">{selected.assignedAgent ? selected.assignedAgent.split(" ")[0] : "Assign"}</span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-48 p-2" align="end">
-                  <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">Assign to agent</p>
-                  {agents.map((agent) => (
-                    <button
-                      key={agent}
-                      onClick={() => handleAssignAgent(selected.id, agent)}
-                      className={`w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors ${selected.assignedAgent === agent ? "bg-accent font-medium" : ""}`}
-                    >
-                      {agent}
-                    </button>
-                  ))}
-                  {selected.assignedAgent && (
-                    <>
-                      <div className="my-1 h-px bg-border" />
+
+              {/* === Secondary actions: visible on md+ === */}
+              <div className="hidden md:contents">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Export transcript">
+                      <FileText className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Export</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleCopyTranscript} className="gap-2">
+                      <Copy className="h-3.5 w-3.5" /> Copy to Clipboard
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleDownloadTXT} className="gap-2">
+                      <Download className="h-3.5 w-3.5" /> Download TXT
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2">
+                      <FileSpreadsheet className="h-3.5 w-3.5" /> Download CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleDownloadPDF} className="gap-2">
+                      <FileText className="h-3.5 w-3.5" /> Download PDF
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <ConversationTemplates onInsertTemplate={handleInsertTemplate} />
+                <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Open profile" onClick={() => setProfileOpen(true)}>
+                  <User className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Profile</span>
+                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Assign agent">
+                      <UserCheck className="h-3.5 w-3.5" />
+                      <span className="hidden lg:inline">{selected.assignedAgent ? selected.assignedAgent.split(" ")[0] : "Assign"}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 p-2" align="end">
+                    <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">Assign to agent</p>
+                    {agents.map((agent) => (
                       <button
-                        onClick={() => handleAssignAgent(selected.id, null)}
-                        className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors flex items-center gap-2"
+                        key={agent}
+                        onClick={() => handleAssignAgent(selected.id, agent)}
+                        className={`w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors ${selected.assignedAgent === agent ? "bg-accent font-medium" : ""}`}
                       >
-                        <X className="h-3.5 w-3.5" /> Unassign
+                        {agent}
                       </button>
-                    </>
-                  )}
-                </PopoverContent>
-              </Popover>
-              {/* Toggle Resolved / Reopen */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="sm" onClick={handleToggleResolved} className="gap-1.5 px-2 sm:px-3" aria-label={selected.status === "resolved" ? "Reopen" : "Resolve"}>
-                    {selected.status === "resolved" ? (
-                      <><RotateCcw className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Reopen</span></>
-                    ) : (
-                      <>✓ <span className="hidden lg:inline">Resolve</span></>
+                    ))}
+                    {selected.assignedAgent && (
+                      <>
+                        <div className="my-1 h-px bg-border" />
+                        <button
+                          onClick={() => handleAssignAgent(selected.id, null)}
+                          className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors flex items-center gap-2"
+                        >
+                          <X className="h-3.5 w-3.5" /> Unassign
+                        </button>
+                      </>
                     )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{selected.status === "resolved" ? "Reopen conversation (E)" : "Mark as resolved (E)"}</TooltipContent>
-              </Tooltip>
-              {/* Delete or Restore */}
-              {selected.archived ? (
+                  </PopoverContent>
+                </Popover>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
+                    <Button variant="outline" size="sm" onClick={handleToggleResolved} className="gap-1.5 px-2 sm:px-3" aria-label={selected.status === "resolved" ? "Reopen" : "Resolve"}>
+                      {selected.status === "resolved" ? (
+                        <><RotateCcw className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Reopen</span></>
+                      ) : (
+                        <>✓ <span className="hidden lg:inline">Resolve</span></>
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{selected.status === "resolved" ? "Reopen conversation (E)" : "Mark as resolved (E)"}</TooltipContent>
+                </Tooltip>
+                {selected.archived ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await restoreItem("conversations", selected.id);
+                            toast({ title: "Restored", description: "Conversation moved back to active." });
+                          } catch {
+                            toast({ title: "Restore failed", variant: "destructive" });
+                          }
+                        }}
+                        className="gap-1.5 px-2 sm:px-3"
+                        aria-label="Restore conversation"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Restore</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Restore from archive</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive" aria-label="Delete conversation">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete conversation</TooltipContent>
+                  </Tooltip>
+                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" onClick={() => setShowShortcuts((p) => !p)} aria-label="Keyboard shortcuts">
+                      <Keyboard className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Keyboard shortcuts (?)</TooltipContent>
+                </Tooltip>
+              </div>
+
+              {/* === More menu: visible only below md, collapses all secondary actions === */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5 px-2 md:hidden" aria-label="More actions">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={() => setProfileOpen(true)} className="gap-2">
+                    <User className="h-3.5 w-3.5" /> View profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleToggleResolved} className="gap-2">
+                    {selected.status === "resolved" ? (
+                      <><RotateCcw className="h-3.5 w-3.5" /> Reopen</>
+                    ) : (
+                      <><span className="inline-block w-3.5 text-center">✓</span> Resolve</>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleCopyTranscript} className="gap-2">
+                    <Copy className="h-3.5 w-3.5" /> Copy transcript
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDownloadTXT} className="gap-2">
+                    <Download className="h-3.5 w-3.5" /> Download TXT
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2">
+                    <FileSpreadsheet className="h-3.5 w-3.5" /> Download CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDownloadPDF} className="gap-2">
+                    <FileText className="h-3.5 w-3.5" /> Download PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {selected.archived ? (
+                    <DropdownMenuItem
                       onClick={async () => {
                         try {
                           await restoreItem("conversations", selected.id);
@@ -943,32 +1014,20 @@ const Conversations: React.FC = () => {
                           toast({ title: "Restore failed", variant: "destructive" });
                         }
                       }}
-                      className="gap-1.5 px-2 sm:px-3"
-                      aria-label="Restore conversation"
+                      className="gap-2"
                     >
-                      <RotateCcw className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Restore</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Restore from archive</TooltipContent>
-                </Tooltip>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive" aria-label="Delete conversation">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Delete conversation</TooltipContent>
-                </Tooltip>
-              )}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" onClick={() => setShowShortcuts((p) => !p)} className="hidden md:inline-flex" aria-label="Keyboard shortcuts">
-                    <Keyboard className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Keyboard shortcuts (?)</TooltipContent>
-              </Tooltip>
+                      <RotateCcw className="h-3.5 w-3.5" /> Restore
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      onClick={() => setConfirmDeleteOpen(true)}
+                      className="gap-2 text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
