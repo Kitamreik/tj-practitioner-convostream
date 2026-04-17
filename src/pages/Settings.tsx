@@ -578,35 +578,19 @@ const SettingsPage: React.FC = () => {
                     </div>
                     <div className="flex flex-shrink-0 gap-2 flex-wrap">
                       {acc.escalatedAccess && acc.role !== "webmaster" && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="gap-1"
-                              disabled={revokingUid === acc.uid}
-                            >
-                              <ShieldOff className="h-3.5 w-3.5" />
-                              {revokingUid === acc.uid ? "Revoking…" : "Revoke escalation"}
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Revoke escalated access?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                {acc.email || acc.displayName || acc.uid} will lose access to Integrations,
-                                Analytics, and the Gmail API. They can request escalation again later.
-                                This action is recorded in <code className="rounded bg-muted px-1 py-0.5">roleGrants</code>.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => revokeEscalation(acc.uid, acc.email)}>
-                                Revoke access
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1"
+                          disabled={revokingUid === acc.uid}
+                          onClick={() => {
+                            setRevokeReason("");
+                            setRevokeDialogUid(acc.uid);
+                          }}
+                        >
+                          <ShieldOff className="h-3.5 w-3.5" />
+                          {revokingUid === acc.uid ? "Revoking…" : "Revoke escalation"}
+                        </Button>
                       )}
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
