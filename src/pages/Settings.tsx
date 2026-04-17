@@ -741,7 +741,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: Promote */}
         {isWebmaster && (
-          <div className="rounded-xl border border-primary/30 bg-primary/5 p-6">
+          <div id="promote" className="rounded-xl border border-primary/30 bg-primary/5 p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
               <KeyRound className="h-5 w-5 text-primary" />
               Promote to Webmaster
@@ -773,7 +773,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: Pending escalation requests */}
         {isWebmaster && (
-          <div className="rounded-xl border border-border bg-card p-6">
+          <div id="pending" className="rounded-xl border border-border bg-card p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
               <Inbox className="h-5 w-5 text-primary" />
               Pending escalation requests
@@ -845,7 +845,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: Agents (rename agents) */}
         {isWebmaster && (
-          <div className="rounded-xl border border-border bg-card p-6">
+          <div id="agents" className="rounded-xl border border-border bg-card p-6">
             <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground">
                 <UserCog className="h-5 w-5 text-primary" />
@@ -1026,7 +1026,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: All accounts */}
         {isWebmaster && (
-          <div className="rounded-xl border border-border bg-card p-6">
+          <div id="accounts" className="rounded-xl border border-border bg-card p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
               <Users className="h-5 w-5 text-primary" />
               Accounts
@@ -1184,7 +1184,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: Investigation requests */}
         {isWebmaster && (
-          <div className="rounded-xl border border-border bg-card p-6">
+          <div id="investigations" className="rounded-xl border border-border bg-card p-6">
             <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground">
                 <Search className="h-5 w-5 text-primary" />
@@ -1279,7 +1279,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Admin-only: Escalate */}
         {!isWebmaster && (
-          <div className="rounded-xl border border-accent/40 bg-accent/5 p-6">
+          <div id="escalate" className="rounded-xl border border-accent/40 bg-accent/5 p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
               <Shield className="h-5 w-5 text-primary" />
               Escalate to Webmaster
