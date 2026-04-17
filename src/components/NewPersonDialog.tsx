@@ -65,6 +65,13 @@ const NewPersonDialog: React.FC = () => {
         createdAt: serverTimestamp(),
       });
       toast({ title: "Person added", description: `${nameRes.data} saved (id: ${ref.id.slice(0, 6)}…)` });
+      logPersonCreated({
+        personId: ref.id,
+        name: nameRes.data,
+        email: cleanEmail,
+        phone: cleanPhone,
+        actor: actorName,
+      });
       setOpen(false);
       reset();
     } catch (err: any) {
