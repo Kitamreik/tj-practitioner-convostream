@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
@@ -20,7 +20,12 @@ import {
   ExternalLink,
   Pencil,
   UserCog,
+  History,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -98,6 +103,44 @@ interface InvestigationRow {
 const SettingsPage: React.FC = () => {
   const { user, profile } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const isMobile = useIsMobile();
+
+  // Resizable nav-pane width (desktop + webmaster only). Mirrors the pattern in
+  // Conversations: persisted in localStorage, bounded to a sensible range.
+  const NAV_WIDTH_KEY = "convohub.settings.navWidth";
+  const [navWidth, setNavWidth] = useState<number>(() => {
+    if (typeof window === "undefined") return 240;
+    const stored = Number(localStorage.getItem(NAV_WIDTH_KEY));
+    return Number.isFinite(stored) && stored >= 180 && stored <= 420 ? stored : 240;
+  });
+  const navResizingRef = useRef(false);
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!navResizingRef.current) return;
+      const next = Math.min(420, Math.max(180, e.clientX));
+      setNavWidth(next);
+    };
+    const onUp = () => {
+      if (!navResizingRef.current) return;
+      navResizingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      try { localStorage.setItem(NAV_WIDTH_KEY, String(navWidth)); } catch { /* noop */ }
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [navWidth]);
+  const startNavResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    navResizingRef.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
 
   // ---- Promote (webmaster only) ----
   const [promoteEmail, setPromoteEmail] = useState("");
@@ -408,6 +451,114 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  // ---- Promote agent → admin / Demote admin → agent (webmaster only) ----
+  const [roleChangingUid, setRoleChangingUid] = useState<string | null>(null);
+
+  const promoteAgentToAdmin = async (acc: AccountRow) => {
+    if (!acc.email) {
+      toast({ title: "No email on account", description: "Cannot promote without an email.", variant: "destructive" });
+      return;
+    }
+    setRoleChangingUid(acc.uid);
+    try {
+      const fn = httpsCallable<{ targetEmail: string; role: "admin" }, { ok: boolean; previousRole: string; newRole: string }>(
+        functions,
+        "promoteToWebmaster"
+      );
+      const res = await fn({ targetEmail: acc.email, role: "admin" });
+      toast({
+        title: "Promoted to admin",
+        description: `${acc.email} ${res.data.previousRole} → ${res.data.newRole}.`,
+      });
+    } catch (e: any) {
+      toast({ title: "Promote failed", description: e?.message || "Unable to promote.", variant: "destructive" });
+    } finally {
+      setRoleChangingUid(null);
+    }
+  };
+
+  const demoteToAgent = async (acc: AccountRow) => {
+    setRoleChangingUid(acc.uid);
+    try {
+      const fn = httpsCallable<{ targetUid: string; reason?: string }, { ok: boolean; previousRole?: string; newRole?: string }>(
+        functions,
+        "demoteAgent"
+      );
+      await fn({ targetUid: acc.uid });
+      toast({ title: "Demoted to agent", description: `${acc.email || acc.uid} is now an agent.` });
+    } catch (e: any) {
+      toast({ title: "Demote failed", description: e?.message || "Unable to demote.", variant: "destructive" });
+    } finally {
+      setRoleChangingUid(null);
+    }
+  };
+
+  // ---- Rename history (webmaster only) ----
+  // Subscribe to recent renameAgent entries from `roleGrants` and group by targetUid
+  // so each agent row can show its most recent renames inline.
+  interface RenameEvent {
+    id: string;
+    targetUid: string;
+    previousDisplayName: string;
+    newDisplayName: string;
+    grantedByEmail: string | null;
+    grantedAt: any;
+  }
+  const [renameEvents, setRenameEvents] = useState<RenameEvent[]>([]);
+  useEffect(() => {
+    if (!isWebmaster) return;
+    const q = query(
+      collection(db, "roleGrants"),
+      where("action", "==", "renameAgent"),
+      orderBy("grantedAt", "desc"),
+      limit(100)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const rows: RenameEvent[] = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            targetUid: data.targetUid ?? "",
+            previousDisplayName: data.previousDisplayName ?? "",
+            newDisplayName: data.newDisplayName ?? "",
+            grantedByEmail: data.grantedByEmail ?? null,
+            grantedAt: data.grantedAt,
+          };
+        });
+        setRenameEvents(rows);
+      },
+      (err) => {
+        console.warn("Rename history listener error:", err);
+        setRenameEvents([]);
+      }
+    );
+    return unsub;
+  }, [isWebmaster]);
+
+  const renamesByUid = useMemo(() => {
+    const map = new Map<string, RenameEvent[]>();
+    for (const ev of renameEvents) {
+      if (!ev.targetUid) continue;
+      const arr = map.get(ev.targetUid) ?? [];
+      arr.push(ev);
+      map.set(ev.targetUid, arr);
+    }
+    return map;
+  }, [renameEvents]);
+
+  // Track which agent rows have rename-history expanded (collapsed by default).
+  const [openHistory, setOpenHistory] = useState<Set<string>>(new Set());
+  const toggleHistory = (uid: string) => {
+    setOpenHistory((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+  };
+
   // Agents = anyone whose role is "agent" (the new baseline) OR legacy "admin".
   // Webmasters are excluded — they manage themselves via the Accounts panel.
   const agentRows = accounts.filter(
@@ -478,8 +629,65 @@ const SettingsPage: React.FC = () => {
     return "—";
   };
 
+  const navSections: { id: string; label: string }[] = [
+    { id: "profile", label: "Profile" },
+    { id: "appearance", label: "Appearance" },
+    ...(isWebmaster
+      ? [
+          { id: "promote", label: "Promote to Webmaster" },
+          { id: "pending", label: "Pending escalations" },
+          { id: "agents", label: "Agents" },
+          { id: "accounts", label: "Accounts" },
+          { id: "investigations", label: "Investigation requests" },
+        ]
+      : [{ id: "escalate", label: "Escalate to Webmaster" }]),
+    { id: "security", label: "Security" },
+  ];
+  const showSideNav = isWebmaster && !isMobile;
+
   return (
-    <div className={`p-4 md:p-8 mx-auto ${isWebmaster ? "max-w-4xl" : "max-w-2xl"}`}>
+    <div className={cn(
+      "mx-auto",
+      showSideNav ? "flex h-full max-w-6xl gap-0 p-0" : `p-4 md:p-8 ${isWebmaster ? "max-w-4xl" : "max-w-2xl"}`
+    )}>
+      {showSideNav && (
+        <>
+          <aside
+            className="flex flex-col border-r border-border bg-card/40 p-4 overflow-y-auto"
+            style={{ width: `${navWidth}px`, flex: "0 0 auto" }}
+            aria-label="Settings sections"
+          >
+            <h2 className="mb-3 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Settings
+            </h2>
+            <nav className="flex flex-col gap-1">
+              {navSections.map((s) => (
+                <a
+                  key={s.id}
+                  href={`#${s.id}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  {s.label}
+                </a>
+              ))}
+            </nav>
+          </aside>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize settings navigation"
+            onMouseDown={startNavResize}
+            className="group relative w-1 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
+          >
+            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-border group-hover:bg-primary/40" />
+          </div>
+        </>
+      )}
+      <div className={cn(showSideNav ? "flex-1 min-w-0 overflow-y-auto p-6 md:p-8" : "")}>
       <div className="mb-6 md:mb-8">
         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
         <p className="text-muted-foreground mt-1">Manage your account and preferences</p>
@@ -487,7 +695,7 @@ const SettingsPage: React.FC = () => {
 
       <div className="space-y-6 md:space-y-8">
         {/* Profile */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div id="profile" className="rounded-xl border border-border bg-card p-6">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-4">
             <User className="h-5 w-5 text-primary" />
             Profile
@@ -514,7 +722,7 @@ const SettingsPage: React.FC = () => {
         </div>
 
         {/* Appearance */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div id="appearance" className="rounded-xl border border-border bg-card p-6">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-4">
             {theme === "light" ? <Sun className="h-5 w-5 text-primary" /> : <Moon className="h-5 w-5 text-primary" />}
             Appearance
@@ -533,7 +741,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: Promote */}
         {isWebmaster && (
-          <div className="rounded-xl border border-primary/30 bg-primary/5 p-6">
+          <div id="promote" className="rounded-xl border border-primary/30 bg-primary/5 p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
               <KeyRound className="h-5 w-5 text-primary" />
               Promote to Webmaster
@@ -565,7 +773,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: Pending escalation requests */}
         {isWebmaster && (
-          <div className="rounded-xl border border-border bg-card p-6">
+          <div id="pending" className="rounded-xl border border-border bg-card p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
               <Inbox className="h-5 w-5 text-primary" />
               Pending escalation requests
@@ -637,7 +845,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: Agents (rename agents) */}
         {isWebmaster && (
-          <div className="rounded-xl border border-border bg-card p-6">
+          <div id="agents" className="rounded-xl border border-border bg-card p-6">
             <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground">
                 <UserCog className="h-5 w-5 text-primary" />
@@ -660,36 +868,104 @@ const SettingsPage: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              {agentRows.map((acc) => (
-                <div
-                  key={acc.uid}
-                  className="rounded-lg border border-border bg-background p-3 flex flex-col sm:flex-row gap-3 sm:items-center"
-                >
-                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                    {(acc.displayName || acc.email || "?").charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium text-foreground truncate">
-                        {acc.displayName || "(no name)"}
-                      </span>
-                      <Badge variant="secondary" className="capitalize text-[10px]">{acc.role}</Badge>
-                      {acc.escalatedAccess && (
-                        <Badge variant="outline" className="text-[10px] gap-1">
-                          <CheckCircle2 className="h-2.5 w-2.5" /> Escalated
-                        </Badge>
-                      )}
+              {agentRows.map((acc) => {
+                const history = renamesByUid.get(acc.uid) ?? [];
+                const isOpen = openHistory.has(acc.uid);
+                const isAdminTier = acc.role === "admin";
+                const busy = roleChangingUid === acc.uid;
+                return (
+                  <div
+                    key={acc.uid}
+                    className="rounded-lg border border-border bg-background p-3"
+                  >
+                    <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                        {(acc.displayName || acc.email || "?").charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-foreground truncate">
+                            {acc.displayName || "(no name)"}
+                          </span>
+                          <Badge variant="secondary" className="capitalize text-[10px]">{acc.role}</Badge>
+                          {acc.escalatedAccess && (
+                            <Badge variant="outline" className="text-[10px] gap-1">
+                              <CheckCircle2 className="h-2.5 w-2.5" /> Escalated
+                            </Badge>
+                          )}
+                          {history.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => toggleHistory(acc.uid)}
+                              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                              aria-expanded={isOpen}
+                            >
+                              <History className="h-3 w-3" />
+                              {history.length} rename{history.length === 1 ? "" : "s"}
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{acc.email || acc.uid}</p>
+                      </div>
+                      <div className="flex flex-shrink-0 flex-wrap gap-2">
+                        <Button size="sm" variant="outline" className="gap-1" onClick={() => openRename(acc)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                          Rename
+                        </Button>
+                        {isAdminTier ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1"
+                            disabled={busy}
+                            onClick={() => demoteToAgent(acc)}
+                          >
+                            <ArrowDown className="h-3.5 w-3.5" />
+                            {busy ? "…" : "Demote to agent"}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1"
+                            disabled={busy}
+                            onClick={() => promoteAgentToAdmin(acc)}
+                          >
+                            <ArrowUp className="h-3.5 w-3.5" />
+                            {busy ? "…" : "Promote to admin"}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{acc.email || acc.uid}</p>
+                    {isOpen && history.length > 0 && (
+                      <ul className="mt-3 space-y-1.5 border-t border-border pt-3">
+                        {history.slice(0, 5).map((ev) => (
+                          <li
+                            key={ev.id}
+                            className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground"
+                          >
+                            <span className="line-through opacity-70">
+                              {ev.previousDisplayName || "(blank)"}
+                            </span>
+                            <span aria-hidden>→</span>
+                            <span className="font-medium text-foreground">
+                              {ev.newDisplayName || "(blank)"}
+                            </span>
+                            <span className="opacity-70">
+                              · by {ev.grantedByEmail || "webmaster"} · {formatTime(ev.grantedAt)}
+                            </span>
+                          </li>
+                        ))}
+                        {history.length > 5 && (
+                          <li className="text-[10px] text-muted-foreground italic">
+                            + {history.length - 5} older rename{history.length - 5 === 1 ? "" : "s"} (see Audit Logs)
+                          </li>
+                        )}
+                      </ul>
+                    )}
                   </div>
-                  <div className="flex flex-shrink-0 gap-2">
-                    <Button size="sm" variant="outline" className="gap-1" onClick={() => openRename(acc)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                      Rename
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {agentRows.length === 0 && (
                 <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                   {agentSearch ? "No agents match your search." : "No agents yet."}
@@ -750,7 +1026,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: All accounts */}
         {isWebmaster && (
-          <div className="rounded-xl border border-border bg-card p-6">
+          <div id="accounts" className="rounded-xl border border-border bg-card p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
               <Users className="h-5 w-5 text-primary" />
               Accounts
@@ -908,7 +1184,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: Investigation requests */}
         {isWebmaster && (
-          <div className="rounded-xl border border-border bg-card p-6">
+          <div id="investigations" className="rounded-xl border border-border bg-card p-6">
             <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground">
                 <Search className="h-5 w-5 text-primary" />
@@ -1003,7 +1279,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Admin-only: Escalate */}
         {!isWebmaster && (
-          <div className="rounded-xl border border-accent/40 bg-accent/5 p-6">
+          <div id="escalate" className="rounded-xl border border-accent/40 bg-accent/5 p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
               <Shield className="h-5 w-5 text-primary" />
               Escalate to Webmaster
@@ -1067,7 +1343,7 @@ const SettingsPage: React.FC = () => {
         )}
 
         {/* Security */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div id="security" className="rounded-xl border border-border bg-card p-6">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-4">
             <Shield className="h-5 w-5 text-primary" />
             Security
@@ -1078,6 +1354,7 @@ const SettingsPage: React.FC = () => {
             reverts any client-side tampering.
           </p>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -451,6 +451,69 @@ export const updateAgentDisplayName = onCall(async (request) => {
 });
 
 /**
+ * Webmaster-only: demote an admin (or admin+escalated) back to "agent".
+ * Mirrors `promoteToWebmaster` and writes to `roleGrants` with
+ * action="demoteAgent" so the change is auditable. Refuses to demote
+ * webmasters (they must be demoted to admin first via promoteToWebmaster
+ * with role="admin") and refuses to demote the caller.
+ *
+ * Request: { targetUid: string, reason?: string }
+ */
+export const demoteAgent = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerUid = request.auth.uid;
+  const callerSnap = await db.doc(`users/${callerUid}`).get();
+  if ((callerSnap.data() as { role?: string } | undefined)?.role !== "webmaster") {
+    throw new HttpsError("permission-denied", "Webmasters only.");
+  }
+
+  const data = (request.data ?? {}) as { targetUid?: unknown; reason?: unknown };
+  const targetUid = typeof data.targetUid === "string" ? data.targetUid : "";
+  const reason = typeof data.reason === "string" ? data.reason.trim().slice(0, 1000) : "";
+  if (!targetUid) throw new HttpsError("invalid-argument", "targetUid required.");
+  if (targetUid === callerUid) {
+    throw new HttpsError("failed-precondition", "Webmasters cannot demote themselves.");
+  }
+
+  const targetRef = db.doc(`users/${targetUid}`);
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) throw new HttpsError("not-found", "User not found.");
+  const targetData = targetSnap.data() as { email?: string; role?: string; escalatedAccess?: boolean };
+  const previousRole = targetData.role ?? "agent";
+
+  if (previousRole === "webmaster") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Cannot demote a webmaster directly. Use promoteToWebmaster with role='admin' first."
+    );
+  }
+  if (previousRole === "agent" && !targetData.escalatedAccess) {
+    return { ok: true, alreadyAgent: true };
+  }
+
+  await targetRef.update({
+    role: "agent",
+    escalatedAccess: admin.firestore.FieldValue.delete(),
+    _serverRoleWrite: true,
+  });
+
+  await db.collection("roleGrants").add({
+    targetUid,
+    targetEmail: targetData.email ?? null,
+    previousRole: targetData.escalatedAccess ? `${previousRole}+escalated` : previousRole,
+    newRole: "agent",
+    grantedByUid: callerUid,
+    grantedByEmail: callerSnap.data()?.email ?? null,
+    grantedAt: admin.firestore.FieldValue.serverTimestamp(),
+    action: "demoteAgent",
+    reason,
+  });
+
+  logger.info("demoteAgent: demoted", { targetUid, by: callerUid, from: previousRole });
+  return { ok: true, previousRole, newRole: "agent" };
+});
+
+/**
  * Any signed-in user can flag a conversation for webmaster investigation.
  * Persists to `investigationRequests` and emails ESCALATION_NOTIFY_EMAIL.
  *
