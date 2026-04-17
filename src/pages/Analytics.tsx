@@ -326,6 +326,44 @@ const Analytics: React.FC = () => {
           </div>
         </div>
 
+        {/* 7-day call volume sparkline. Bars scale to the per-window max so even
+            small differences are visible. Reflects the active number filter. */}
+        <div className="rounded-lg border border-border bg-muted/20 p-3 mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Activity className="h-3.5 w-3.5" />
+              7-day call volume
+              <span className="ml-1 text-[10px] font-normal text-muted-foreground/80 normal-case tracking-normal">
+                {numberFilter === "all" ? "(all numbers)" : `(${numberFilter})`}
+              </span>
+            </p>
+            <span className="text-[11px] text-muted-foreground">
+              {sparklineTotal} call{sparklineTotal === 1 ? "" : "s"}
+            </span>
+          </div>
+          <div className="flex items-end gap-1.5 h-14">
+            {sparklineData.map((d, i) => {
+              const pct = (d.count / sparklineMax) * 100;
+              return (
+                <div
+                  key={i}
+                  className="flex-1 bg-primary/70 hover:bg-primary transition-colors rounded-sm min-w-0"
+                  style={{ height: `${Math.max(4, pct)}%` }}
+                  title={`${d.label}: ${d.count} call${d.count === 1 ? "" : "s"}`}
+                  aria-label={`${d.label}: ${d.count} calls`}
+                />
+              );
+            })}
+          </div>
+          <div className="flex gap-1.5 mt-1.5">
+            {sparklineData.map((d, i) => (
+              <span key={i} className="flex-1 text-center text-[10px] text-muted-foreground">
+                {d.label.charAt(0)}
+              </span>
+            ))}
+          </div>
+        </div>
+
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent activity</p>
           {filteredVoiceActivity.slice(0, 6).map((v) => (
