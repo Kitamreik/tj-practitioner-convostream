@@ -95,10 +95,13 @@ service cloud.firestore {
     }
 
     // -------- audit collections --------
-    // Append + delete by signed-in users; the UI gates Clear-All to admins.
+    // login_attempts: anyone can append (login form runs unauthenticated on
+    // failure), but reads + deletes are webmaster-only since these records
+    // contain every user's email/UID/user-agent and constitute a sensitive
+    // audit log. The /audit UI is already webmaster-gated.
     match /login_attempts/{id} {
       allow create: if true; // login flow logs even for failed attempts
-      allow read, delete: if isSignedIn();
+      allow read, delete: if isWebmaster();
       allow update: if false;
     }
     match /noteAudit/{id} {
