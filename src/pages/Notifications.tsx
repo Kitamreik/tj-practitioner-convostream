@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Check, AlertCircle, MessageSquare, Phone, Trash2, Plus, Pencil, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,20 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { sanitizeText, singleLine, safeValidate } from "@/lib/validation";
 import { logNoteAudit } from "@/lib/auditLog";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+  writeBatch,
+  getDocs,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
 
@@ -22,10 +36,11 @@ interface Notification {
   type: NotificationType;
   title: string;
   description: string;
+  /** Display string for legacy items; computed from createdAt for fresh ones. */
   time: string;
   read: boolean;
-  /** Notes added by the user; each tagged as a follow-up category. */
   isNote?: boolean;
+  createdAt?: any;
 }
 
 const titleSchema = z
@@ -38,12 +53,16 @@ const descriptionSchema = z
   .transform((v) => sanitizeText(v))
   .pipe(z.string().max(500, "Description too long"));
 
-const initialNotifications: Notification[] = [
-  { id: "1", type: "message", title: "New message from Sarah Mitchell", description: "Replied via email about billing", time: "2 min ago", read: false },
-  { id: "2", type: "call", title: "Missed call from James Rodriguez", description: "+1 555-0102 — 2m 34s", time: "15 min ago", read: false },
-  { id: "3", type: "alert", title: "SLA warning: Emily Chen", description: "Response time approaching 4-hour limit", time: "1 hr ago", read: true },
-  { id: "4", type: "message", title: "Slack notification sent", description: "Auto-notification to #support channel", time: "2 hrs ago", read: true },
-  { id: "5", type: "message", title: "Gmail notification sent", description: "Follow-up sent to michael@example.com", time: "3 hrs ago", read: true },
+/**
+ * Built-in starter notifications shown when a user has no Firestore data yet.
+ * They are NOT persisted — they vanish as soon as the user creates their first note.
+ */
+const starterNotifications: Notification[] = [
+  { id: "starter-1", type: "message", title: "New message from Sarah Mitchell", description: "Replied via email about billing", time: "2 min ago", read: false },
+  { id: "starter-2", type: "call", title: "Missed call from James Rodriguez", description: "+1 555-0102 — 2m 34s", time: "15 min ago", read: false },
+  { id: "starter-3", type: "alert", title: "SLA warning: Emily Chen", description: "Response time approaching 4-hour limit", time: "1 hr ago", read: true },
+  { id: "starter-4", type: "message", title: "Slack notification sent", description: "Auto-notification to #support channel", time: "2 hrs ago", read: true },
+  { id: "starter-5", type: "message", title: "Gmail notification sent", description: "Follow-up sent to michael@example.com", time: "3 hrs ago", read: true },
 ];
 
 const typeIcons: Record<NotificationType, React.ReactNode> = {
@@ -58,32 +77,113 @@ const typeLabels: Record<NotificationType, string> = {
   alert: "Alert",
 };
 
+function formatTime(createdAt: any, fallback?: string): string {
+  if (!createdAt?.toDate) return fallback || "Just now";
+  const d = createdAt.toDate();
+  const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hr ago`;
+  return d.toLocaleDateString();
+}
+
 const Notifications: React.FC = () => {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const actorName = profile?.displayName || profile?.email || "Unknown";
 
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [usingStarter, setUsingStarter] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftType, setDraftType] = useState<NotificationType>("message");
   const [draftTitle, setDraftTitle] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
 
-  const markAllRead = () => {
+  // Subscribe to per-user notifications collection.
+  useEffect(() => {
+    if (!user) {
+      // Logged out: just show starters, read-only.
+      setNotifications(starterNotifications);
+      setUsingStarter(true);
+      return;
+    }
+    const q = query(
+      collection(db, "users", user.uid, "notifications"),
+      orderBy("createdAt", "desc")
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        if (snap.empty) {
+          setNotifications(starterNotifications);
+          setUsingStarter(true);
+        } else {
+          const rows: Notification[] = snap.docs.map((d) => {
+            const data = d.data() as any;
+            return {
+              id: d.id,
+              type: data.type,
+              title: data.title || "",
+              description: data.description || "",
+              read: !!data.read,
+              isNote: !!data.isNote,
+              createdAt: data.createdAt,
+              time: formatTime(data.createdAt),
+            };
+          });
+          setNotifications(rows);
+          setUsingStarter(false);
+        }
+      },
+      (err) => {
+        console.warn("Notifications listener error:", err);
+        setNotifications(starterNotifications);
+        setUsingStarter(true);
+      }
+    );
+    return unsub;
+  }, [user]);
+
+  const markAllRead = async () => {
+    if (usingStarter) {
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      toast({ title: "All notifications marked as read" });
+      return;
+    }
+    if (!user) return;
     const unread = notifications.filter((n) => !n.read);
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    toast({ title: "All notifications marked as read" });
-    unread.forEach((n) => {
-      logNoteAudit({ action: "mark_read", type: n.type, title: n.title, description: n.description, actor: actorName });
-    });
+    try {
+      const batch = writeBatch(db);
+      unread.forEach((n) => {
+        batch.update(doc(db, "users", user.uid, "notifications", n.id), { read: true });
+      });
+      await batch.commit();
+      toast({ title: "All notifications marked as read" });
+      unread.forEach((n) => {
+        logNoteAudit({ action: "mark_read", type: n.type, title: n.title, description: n.description, actor: actorName });
+      });
+    } catch (e: any) {
+      toast({ title: "Could not mark all read", description: e?.message, variant: "destructive" });
+    }
   };
 
-  const deleteNotification = (id: string) => {
+  const deleteNotification = async (id: string) => {
     const target = notifications.find((n) => n.id === id);
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-    toast({ title: "Notification deleted" });
-    if (target) {
-      logNoteAudit({ action: "delete", type: target.type, title: target.title, description: target.description, actor: actorName });
+    if (usingStarter) {
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      toast({ title: "Notification dismissed" });
+      return;
+    }
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, "users", user.uid, "notifications", id));
+      toast({ title: "Notification deleted" });
+      if (target) {
+        logNoteAudit({ action: "delete", type: target.type, title: target.title, description: target.description, actor: actorName });
+      }
+    } catch (e: any) {
+      toast({ title: "Delete failed", description: e?.message, variant: "destructive" });
     }
   };
 
@@ -103,42 +203,58 @@ const Notifications: React.FC = () => {
     setEditorOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const titleRes = safeValidate(titleSchema, draftTitle);
     if (!titleRes.ok) return toast({ title: "Invalid title", description: titleRes.error, variant: "destructive" });
     const descRes = safeValidate(descriptionSchema, draftDescription);
     if (!descRes.ok) return toast({ title: "Invalid description", description: descRes.error, variant: "destructive" });
 
-    if (editingId) {
-      setNotifications((prev) =>
-        prev.map((n) =>
-          n.id === editingId
-            ? { ...n, type: draftType, title: titleRes.data, description: descRes.data }
-            : n
-        )
-      );
-      toast({ title: "Notification updated" });
-      logNoteAudit({ action: "edit", type: draftType, title: titleRes.data, description: descRes.data, actor: actorName });
-    } else {
-      const newNote: Notification = {
-        id: `note-${Date.now()}`,
-        type: draftType,
-        title: titleRes.data,
-        description: descRes.data,
-        time: "Just now",
-        read: false,
-        isNote: true,
-      };
-      setNotifications((prev) => [newNote, ...prev]);
-      toast({ title: "Note added", description: typeLabels[draftType] });
-      logNoteAudit({ action: "create", type: draftType, title: titleRes.data, description: descRes.data, actor: actorName });
+    if (!user) {
+      toast({ title: "Sign in required", description: "Sign in to save notes that sync across devices.", variant: "destructive" });
+      return;
     }
-    setEditorOpen(false);
+
+    try {
+      if (editingId && !editingId.startsWith("starter-")) {
+        await updateDoc(doc(db, "users", user.uid, "notifications", editingId), {
+          type: draftType,
+          title: titleRes.data,
+          description: descRes.data,
+          updatedAt: serverTimestamp(),
+        });
+        toast({ title: "Notification updated" });
+        logNoteAudit({ action: "edit", type: draftType, title: titleRes.data, description: descRes.data, actor: actorName });
+      } else {
+        // Creating new (or "editing" a starter — promote to a real doc).
+        await addDoc(collection(db, "users", user.uid, "notifications"), {
+          type: draftType,
+          title: titleRes.data,
+          description: descRes.data,
+          read: false,
+          isNote: true,
+          createdAt: serverTimestamp(),
+        });
+        toast({ title: "Note added", description: typeLabels[draftType] });
+        logNoteAudit({ action: "create", type: draftType, title: titleRes.data, description: descRes.data, actor: actorName });
+      }
+      setEditorOpen(false);
+    } catch (e: any) {
+      toast({ title: "Save failed", description: e?.message, variant: "destructive" });
+    }
   };
 
   const isMobile = useIsMobile();
   const handleRefresh = async () => {
-    await new Promise((r) => setTimeout(r, 600));
+    // Force a no-op fetch to make pull-to-refresh feel responsive.
+    if (user) {
+      try {
+        await getDocs(query(collection(db, "users", user.uid, "notifications"), orderBy("createdAt", "desc")));
+      } catch {
+        // ignore
+      }
+    } else {
+      await new Promise((r) => setTimeout(r, 400));
+    }
     toast({ title: "Refreshed", description: "Notifications are up to date." });
   };
 
@@ -148,7 +264,9 @@ const Notifications: React.FC = () => {
         <div className="flex items-center justify-between mb-6 md:mb-8 gap-3">
           <div className="min-w-0">
             <h1 className="hidden md:block text-2xl font-bold text-foreground">Notifications</h1>
-            <p className="text-muted-foreground mt-1 text-sm md:text-base">Stay on top of every interaction</p>
+            <p className="text-muted-foreground mt-1 text-sm md:text-base">
+              {usingStarter ? "Add a follow-up note to start syncing across devices." : "Stay on top of every interaction"}
+            </p>
           </div>
           <Button variant="outline" size="sm" className="gap-2 flex-shrink-0" onClick={markAllRead}>
             <Check className="h-4 w-4" />
@@ -213,7 +331,9 @@ const Notifications: React.FC = () => {
                     <p className={cn("text-sm break-words", n.read ? "text-foreground" : "font-medium text-foreground")}>
                       {n.title}
                     </p>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">{n.time}</span>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                      {n.createdAt ? formatTime(n.createdAt) : n.time}
+                    </span>
                   </div>
                   {n.description && (
                     <p className="text-xs text-muted-foreground mt-0.5 break-words">{n.description}</p>
@@ -225,6 +345,11 @@ const Notifications: React.FC = () => {
                     {n.isNote && (
                       <span className="text-[10px] uppercase tracking-wider rounded bg-accent/40 px-1.5 py-0.5 text-accent-foreground">
                         Note
+                      </span>
+                    )}
+                    {n.id.startsWith("starter-") && (
+                      <span className="text-[10px] uppercase tracking-wider rounded border border-border px-1.5 py-0.5 text-muted-foreground">
+                        Sample
                       </span>
                     )}
                     {!n.read && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
@@ -260,7 +385,7 @@ const Notifications: React.FC = () => {
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingId ? "Edit notification" : "New follow-up note"}</DialogTitle>
+            <DialogTitle>{editingId && !editingId.startsWith("starter-") ? "Edit notification" : "New follow-up note"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div className="space-y-2">
@@ -306,7 +431,7 @@ const Notifications: React.FC = () => {
                 <X className="h-4 w-4" /> Cancel
               </Button>
               <Button onClick={handleSave} disabled={!draftTitle.trim()}>
-                {editingId ? "Save changes" : "Add note"}
+                {editingId && !editingId.startsWith("starter-") ? "Save changes" : "Add note"}
               </Button>
             </div>
           </div>
