@@ -295,6 +295,75 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  // ---- Revoke escalated access (webmaster only) ----
+  const [revokingUid, setRevokingUid] = useState<string | null>(null);
+  const revokeEscalation = async (uid: string, email: string) => {
+    setRevokingUid(uid);
+    try {
+      const fn = httpsCallable<{ targetUid: string }, { ok: boolean }>(functions, "revokeEscalatedAccess");
+      await fn({ targetUid: uid });
+      toast({ title: "Escalated access revoked", description: `${email || uid} no longer has expanded access.` });
+    } catch (e: any) {
+      toast({ title: "Revoke failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setRevokingUid(null);
+    }
+  };
+
+  // ---- Investigation requests (webmaster only) ----
+  const [investigations, setInvestigations] = useState<InvestigationRow[]>([]);
+  const [showResolved, setShowResolved] = useState(false);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isWebmaster) return;
+    const unsub = onSnapshot(
+      query(collection(db, "investigationRequests"), orderBy("createdAt", "desc"), limit(50)),
+      (snap) => {
+        const rows: InvestigationRow[] = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            conversationId: data.conversationId ?? "",
+            customerName: data.customerName ?? "",
+            reason: data.reason ?? "",
+            requesterUid: data.requesterUid ?? "",
+            requesterEmail: data.requesterEmail ?? null,
+            requesterName: data.requesterName ?? null,
+            status: data.status ?? "open",
+            emailSent: !!data.emailSent,
+            createdAt: data.createdAt,
+            resolvedAt: data.resolvedAt,
+            resolutionNote: data.resolutionNote,
+          };
+        });
+        setInvestigations(rows);
+      },
+      (err) => {
+        console.warn("Investigation requests listener error:", err);
+        setInvestigations([]);
+      }
+    );
+    return unsub;
+  }, [isWebmaster]);
+
+  const resolveInvestigation = async (id: string) => {
+    setResolvingId(id);
+    try {
+      const fn = httpsCallable<{ requestId: string }, { ok: boolean }>(functions, "resolveInvestigationRequest");
+      await fn({ requestId: id });
+      toast({ title: "Investigation resolved" });
+    } catch (e: any) {
+      toast({ title: "Could not resolve", description: e?.message, variant: "destructive" });
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
+  const visibleInvestigations = showResolved
+    ? investigations
+    : investigations.filter((i) => i.status !== "resolved");
+
   const formatTime = (ts: any) => {
     try {
       if (ts?.toDate) return ts.toDate().toLocaleString();
