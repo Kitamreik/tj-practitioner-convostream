@@ -10,6 +10,8 @@ import PullToRefresh from "@/components/PullToRefresh";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { sanitizeText, singleLine, safeValidate } from "@/lib/validation";
+import { logNoteAudit } from "@/lib/auditLog";
+import { useAuth } from "@/contexts/AuthContext";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
 
