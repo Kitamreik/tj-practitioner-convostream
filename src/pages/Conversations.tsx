@@ -506,7 +506,7 @@ const Conversations: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <PullToRefresh onRefresh={handleRefresh} className="flex-1" disabled={!isMobile}>
           {filtered.map((convo) => (
             <button
               key={convo.id}
@@ -523,7 +523,7 @@ const Conversations: React.FC = () => {
                     <span className="text-xs text-muted-foreground">{formatTimestamp(convo.timestamp)}</span>
                   </div>
                   <p className={`mt-0.5 truncate text-xs ${convo.unread ? "text-foreground font-medium" : "text-muted-foreground"}`}>{convo.lastMessage}</p>
-                  <div className="mt-1.5 flex items-center gap-2">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
                       {channelIcons[convo.channel]}
                       {convo.channel.toUpperCase()}
@@ -539,22 +539,27 @@ const Conversations: React.FC = () => {
               </div>
             </button>
           ))}
-        </div>
+        </PullToRefresh>
       </div>
 
       {/* Thread Detail */}
       {selected ? (
-        <div className="flex flex-1 flex-col">
+        <div className={cn("flex flex-1 flex-col", isMobile && !selectedId ? "hidden" : "")}>
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-border px-6 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{selected.customerName.charAt(0)}</div>
-              <div>
-                <h3 className="font-semibold text-foreground">{selected.customerName}</h3>
-                <p className="text-xs text-muted-foreground">{selected.customerEmail}</p>
+          <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 md:px-6 md:py-4">
+            <div className="flex min-w-0 items-center gap-2 md:gap-3">
+              {isMobile && (
+                <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setSelectedId(null)} aria-label="Back">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              )}
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{selected.customerName.charAt(0)}</div>
+              <div className="min-w-0">
+                <h3 className="truncate font-semibold text-foreground">{selected.customerName}</h3>
+                <p className="truncate text-xs text-muted-foreground">{selected.customerEmail}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1.5">
