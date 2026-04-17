@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck, PhoneIncoming, PhoneOutgoing, MessageCircle, Filter, X } from "lucide-react";
-import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
+import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck, PhoneIncoming, PhoneOutgoing, MessageCircle, Filter, X, Activity } from "lucide-react";
+import { collection, onSnapshot, query, orderBy, limit, where, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,8 @@ const Analytics: React.FC = () => {
   const [agentWorkload, setAgentWorkload] = useState<AgentWorkloadData[]>(fallbackAgentWorkload);
   const [voiceActivity, setVoiceActivity] = useState<VoiceActivity[]>(fallbackVoiceActivity);
   const [voiceLive, setVoiceLive] = useState(false);
+  // Last-7-days raw call activity (separate listener — needs more rows than the live feed).
+  const [voiceWeek, setVoiceWeek] = useState<VoiceActivity[]>([]);
   const [numberFilter, setNumberFilter] = useState<string>("all");
 
   // Listen to conversations and compute per-agent workload
