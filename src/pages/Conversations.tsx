@@ -22,6 +22,7 @@ import {
   RotateCcw,
   Tag,
   Radio,
+  Archive as ArchiveIcon,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -62,6 +63,8 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { restoreItem } from "@/lib/softDelete";
+import { Switch } from "@/components/ui/switch";
 import NewConversationDialog from "@/components/NewConversationDialog";
 import ConversationTemplates, { type MessageTemplate } from "@/components/ConversationTemplates";
 import EditPersonDialog, { type EditablePerson } from "@/components/EditPersonDialog";
