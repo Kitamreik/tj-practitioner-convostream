@@ -167,6 +167,46 @@ const SettingsPage: React.FC = () => {
     return unsub;
   }, [user]);
 
+  // Subscribe to the user's most recent revoke entry so they see why their
+  // previous escalated access was removed (only relevant when they currently
+  // do NOT have escalated access).
+  const [latestRevoke, setLatestRevoke] = useState<{
+    reason: string;
+    grantedAt: any;
+    grantedByEmail: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, "roleGrants"),
+      where("targetUid", "==", user.uid),
+      where("action", "==", "revokeEscalatedAccess"),
+      orderBy("grantedAt", "desc"),
+      limit(1)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        if (snap.empty) {
+          setLatestRevoke(null);
+          return;
+        }
+        const d = snap.docs[0].data() as any;
+        setLatestRevoke({
+          reason: d.reason || "",
+          grantedAt: d.grantedAt,
+          grantedByEmail: d.grantedByEmail ?? null,
+        });
+      },
+      (err) => {
+        console.warn("Latest revoke listener error:", err);
+        setLatestRevoke(null);
+      }
+    );
+    return unsub;
+  }, [user]);
+
   const handleEscalate = async () => {
     setRequesting(true);
     try {
