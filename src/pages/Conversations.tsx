@@ -254,6 +254,37 @@ const Conversations: React.FC = () => {
   const [usingFallback, setUsingFallback] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [elevateOpen, setElevateOpen] = useState(false);
+  const [elevateReason, setElevateReason] = useState("");
+  const [elevating, setElevating] = useState(false);
+
+  const submitElevation = async () => {
+    if (!selected) return;
+    setElevating(true);
+    try {
+      const fn = httpsCallable<
+        { conversationId: string; customerName: string; reason: string },
+        { ok: boolean; emailSent: boolean }
+      >(functions, "requestConversationInvestigation");
+      const res = await fn({
+        conversationId: selected.id,
+        customerName: selected.customerName,
+        reason: elevateReason,
+      });
+      toast({
+        title: res.data.emailSent ? "Webmaster notified" : "Investigation request logged",
+        description: res.data.emailSent
+          ? "Email sent to kit.tjclasses@gmail.com asking for investigation."
+          : "Request recorded. Email will go out once SMTP is configured.",
+      });
+      setElevateOpen(false);
+      setElevateReason("");
+    } catch (e: any) {
+      toast({ title: "Could not send request", description: e?.message, variant: "destructive" });
+    } finally {
+      setElevating(false);
+    }
+  };
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [showShortcuts, setShowShortcuts] = useState(false);
