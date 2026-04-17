@@ -305,41 +305,9 @@ const Conversations: React.FC = () => {
   const replyInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
-  // Resizable list-pane width (desktop only). Persisted in localStorage so the
-  // user's preferred split survives reloads. Bounded to a sensible range.
-  const LIST_WIDTH_KEY = "convohub.conversations.listWidth";
-  const [listWidth, setListWidth] = useState<number>(() => {
-    if (typeof window === "undefined") return 320;
-    const stored = Number(localStorage.getItem(LIST_WIDTH_KEY));
-    return Number.isFinite(stored) && stored >= 240 && stored <= 640 ? stored : 320;
-  });
-  const resizingRef = useRef(false);
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!resizingRef.current) return;
-      const next = Math.min(640, Math.max(240, e.clientX));
-      setListWidth(next);
-    };
-    const onUp = () => {
-      if (!resizingRef.current) return;
-      resizingRef.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      try { localStorage.setItem(LIST_WIDTH_KEY, String(listWidth)); } catch { /* noop */ }
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [listWidth]);
-  const startResize = (e: React.MouseEvent) => {
-    e.preventDefault();
-    resizingRef.current = true;
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-  };
+  // Note: the previous resizable thread-list pane was removed in favor of an
+  // overlay layout — selecting a conversation now hides the list and shows
+  // the detail full-width on every viewport (mobile-style on desktop too).
   const [searchParams, setSearchParams] = useSearchParams();
 
   const agents = ["Alice Johnson", "Bob Smith", "Carol Davis", "Dan Lee"];
