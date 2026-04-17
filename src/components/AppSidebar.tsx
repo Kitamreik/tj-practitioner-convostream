@@ -26,6 +26,8 @@ interface NavItem {
   icon: React.ReactNode;
   path: string;
   roles?: ("admin" | "webmaster")[];
+  /** When true, this item is hidden from non-escalated admins. */
+  webmasterOrEscalated?: boolean;
   badgeKey?: string;
 }
 
@@ -33,10 +35,10 @@ const navItems: NavItem[] = [
   { label: "Conversations", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" },
   { label: "People", icon: <Users className="h-5 w-5" />, path: "/people" },
   { label: "Notifications", icon: <Bell className="h-5 w-5" />, path: "/notifications", badgeKey: "notifications" },
-  { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations" },
+  { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations", webmasterOrEscalated: true },
   { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit", roles: ["webmaster"] },
-  { label: "Analytics", icon: <BarChart3 className="h-5 w-5" />, path: "/analytics" },
-  { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail" },
+  { label: "Analytics", icon: <BarChart3 className="h-5 w-5" />, path: "/analytics", webmasterOrEscalated: true },
+  { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail", webmasterOrEscalated: true },
   { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" },
   { label: "Settings", icon: <Settings className="h-5 w-5" />, path: "/settings" },
 ];
