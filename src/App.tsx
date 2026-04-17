@@ -22,11 +22,20 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute: React.FC<{ children: React.ReactNode; roles?: string[] }> = ({ children, roles }) => {
+const ProtectedRoute: React.FC<{
+  children: React.ReactNode;
+  roles?: string[];
+  /** When true, allow webmasters OR admins with profile.escalatedAccess === true. */
+  escalated?: boolean;
+}> = ({ children, roles, escalated }) => {
   const { user, profile, loading } = useAuth();
   if (loading) return <div className="flex h-screen items-center justify-center text-muted-foreground">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (roles && profile && !roles.includes(profile.role)) return <Navigate to="/" replace />;
+  if (escalated) {
+    const allowed = profile?.role === "webmaster" || profile?.escalatedAccess === true;
+    if (!allowed) return <Navigate to="/settings" replace />;
+  }
   return <>{children}</>;
 };
 
@@ -59,10 +68,10 @@ const App = () => (
                 <Route path="/" element={<Conversations />} />
                 <Route path="/people" element={<People />} />
                 <Route path="/notifications" element={<Notifications />} />
-                <Route path="/integrations" element={<Integrations />} />
+                <Route path="/integrations" element={<ProtectedRoute escalated><Integrations /></ProtectedRoute>} />
                 <Route path="/audit" element={<ProtectedRoute roles={["webmaster"]}><AuditLogs /></ProtectedRoute>} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/gmail" element={<GmailAPI />} />
+                <Route path="/analytics" element={<ProtectedRoute escalated><Analytics /></ProtectedRoute>} />
+                <Route path="/gmail" element={<ProtectedRoute escalated><GmailAPI /></ProtectedRoute>} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/archive" element={<Archive />} />
               </Route>

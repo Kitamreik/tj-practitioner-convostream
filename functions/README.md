@@ -10,6 +10,27 @@ Runs daily at **03:00 UTC** and permanently deletes archived conversations + the
 ### `enforceUserRoleOnWrite`
 Firestore trigger on `users/{uid}` that strips any client-supplied `role` field as defense-in-depth. The Firestore rules in `/firestore.rules` already block non-webmaster role writes; this trigger guarantees a runaway client cannot escalate privileges. Trusted server code can set `_serverRoleWrite: true` on the write to bypass the check (the sentinel is auto-deleted).
 
+### `promoteToWebmaster` (callable)
+Webmaster-only callable that grants the target user (looked up by email) a new role (`admin` or `webmaster`). Writes use the `_serverRoleWrite` sentinel so `enforceUserRoleOnWrite` accepts them, and an audit row is appended to `roleGrants/`.
+
+```ts
+const fn = httpsCallable(functions, "promoteToWebmaster");
+await fn({ targetEmail: "user@example.com", role: "webmaster" });
+```
+
+### `requestWebmasterEscalation` (callable)
+Any signed-in user can request escalation to webmaster. The request is persisted under `escalationRequests/` and emailed to **kit.tjclasses@gmail.com** when SMTP is configured. Without SMTP the request is still recorded so a webmaster can approve from the Settings page.
+
+To enable email delivery, set the following Firebase function secrets (Gmail SMTP shown):
+
+```bash
+firebase functions:secrets:set SMTP_HOST   # e.g. smtp.gmail.com
+firebase functions:secrets:set SMTP_PORT   # e.g. 587
+firebase functions:secrets:set SMTP_USER   # sender Gmail address
+firebase functions:secrets:set SMTP_PASS   # Gmail app password (not account password)
+firebase functions:secrets:set SMTP_FROM   # optional, defaults to SMTP_USER
+```
+
 ### `purgeArchivedHttp`
 Manual one-off purge trigger:
 

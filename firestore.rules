@@ -42,10 +42,18 @@ service cloud.firestore {
         || (resource != null && resource.data.role == request.resource.data.role);
     }
 
+    // Same idea for the `escalatedAccess` field — only webmasters may toggle
+    // expanded access for an admin.
+    function escalatedAccessUnchanged() {
+      return !('escalatedAccess' in request.resource.data)
+        || (resource != null
+            && resource.data.get('escalatedAccess', false) == request.resource.data.escalatedAccess);
+    }
+
     // -------- users/{uid} --------
-    // Users can read & write their own profile, but cannot set or change `role`.
-    // Webmasters can read any profile and are the only ones allowed to write
-    // the `role` field.
+    // Users can read & write their own profile, but cannot set or change
+    // `role` or `escalatedAccess`. Webmasters can read any profile and are
+    // the only ones allowed to write those privileged fields.
     match /users/{uid} {
       allow read: if isSelf(uid) || isWebmaster();
 
@@ -56,11 +64,13 @@ service cloud.firestore {
           !('role' in request.resource.data)
           || request.resource.data.role == 'admin'
           || isWebmaster()
-        );
+        )
+        && !('escalatedAccess' in request.resource.data);
 
-      // Update: self can update profile fields but cannot mutate `role`.
-      // Webmasters can update anything, including `role`.
-      allow update: if (isSelf(uid) && roleUnchanged()) || isWebmaster();
+      // Update: self can update profile fields but cannot mutate `role`
+      // or `escalatedAccess`. Webmasters can update anything.
+      allow update: if (isSelf(uid) && roleUnchanged() && escalatedAccessUnchanged())
+        || isWebmaster();
 
       // Delete: webmaster only.
       allow delete: if isWebmaster();
@@ -104,6 +114,23 @@ service cloud.firestore {
     match /retentionAudit/{id} {
       allow read: if isSignedIn();
       allow write: if false; // server only
+    }
+
+    // -------- role grants & escalation requests --------
+    // `roleGrants` is written by the `promoteToWebmaster` callable using the
+    // admin SDK (which bypasses rules) — clients can only read.
+    // `escalationRequests` lets a signed-in user create their own request and
+    // webmasters can read everything.
+    match /roleGrants/{id} {
+      allow read: if isWebmaster();
+      allow write: if false; // server only
+    }
+    match /escalationRequests/{id} {
+      allow create: if isSignedIn()
+        && request.resource.data.requesterUid == request.auth.uid;
+      allow read: if isWebmaster()
+        || (isSignedIn() && resource.data.requesterUid == request.auth.uid);
+      allow update, delete: if isWebmaster();
     }
 
     // -------- integrations / google voice activity --------
