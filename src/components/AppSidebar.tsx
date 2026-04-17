@@ -14,6 +14,7 @@ import {
   Plug,
   Shield,
   Mail,
+  Archive as ArchiveIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ const navItems: NavItem[] = [
   { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit", roles: ["webmaster"] },
   { label: "Analytics", icon: <BarChart3 className="h-5 w-5" />, path: "/analytics" },
   { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail" },
+  { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" },
   { label: "Settings", icon: <Settings className="h-5 w-5" />, path: "/settings" },
 ];
 

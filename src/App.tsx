@@ -64,6 +64,7 @@ const App = () => (
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/gmail" element={<GmailAPI />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/archive" element={<Archive />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
