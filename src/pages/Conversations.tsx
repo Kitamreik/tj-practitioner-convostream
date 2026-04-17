@@ -660,6 +660,21 @@ const Conversations: React.FC = () => {
 
   return (
     <div className="flex h-full">
+      {/* Desktop: resizable panes between thread list and detail */}
+      {!isMobile && (
+        <ResizablePanelGroup direction="horizontal" className="h-full w-full" autoSaveId="convohub-conversations-layout">
+          <ResizablePanel defaultSize={28} minSize={18} maxSize={50} className="flex flex-col border-r border-border">
+            <DesktopThreadList />
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel defaultSize={72} minSize={40} className="flex flex-col">
+            <DesktopThreadDetail />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      )}
+      {/* Mobile: original full-width stacked layout */}
+      {isMobile && (
+        <>
       {/* Thread List — full width on mobile when nothing selected, hidden on mobile when selected */}
       <div
         className={cn(
