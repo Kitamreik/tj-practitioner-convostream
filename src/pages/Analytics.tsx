@@ -47,6 +47,7 @@ const Analytics: React.FC = () => {
   const [agentWorkload, setAgentWorkload] = useState<AgentWorkloadData[]>(fallbackAgentWorkload);
   const [voiceActivity, setVoiceActivity] = useState<VoiceActivity[]>(fallbackVoiceActivity);
   const [voiceLive, setVoiceLive] = useState(false);
+  const [numberFilter, setNumberFilter] = useState<string>("all");
 
   // Listen to conversations and compute per-agent workload
   useEffect(() => {
@@ -103,11 +104,24 @@ const Analytics: React.FC = () => {
     }
   }, []);
 
+  // Unique numbers across all observed voice activity (for the filter dropdown)
+  const voiceNumbers = useMemo(() => {
+    const set = new Set<string>();
+    voiceActivity.forEach((v) => v.contact && set.add(v.contact));
+    return Array.from(set).sort();
+  }, [voiceActivity]);
+
+  // Apply the active-number filter to the activity feed and stats
+  const filteredVoiceActivity = useMemo(
+    () => (numberFilter === "all" ? voiceActivity : voiceActivity.filter((v) => v.contact === numberFilter)),
+    [voiceActivity, numberFilter]
+  );
+
   const voiceStats = {
-    inboundCalls: voiceActivity.filter((v) => v.type === "call_inbound").length,
-    outboundCalls: voiceActivity.filter((v) => v.type === "call_outbound").length,
-    inboundSms: voiceActivity.filter((v) => v.type === "sms_inbound").length,
-    outboundSms: voiceActivity.filter((v) => v.type === "sms_outbound").length,
+    inboundCalls: filteredVoiceActivity.filter((v) => v.type === "call_inbound").length,
+    outboundCalls: filteredVoiceActivity.filter((v) => v.type === "call_outbound").length,
+    inboundSms: filteredVoiceActivity.filter((v) => v.type === "sms_inbound").length,
+    outboundSms: filteredVoiceActivity.filter((v) => v.type === "sms_outbound").length,
   };
 
   const formatRelative = (ts: any): string => {
