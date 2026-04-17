@@ -377,7 +377,78 @@ const SettingsPage: React.FC = () => {
     return unsub;
   }, [isWebmaster]);
 
-  const deleteAccount = async (uid: string, email: string) => {
+  // ---- Overview: live conversations grouped by assigned agent (webmaster only) ----
+  interface OverviewConvo {
+    id: string;
+    customerName: string;
+    status: "active" | "waiting" | "resolved";
+    channel: string;
+    assignedAgent: string;
+    archived?: boolean;
+    timestamp?: any;
+    unread?: boolean;
+  }
+  const [overviewConvos, setOverviewConvos] = useState<OverviewConvo[]>([]);
+  useEffect(() => {
+    if (!isWebmaster) return;
+    const unsub = onSnapshot(
+      query(collection(db, "conversations"), orderBy("timestamp", "desc")),
+      (snap) => {
+        const rows: OverviewConvo[] = snap.docs
+          .map((d) => {
+            const data = d.data() as any;
+            return {
+              id: d.id,
+              customerName: data.customerName ?? "(no name)",
+              status: (data.status ?? "active") as OverviewConvo["status"],
+              channel: data.channel ?? "email",
+              assignedAgent: data.assignedAgent ?? "",
+              archived: !!data.archived,
+              timestamp: data.timestamp,
+              unread: !!data.unread,
+            };
+          })
+          .filter((c) => !!c.assignedAgent && !c.archived);
+        setOverviewConvos(rows);
+      },
+      (err) => {
+        console.warn("Overview conversations listener error:", err);
+        setOverviewConvos([]);
+      }
+    );
+    return unsub;
+  }, [isWebmaster]);
+
+  // Group by assignedAgent, sorted by total open load (active+waiting) descending.
+  const overviewByAgent = useMemo(() => {
+    const map = new Map<string, OverviewConvo[]>();
+    for (const c of overviewConvos) {
+      const arr = map.get(c.assignedAgent) ?? [];
+      arr.push(c);
+      map.set(c.assignedAgent, arr);
+    }
+    return Array.from(map.entries())
+      .map(([agent, convos]) => {
+        const open = convos.filter((c) => c.status !== "resolved").length;
+        const active = convos.filter((c) => c.status === "active").length;
+        const waiting = convos.filter((c) => c.status === "waiting").length;
+        const resolved = convos.filter((c) => c.status === "resolved").length;
+        return { agent, convos, open, active, waiting, resolved };
+      })
+      .sort((a, b) => b.open - a.open || a.agent.localeCompare(b.agent));
+  }, [overviewConvos]);
+
+  // Track which agent rows are expanded in the Overview list.
+  const [openOverview, setOpenOverview] = useState<Set<string>>(new Set());
+  const toggleOverview = (agent: string) => {
+    setOpenOverview((prev) => {
+      const next = new Set(prev);
+      if (next.has(agent)) next.delete(agent);
+      else next.add(agent);
+      return next;
+    });
+  };
+
     setDeletingUid(uid);
     try {
       const fn = httpsCallable<{ targetUid: string }, { ok: boolean }>(functions, "deleteUserAccount");
