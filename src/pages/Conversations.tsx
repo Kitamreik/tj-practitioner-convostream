@@ -632,6 +632,20 @@ const Conversations: React.FC = () => {
               </Button>
             )}
           </div>
+          <div className="flex items-center justify-between mt-3 rounded-md border border-border/60 bg-muted/30 px-3 py-1.5">
+            <label htmlFor="show-archived-convos" className="text-xs text-muted-foreground flex items-center gap-1.5 cursor-pointer">
+              <ArchiveIcon className="h-3 w-3" />
+              Show archived
+            </label>
+            <Switch
+              id="show-archived-convos"
+              checked={showArchived}
+              onCheckedChange={(v) => {
+                setShowArchived(v);
+                setSelectedId(null);
+              }}
+            />
+          </div>
         </div>
 
         <PullToRefresh onRefresh={handleRefresh} className="flex-1" disabled={!isMobile}>
