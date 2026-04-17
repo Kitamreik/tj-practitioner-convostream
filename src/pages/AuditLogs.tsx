@@ -27,6 +27,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Eraser,
+  Download,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -96,6 +97,60 @@ const noteTypeIcon: Record<NoteType, React.ReactNode> = {
 function formatTs(ts: any): string {
   return ts?.toDate?.() ? ts.toDate().toLocaleString() : "—";
 }
+
+/**
+ * Escape a single CSV field per RFC 4180: wrap in quotes when the value
+ * contains a comma, quote, newline, or carriage return; double any internal
+ * quotes. Null/undefined become an empty cell.
+ */
+function csvEscape(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const s = String(value);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+/**
+ * Build a CSV string from headers + row arrays and trigger a browser download.
+ * Filename gets a YYYY-MM-DD suffix so successive exports don't overwrite.
+ */
+function downloadCsv(filenameBase: string, headers: string[], rows: (string | number | undefined | null)[][]) {
+  const csv = [headers.map(csvEscape).join(","), ...rows.map((r) => r.map(csvEscape).join(","))].join("\r\n");
+  const today = new Date().toISOString().slice(0, 10);
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }); // BOM for Excel
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${filenameBase}-${today}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Single export trigger. Disabled when there's nothing to export so the user
+ * doesn't get an empty file.
+ */
+const ExportCsvButton: React.FC<{ label: string; count: number; onExport: () => void }> = ({
+  label,
+  count,
+  onExport,
+}) => (
+  <Button
+    variant="outline"
+    size="sm"
+    className="gap-1.5"
+    disabled={count === 0}
+    onClick={onExport}
+    aria-label={`Export ${label} as CSV`}
+  >
+    <Download className="h-3.5 w-3.5" />
+    <span className="hidden sm:inline">Export CSV</span>
+    <span className="sm:hidden">CSV</span>
+    {count > 0 && <span className="text-[10px] opacity-70">({count})</span>}
+  </Button>
+);
 
 /**
  * Tiny pagination control. Keeps state local — caller controls slicing.
@@ -475,7 +530,24 @@ const AuditLogs: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-end mb-3">
+          <div className="flex items-center justify-end gap-2 mb-3">
+            <ExportCsvButton
+              label="login attempts"
+              count={loginAttempts.length}
+              onExport={() =>
+                downloadCsv(
+                  "login-attempts",
+                  ["Email", "Status", "Timestamp", "UID", "User Agent"],
+                  loginAttempts.map((a) => [
+                    a.email,
+                    a.success ? "Success" : "Failed",
+                    a.timestamp?.toDate?.()?.toISOString() ?? "",
+                    (a as any).uid ?? "",
+                    a.userAgent ?? "",
+                  ])
+                )
+              }
+            />
             <ClearAllButton
               label="login attempts"
               count={loginAttempts.length}
@@ -542,7 +614,25 @@ const AuditLogs: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="notes">
-          <div className="flex items-center justify-end mb-3">
+          <div className="flex items-center justify-end gap-2 mb-3">
+            <ExportCsvButton
+              label="notification changes"
+              count={notes.length}
+              onExport={() =>
+                downloadCsv(
+                  "notification-changes",
+                  ["Action", "Type", "Title", "Description", "Actor", "Timestamp"],
+                  notes.map((n) => [
+                    n.action,
+                    n.type,
+                    n.title,
+                    n.description ?? "",
+                    n.actor,
+                    n.timestamp?.toDate?.()?.toISOString() ?? "",
+                  ])
+                )
+              }
+            />
             <ClearAllButton
               label="notification changes"
               count={notes.length}
@@ -625,7 +715,25 @@ const AuditLogs: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="people">
-          <div className="flex items-center justify-end mb-3">
+          <div className="flex items-center justify-end gap-2 mb-3">
+            <ExportCsvButton
+              label="new people"
+              count={people.length}
+              onExport={() =>
+                downloadCsv(
+                  "new-people",
+                  ["Name", "Email", "Phone", "Person ID", "Added By", "Timestamp"],
+                  people.map((p) => [
+                    p.name,
+                    p.email ?? "",
+                    p.phone ?? "",
+                    p.personId,
+                    p.actor,
+                    p.timestamp?.toDate?.()?.toISOString() ?? "",
+                  ])
+                )
+              }
+            />
             <ClearAllButton
               label="new people"
               count={people.length}
