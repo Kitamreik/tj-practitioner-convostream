@@ -415,25 +415,6 @@ const Conversations: React.FC = () => {
     window.open(`tel:${phone}`, "_self");
   };
 
-  // Real-time conversations listener
-  useEffect(() => {
-    const q = query(collection(db, "conversations"), orderBy("timestamp", "desc"));
-    const unsub = onSnapshot(
-      q,
-      (snapshot) => {
-        const requestedOpen = searchParams.get("open");
-        if (snapshot.empty) {
-          setConversations(fallbackConversations);
-          setUsingFallback(true);
-          setSelectedId(requestedOpen || "mock-1");
-        } else {
-          const convos = snapshot.docs.map(
-            (d) => ({ id: d.id, ...d.data() } as Conversation)
-          );
-          setConversations(convos);
-          setUsingFallback(false);
-          // Honor ?open=<id> deep link if it matches a real conversation.
-  // Real-time conversations listener
   useEffect(() => {
     const q = query(collection(db, "conversations"), orderBy("timestamp", "desc"));
     const unsub = onSnapshot(
