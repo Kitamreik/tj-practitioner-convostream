@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, Trash2 } from "lucide-react";
+import { Search, Trash2, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import NewPersonDialog from "@/components/NewPersonDialog";
+import EditPersonDialog, { type EditablePerson } from "@/components/EditPersonDialog";
 import PullToRefresh from "@/components/PullToRefresh";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
