@@ -1,9 +1,13 @@
-import React from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import React, { useEffect, useRef } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { MessageCircle } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import BottomNav from "@/components/BottomNav";
 import PWAInstallBanner from "@/components/PWAInstallBanner";
+import { useAuth } from "@/contexts/AuthContext";
+import { collection, getDocs, limit, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { toast } from "@/hooks/use-toast";
 
 const titleMap: Record<string, string> = {
   "/": "Conversations",
@@ -17,9 +21,71 @@ const titleMap: Record<string, string> = {
   "/archive": "Archive",
 };
 
+const AUTOPUSH_KEY = "convohub.autoPushed";
+
 const AppLayout: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, profile } = useAuth();
   const title = titleMap[location.pathname] || "ConvoHub";
+
+  // Auto-push the agent to one of their open assigned conversations on sign-in.
+  // Runs at most once per browser session per uid, and ONLY when the user
+  // first lands on the index route — never override an explicit deep link
+  // (e.g. /conversations/:id, /settings, etc.).
+  const pushedRef = useRef(false);
+  useEffect(() => {
+    if (pushedRef.current) return;
+    if (!user || !profile) return;
+    if (location.pathname !== "/") return;
+    // Webmasters get the full overview page; don't yank them into a thread.
+    if (profile.role === "webmaster") return;
+
+    const sessionKey = `${AUTOPUSH_KEY}:${user.uid}`;
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) {
+      pushedRef.current = true;
+      return;
+    }
+
+    const agentName = profile.displayName || profile.email;
+    if (!agentName) return;
+
+    pushedRef.current = true;
+    (async () => {
+      try {
+        // Prefer the agent's most-recent open conversation. Falling back to a
+        // pure equality query keeps the index requirements minimal.
+        const q = query(
+          collection(db, "conversations"),
+          where("assignedAgent", "==", agentName),
+          where("status", "in", ["active", "waiting"]),
+          limit(5)
+        );
+        const snap = await getDocs(q);
+        if (snap.empty) return;
+        // Pick the first non-archived doc; sort client-side by timestamp desc.
+        const docs = snap.docs
+          .map((d) => ({ id: d.id, data: d.data() as any }))
+          .filter((d) => !d.data.archived)
+          .sort((a, b) => {
+            const ta = a.data.timestamp?.toMillis?.() ?? 0;
+            const tb = b.data.timestamp?.toMillis?.() ?? 0;
+            return tb - ta;
+          });
+        if (docs.length === 0) return;
+        const target = docs[0];
+        try { sessionStorage.setItem(sessionKey, "1"); } catch { /* noop */ }
+        navigate(`/conversations/${target.id}`, { replace: true });
+        toast({
+          title: "Welcome back",
+          description: `Jumped to your assigned conversation with ${target.data.customerName ?? "a customer"}.`,
+        });
+      } catch (err) {
+        // Silent — never block the UI on this convenience feature.
+        console.warn("Auto-push to assigned conversation failed:", err);
+      }
+    })();
+  }, [user, profile, location.pathname, navigate]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
