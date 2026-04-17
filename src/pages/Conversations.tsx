@@ -911,10 +911,16 @@ const Conversations: React.FC = () => {
                 </div>
               </div>
 
-              <Button className="w-full gap-2" variant="default" onClick={handleCallClient} disabled={!selected.customerPhone}>
-                <Phone className="h-4 w-4" />
-                Call {selected.customerName.split(" ")[0]}
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button className="flex-1 gap-2" variant="outline" onClick={() => setEditProfileOpen(true)}>
+                  <User className="h-4 w-4" />
+                  Edit profile
+                </Button>
+                <Button className="flex-1 gap-2" variant="default" onClick={handleCallClient} disabled={!selected.customerPhone}>
+                  <Phone className="h-4 w-4" />
+                  Call {selected.customerName.split(" ")[0]}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
