@@ -579,9 +579,25 @@ const Conversations: React.FC = () => {
     }
   }, [usingFallback]);
 
+  // The agent name as it appears on conversations.assignedAgent — matches what
+  // the assign dropdown writes (displayName preferred, falling back to email).
+  const myAgentName = (profile?.displayName?.trim() || profile?.email?.trim() || "").toLowerCase();
+  const myOpenCount = useMemo(() => {
+    if (!myAgentName) return 0;
+    return conversations.filter(
+      (c) =>
+        !c.archived &&
+        c.status !== "resolved" &&
+        (c.assignedAgent || "").toLowerCase() === myAgentName
+    ).length;
+  }, [conversations, myAgentName]);
+  // Hide banner+filter for webmasters (they have the Overview panel instead).
+  const showMineBanner = profile?.role !== "webmaster" && myOpenCount > 0;
+
   const filtered = conversations.filter((c) => {
     const archivedMatch = showArchived ? !!c.archived : !c.archived;
     if (!archivedMatch) return false;
+    if (mineOnly && (c.assignedAgent || "").toLowerCase() !== myAgentName) return false;
     const lowerSearch = search.toLowerCase();
     const matchesBasic =
       c.customerName.toLowerCase().includes(lowerSearch) ||
