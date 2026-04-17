@@ -695,14 +695,13 @@ const Conversations: React.FC = () => {
 
   return (
     <div className="flex h-full">
-      {/* Thread List — full width on mobile when nothing selected, hidden on mobile when selected.
-          Desktop width is controlled by `listWidth` (resizable via ResizeDivider below). */}
+      {/* Thread List — hidden when a conversation is open on ALL viewports
+          (overlay-style; the detail covers the list). */}
       <div
         className={cn(
           "flex w-full flex-shrink-0 flex-col border-r border-border",
-          isMobile && selectedId ? "hidden" : "flex"
+          selectedId ? "hidden" : "flex"
         )}
-        style={!isMobile ? { width: `${listWidth}px` } : undefined}
       >
         <div className="border-b border-border p-4">
           <div className="flex items-center justify-between mb-3">
