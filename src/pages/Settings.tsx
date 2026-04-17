@@ -629,12 +629,71 @@ const SettingsPage: React.FC = () => {
     return "—";
   };
 
+  const navSections: { id: string; label: string }[] = [
+    { id: "profile", label: "Profile" },
+    { id: "appearance", label: "Appearance" },
+    ...(isWebmaster
+      ? [
+          { id: "promote", label: "Promote to Webmaster" },
+          { id: "pending", label: "Pending escalations" },
+          { id: "agents", label: "Agents" },
+          { id: "accounts", label: "Accounts" },
+          { id: "investigations", label: "Investigation requests" },
+        ]
+      : [{ id: "escalate", label: "Escalate to Webmaster" }]),
+    { id: "security", label: "Security" },
+  ];
+  const showSideNav = isWebmaster && !isMobile;
+
   return (
-    <div className={`p-4 md:p-8 mx-auto ${isWebmaster ? "max-w-4xl" : "max-w-2xl"}`}>
+    <div className={cn(
+      "mx-auto",
+      showSideNav ? "flex h-full max-w-6xl gap-0 p-0" : `p-4 md:p-8 ${isWebmaster ? "max-w-4xl" : "max-w-2xl"}`
+    )}>
+      {showSideNav && (
+        <>
+          <aside
+            className="flex flex-col border-r border-border bg-card/40 p-4 overflow-y-auto"
+            style={{ width: `${navWidth}px`, flex: "0 0 auto" }}
+            aria-label="Settings sections"
+          >
+            <h2 className="mb-3 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Settings
+            </h2>
+            <nav className="flex flex-col gap-1">
+              {navSections.map((s) => (
+                <a
+                  key={s.id}
+                  href={`#${s.id}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  {s.label}
+                </a>
+              ))}
+            </nav>
+          </aside>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize settings navigation"
+            onMouseDown={startNavResize}
+            className="group relative w-1 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
+          >
+            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-border group-hover:bg-primary/40" />
+          </div>
+        </>
+      )}
+      <div className={cn(showSideNav ? "flex-1 min-w-0 overflow-y-auto p-6 md:p-8" : "")}>
       <div className="mb-6 md:mb-8">
         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
         <p className="text-muted-foreground mt-1">Manage your account and preferences</p>
       </div>
+
+      <div className="space-y-6 md:space-y-8">
 
       <div className="space-y-6 md:space-y-8">
         {/* Profile */}
