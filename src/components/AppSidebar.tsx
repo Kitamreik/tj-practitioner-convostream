@@ -91,9 +91,14 @@ const AppSidebar: React.FC = () => {
 
   const totalUnread = unreadCounts.active + unreadCounts.waiting;
 
-  const filteredNav = navItems.filter(
-    (item) => !item.roles || (profile && item.roles.includes(profile.role))
-  );
+  const filteredNav = navItems.filter((item) => {
+    if (item.roles && !(profile && item.roles.includes(profile.role))) return false;
+    if (item.webmasterOrEscalated) {
+      const allowed = profile?.role === "webmaster" || profile?.escalatedAccess === true;
+      if (!allowed) return false;
+    }
+    return true;
+  });
 
   const getBadge = (item: NavItem) => {
     if (item.badgeKey === "conversations" && totalUnread > 0) return totalUnread;
