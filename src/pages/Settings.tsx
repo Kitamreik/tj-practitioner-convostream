@@ -15,7 +15,11 @@ import {
   Trash2,
   Check,
   X,
+  ShieldOff,
+  Search,
+  ExternalLink,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
