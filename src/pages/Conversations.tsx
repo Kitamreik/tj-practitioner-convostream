@@ -728,16 +728,40 @@ const Conversations: React.FC = () => {
                       {agent}
                     </button>
                   ))}
+                  {selected.assignedAgent && (
+                    <>
+                      <div className="my-1 h-px bg-border" />
+                      <button
+                        onClick={() => handleAssignAgent(selected.id, null)}
+                        className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors flex items-center gap-2"
+                      >
+                        <X className="h-3.5 w-3.5" /> Unassign
+                      </button>
+                    </>
+                  )}
                 </PopoverContent>
               </Popover>
-              {/* Mark Resolved */}
+              {/* Toggle Resolved / Reopen */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="sm" onClick={handleMarkResolved} disabled={selected.status === "resolved"}>
-                    ✓
+                  <Button variant="outline" size="sm" onClick={handleToggleResolved} className="gap-1.5">
+                    {selected.status === "resolved" ? (
+                      <><RotateCcw className="h-3.5 w-3.5" /> Reopen</>
+                    ) : (
+                      <>✓ Resolve</>
+                    )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Mark as resolved (E)</TooltipContent>
+                <TooltipContent>{selected.status === "resolved" ? "Reopen conversation (E)" : "Mark as resolved (E)"}</TooltipContent>
+              </Tooltip>
+              {/* Delete */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Delete conversation</TooltipContent>
               </Tooltip>
               {/* Shortcuts help */}
               <Tooltip>
