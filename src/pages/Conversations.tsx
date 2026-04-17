@@ -241,7 +241,7 @@ function downloadPDF(html: string, filename: string) {
 }
 
 const Conversations: React.FC = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [allMessages, setAllMessages] = useState<Record<string, ConversationMessage[]>>({});
@@ -256,7 +256,6 @@ const Conversations: React.FC = () => {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   // Persist 'Show archived' across refresh, namespaced per Firebase UID.
-  const { user } = useAuth();
   const [showArchived, setShowArchivedState] = useState<boolean>(false);
   useEffect(() => {
     setShowArchivedState(getBoolPref(user?.uid, "conversations.showArchived", false));
