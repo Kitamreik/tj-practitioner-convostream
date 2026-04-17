@@ -694,8 +694,6 @@ const SettingsPage: React.FC = () => {
       </div>
 
       <div className="space-y-6 md:space-y-8">
-
-      <div className="space-y-6 md:space-y-8">
         {/* Profile */}
         <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-4">
