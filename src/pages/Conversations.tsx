@@ -18,7 +18,21 @@ import {
   UserCheck,
   Keyboard,
   ArrowLeft,
+  Trash2,
+  RotateCcw,
+  Tag,
+  Radio,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import PullToRefresh from "@/components/PullToRefresh";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Input } from "@/components/ui/input";
@@ -41,6 +55,10 @@ import {
   addDoc,
   serverTimestamp,
   getDocs,
+  doc,
+  updateDoc,
+  deleteDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -214,6 +232,7 @@ const Conversations: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const replyInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
@@ -388,19 +407,98 @@ const Conversations: React.FC = () => {
   const hasActiveFilters = statusFilter !== "all" || channelFilter !== "all";
   const clearFilters = () => { setStatusFilter("all"); setChannelFilter("all"); };
 
-  const handleAssignAgent = (convoId: string, agent: string) => {
+  const handleAssignAgent = async (convoId: string, agent: string | null) => {
+    // Optimistic update
     setConversations((prev) =>
-      prev.map((c) => (c.id === convoId ? { ...c, assignedAgent: agent } : c))
+      prev.map((c) => (c.id === convoId ? { ...c, assignedAgent: agent || undefined } : c))
     );
-    toast({ title: "Assigned", description: `Conversation assigned to ${agent}.` });
+    if (!usingFallback) {
+      try {
+        await updateDoc(doc(db, "conversations", convoId), {
+          assignedAgent: agent ?? null,
+        });
+      } catch (e) {
+        console.error("Failed to persist agent assignment:", e);
+        toast({ title: "Could not save assignment", description: "Change is local only.", variant: "destructive" });
+      }
+    }
+    toast({
+      title: agent ? "Assigned" : "Unassigned",
+      description: agent ? `Conversation assigned to ${agent}.` : "Agent removed from conversation.",
+    });
   };
 
-  const handleMarkResolved = () => {
+  const handleToggleResolved = async () => {
+    if (!selectedId || !selected) return;
+    const newStatus = selected.status === "resolved" ? "active" : "resolved";
+    setConversations((prev) =>
+      prev.map((c) => (c.id === selectedId ? { ...c, status: newStatus as any } : c))
+    );
+    if (!usingFallback) {
+      try {
+        await updateDoc(doc(db, "conversations", selectedId), { status: newStatus });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    toast({
+      title: newStatus === "resolved" ? "Resolved" : "Reopened",
+      description: newStatus === "resolved" ? "Conversation marked as resolved." : "Conversation reopened to active.",
+    });
+  };
+
+  const handleChangeStatus = async (newStatus: "active" | "waiting" | "resolved") => {
     if (!selectedId) return;
     setConversations((prev) =>
-      prev.map((c) => (c.id === selectedId ? { ...c, status: "resolved" as const } : c))
+      prev.map((c) => (c.id === selectedId ? { ...c, status: newStatus } : c))
     );
-    toast({ title: "Resolved", description: "Conversation marked as resolved." });
+    if (!usingFallback) {
+      try {
+        await updateDoc(doc(db, "conversations", selectedId), { status: newStatus });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    toast({ title: "Status updated", description: `Conversation is now ${newStatus}.` });
+  };
+
+  const handleChangeChannel = async (newChannel: "sms" | "phone" | "email" | "slack") => {
+    if (!selectedId) return;
+    setConversations((prev) =>
+      prev.map((c) => (c.id === selectedId ? { ...c, channel: newChannel } : c))
+    );
+    if (!usingFallback) {
+      try {
+        await updateDoc(doc(db, "conversations", selectedId), { channel: newChannel });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    toast({ title: "Channel updated", description: `Switched to ${newChannel.toUpperCase()}.` });
+  };
+
+  const handleDeleteConversation = async () => {
+    if (!selectedId) return;
+    const idToDelete = selectedId;
+    setConfirmDeleteOpen(false);
+    if (!usingFallback) {
+      try {
+        // Delete subcollection messages, then doc
+        const msgsSnap = await getDocs(collection(db, "conversations", idToDelete, "messages"));
+        const batch = writeBatch(db);
+        msgsSnap.docs.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+        await deleteDoc(doc(db, "conversations", idToDelete));
+      } catch (e) {
+        console.error("Delete failed:", e);
+        toast({ title: "Delete failed", variant: "destructive" });
+        return;
+      }
+    } else {
+      setConversations((prev) => prev.filter((c) => c.id !== idToDelete));
+    }
+    setSelectedId(null);
+    toast({ title: "Conversation deleted", description: "Thread and messages removed." });
   };
 
   const handleSend = async () => {
@@ -431,7 +529,7 @@ const Conversations: React.FC = () => {
     { key: "r", ctrl: false, shift: false, alt: false, action: () => replyInputRef.current?.focus(), description: "Focus reply box" },
     { key: "j", ctrl: false, shift: false, alt: false, action: () => navigateConvo(1), description: "Next conversation" },
     { key: "k", ctrl: false, shift: false, alt: false, action: () => navigateConvo(-1), description: "Previous conversation" },
-    { key: "e", ctrl: false, shift: false, alt: false, action: handleMarkResolved, description: "Mark as resolved" },
+    { key: "e", ctrl: false, shift: false, alt: false, action: handleToggleResolved, description: "Toggle resolved" },
     { key: "Escape", ctrl: false, shift: false, alt: false, action: () => { (document.activeElement as HTMLElement)?.blur(); }, description: "Unfocus / close" },
     { key: "?", ctrl: false, shift: true, alt: false, action: () => setShowShortcuts((p) => !p), description: "Show shortcuts" },
   ], [filtered, selectedId])
@@ -630,16 +728,40 @@ const Conversations: React.FC = () => {
                       {agent}
                     </button>
                   ))}
+                  {selected.assignedAgent && (
+                    <>
+                      <div className="my-1 h-px bg-border" />
+                      <button
+                        onClick={() => handleAssignAgent(selected.id, null)}
+                        className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors flex items-center gap-2"
+                      >
+                        <X className="h-3.5 w-3.5" /> Unassign
+                      </button>
+                    </>
+                  )}
                 </PopoverContent>
               </Popover>
-              {/* Mark Resolved */}
+              {/* Toggle Resolved / Reopen */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="sm" onClick={handleMarkResolved} disabled={selected.status === "resolved"}>
-                    ✓
+                  <Button variant="outline" size="sm" onClick={handleToggleResolved} className="gap-1.5">
+                    {selected.status === "resolved" ? (
+                      <><RotateCcw className="h-3.5 w-3.5" /> Reopen</>
+                    ) : (
+                      <>✓ Resolve</>
+                    )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Mark as resolved (E)</TooltipContent>
+                <TooltipContent>{selected.status === "resolved" ? "Reopen conversation (E)" : "Mark as resolved (E)"}</TooltipContent>
+              </Tooltip>
+              {/* Delete */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Delete conversation</TooltipContent>
               </Tooltip>
               {/* Shortcuts help */}
               <Tooltip>
@@ -690,6 +812,39 @@ const Conversations: React.FC = () => {
                 </div>
               </motion.div>
             ))}
+          </div>
+
+          {/* Mid-conversation status & channel quick-change */}
+          <div className="border-t border-border bg-muted/20 px-4 py-2 flex flex-wrap items-center gap-3 text-xs">
+            <div className="flex items-center gap-1.5">
+              <Tag className="h-3 w-3 text-muted-foreground" />
+              <span className="text-muted-foreground">Status:</span>
+              <Select value={selected.status} onValueChange={(v) => handleChangeStatus(v as any)}>
+                <SelectTrigger className="h-7 w-28 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="waiting">Waiting</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Radio className="h-3 w-3 text-muted-foreground" />
+              <span className="text-muted-foreground">Channel:</span>
+              <Select value={selected.channel} onValueChange={(v) => handleChangeChannel(v as any)}>
+                <SelectTrigger className="h-7 w-28 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="sms">SMS</SelectItem>
+                  <SelectItem value="phone">Phone</SelectItem>
+                  <SelectItem value="slack">Slack</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Reply */}
@@ -755,6 +910,24 @@ const Conversations: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Delete */}
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this conversation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the thread and all messages. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConversation} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

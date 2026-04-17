@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck } from "lucide-react";
-import { collection, onSnapshot } from "firebase/firestore";
+import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck, PhoneIncoming, PhoneOutgoing, MessageCircle } from "lucide-react";
+import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 interface AgentWorkloadData {
@@ -11,11 +11,27 @@ interface AgentWorkloadData {
   resolved: number;
 }
 
+interface VoiceActivity {
+  id: string;
+  type: "call_inbound" | "call_outbound" | "sms_inbound" | "sms_outbound";
+  contact: string;
+  durationSec?: number;
+  preview?: string;
+  timestamp: any;
+}
+
 const fallbackAgentWorkload: AgentWorkloadData[] = [
   { name: "Alice Johnson", active: 12, waiting: 3, resolved: 45 },
   { name: "Bob Smith", active: 8, waiting: 5, resolved: 38 },
   { name: "Carol Davis", active: 15, waiting: 2, resolved: 52 },
   { name: "Dan Lee", active: 6, waiting: 7, resolved: 29 },
+];
+
+const fallbackVoiceActivity: VoiceActivity[] = [
+  { id: "v1", type: "call_inbound", contact: "+1 555-0142", durationSec: 184, timestamp: { toDate: () => new Date(Date.now() - 60_000) } },
+  { id: "v2", type: "sms_inbound", contact: "+1 555-0118", preview: "Hi, can someone help me with a refund?", timestamp: { toDate: () => new Date(Date.now() - 8 * 60_000) } },
+  { id: "v3", type: "call_outbound", contact: "+1 555-0177", durationSec: 92, timestamp: { toDate: () => new Date(Date.now() - 22 * 60_000) } },
+  { id: "v4", type: "sms_outbound", contact: "+1 555-0118", preview: "Of course — what's your order number?", timestamp: { toDate: () => new Date(Date.now() - 7 * 60_000) } },
 ];
 
 const stats = [
@@ -27,6 +43,8 @@ const stats = [
 
 const Analytics: React.FC = () => {
   const [agentWorkload, setAgentWorkload] = useState<AgentWorkloadData[]>(fallbackAgentWorkload);
+  const [voiceActivity, setVoiceActivity] = useState<VoiceActivity[]>(fallbackVoiceActivity);
+  const [voiceLive, setVoiceLive] = useState(false);
 
   // Listen to conversations and compute per-agent workload
   useEffect(() => {
@@ -55,6 +73,63 @@ const Analytics: React.FC = () => {
     );
     return unsub;
   }, []);
+
+  // Listen to Google Voice activity (calls + SMS) in real time
+  useEffect(() => {
+    try {
+      const q = query(collection(db, "googleVoiceActivity"), orderBy("timestamp", "desc"), limit(10));
+      const unsub = onSnapshot(
+        q,
+        (snap) => {
+          if (snap.empty) {
+            setVoiceActivity(fallbackVoiceActivity);
+            setVoiceLive(false);
+          } else {
+            setVoiceActivity(snap.docs.map((d) => ({ id: d.id, ...d.data() } as VoiceActivity)));
+            setVoiceLive(true);
+          }
+        },
+        () => {
+          setVoiceActivity(fallbackVoiceActivity);
+          setVoiceLive(false);
+        }
+      );
+      return unsub;
+    } catch {
+      setVoiceActivity(fallbackVoiceActivity);
+      setVoiceLive(false);
+    }
+  }, []);
+
+  const voiceStats = {
+    inboundCalls: voiceActivity.filter((v) => v.type === "call_inbound").length,
+    outboundCalls: voiceActivity.filter((v) => v.type === "call_outbound").length,
+    inboundSms: voiceActivity.filter((v) => v.type === "sms_inbound").length,
+    outboundSms: voiceActivity.filter((v) => v.type === "sms_outbound").length,
+  };
+
+  const formatRelative = (ts: any): string => {
+    const d = ts?.toDate ? ts.toDate() : null;
+    if (!d) return "—";
+    const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    return `${Math.floor(diff / 3600)}h ago`;
+  };
+
+  const formatDuration = (s?: number) => {
+    if (!s) return "";
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  const voiceIcon = (type: VoiceActivity["type"]) => {
+    if (type === "call_inbound") return <PhoneIncoming className="h-4 w-4 text-success" />;
+    if (type === "call_outbound") return <PhoneOutgoing className="h-4 w-4 text-primary" />;
+    if (type === "sms_inbound") return <MessageCircle className="h-4 w-4 text-success" />;
+    return <MessageCircle className="h-4 w-4 text-primary" />;
+  };
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -106,6 +181,59 @@ const Analytics: React.FC = () => {
           <span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span>
         </div>
       </div>
+
+      {/* Google Voice Live Engagement */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="rounded-xl border border-border bg-card p-6 mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
+            <PhoneIncoming className="h-5 w-5 text-primary" />
+            Google Voice — Live Engagement
+          </h3>
+          <span className="flex items-center gap-1.5 text-xs">
+            <span className={`h-2 w-2 rounded-full ${voiceLive ? "bg-success animate-pulse" : "bg-muted-foreground/40"}`} />
+            <span className="text-muted-foreground">{voiceLive ? "Live" : "Sample data"}</span>
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><PhoneIncoming className="h-3.5 w-3.5 text-success" /> Inbound calls</div>
+            <p className="text-xl font-bold text-card-foreground mt-1">{voiceStats.inboundCalls}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><PhoneOutgoing className="h-3.5 w-3.5 text-primary" /> Outbound calls</div>
+            <p className="text-xl font-bold text-card-foreground mt-1">{voiceStats.outboundCalls}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><MessageCircle className="h-3.5 w-3.5 text-success" /> Inbound SMS</div>
+            <p className="text-xl font-bold text-card-foreground mt-1">{voiceStats.inboundSms}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><MessageCircle className="h-3.5 w-3.5 text-primary" /> Outbound SMS</div>
+            <p className="text-xl font-bold text-card-foreground mt-1">{voiceStats.outboundSms}</p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent activity</p>
+          {voiceActivity.slice(0, 6).map((v) => (
+            <div key={v.id} className="flex items-center gap-3 rounded-lg border border-border/60 p-3 hover:bg-muted/30 transition-colors">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-muted">
+                {voiceIcon(v.type)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-card-foreground truncate">{v.contact}</span>
+                  <span className="text-xs text-muted-foreground flex-shrink-0">{formatRelative(v.timestamp)}</span>
+                </div>
+                <p className="text-xs text-muted-foreground truncate">
+                  {v.type.startsWith("call") ? `Call · ${formatDuration(v.durationSec)}` : v.preview || "SMS"}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </motion.div>
 
       {/* Agent Workload */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="rounded-xl border border-border bg-card p-6">
