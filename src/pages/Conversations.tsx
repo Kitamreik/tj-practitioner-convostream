@@ -303,6 +303,7 @@ const Conversations: React.FC = () => {
   };
   const replyInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const agents = ["Alice Johnson", "Bob Smith", "Carol Davis", "Dan Lee"];
 
