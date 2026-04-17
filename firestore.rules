@@ -133,6 +133,28 @@ service cloud.firestore {
       allow update, delete: if isWebmaster();
     }
 
+    // Investigation requests for individual conversations — created by any
+    // signed-in user, read/managed by webmasters (or the requester).
+    match /investigationRequests/{id} {
+      allow create: if isSignedIn()
+        && request.resource.data.requesterUid == request.auth.uid;
+      allow read: if isWebmaster()
+        || (isSignedIn() && resource.data.requesterUid == request.auth.uid);
+      allow update, delete: if isWebmaster();
+    }
+
+    // Account deletion audit — written server-side only by deleteUserAccount.
+    match /accountDeletions/{id} {
+      allow read: if isWebmaster();
+      allow write: if false;
+    }
+
+    // Allow webmasters to list every user profile so they can manage accounts.
+    // Note: rules below already allow self-read; this adds a list-all path
+    // gated to webmasters via the helper above.
+    // (No collection-level wildcard needed — `match /users/{uid}` already
+    // grants read to webmasters.)
+
     // -------- integrations / google voice activity --------
     match /googleVoiceActivity/{id} {
       allow read, write: if isSignedIn();
