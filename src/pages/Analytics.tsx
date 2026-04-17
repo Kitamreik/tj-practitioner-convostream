@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck, PhoneIncoming, PhoneOutgoing, MessageCircle, Filter, X } from "lucide-react";
-import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
+import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck, PhoneIncoming, PhoneOutgoing, MessageCircle, Filter, X, Activity } from "lucide-react";
+import { collection, onSnapshot, query, orderBy, limit, where, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,8 @@ const Analytics: React.FC = () => {
   const [agentWorkload, setAgentWorkload] = useState<AgentWorkloadData[]>(fallbackAgentWorkload);
   const [voiceActivity, setVoiceActivity] = useState<VoiceActivity[]>(fallbackVoiceActivity);
   const [voiceLive, setVoiceLive] = useState(false);
+  // Last-7-days raw call activity (separate listener — needs more rows than the live feed).
+  const [voiceWeek, setVoiceWeek] = useState<VoiceActivity[]>([]);
   const [numberFilter, setNumberFilter] = useState<string>("all");
 
   // Listen to conversations and compute per-agent workload
@@ -104,12 +106,85 @@ const Analytics: React.FC = () => {
     }
   }, []);
 
+  // Pull the last 7 days of call activity for the per-number sparkline.
+  // Separate from the live feed so we can request more rows without bloating that list.
+  useEffect(() => {
+    try {
+      const sevenDaysAgo = Timestamp.fromDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+      const q = query(
+        collection(db, "googleVoiceActivity"),
+        where("timestamp", ">=", sevenDaysAgo),
+        orderBy("timestamp", "asc"),
+        limit(500)
+      );
+      const unsub = onSnapshot(
+        q,
+        (snap) => {
+          if (snap.empty) {
+            // Fall back to a deterministic synthetic 7-day series so the sparkline isn't blank.
+            const syntheticBase = Date.now() - 6 * 86_400_000;
+            setVoiceWeek(
+              Array.from({ length: 14 }).map((_, i) => ({
+                id: `syn-${i}`,
+                type: i % 3 === 0 ? "call_outbound" : "call_inbound",
+                contact: i % 2 === 0 ? "+1 555-0142" : "+1 555-0177",
+                timestamp: { toDate: () => new Date(syntheticBase + (i % 7) * 86_400_000) } as any,
+              }))
+            );
+          } else {
+            setVoiceWeek(snap.docs.map((d) => ({ id: d.id, ...d.data() } as VoiceActivity)));
+          }
+        },
+        () => setVoiceWeek([])
+      );
+      return unsub;
+    } catch {
+      setVoiceWeek([]);
+    }
+  }, []);
+
   // Unique numbers across all observed voice activity (for the filter dropdown)
   const voiceNumbers = useMemo(() => {
     const set = new Set<string>();
     voiceActivity.forEach((v) => v.contact && set.add(v.contact));
+    voiceWeek.forEach((v) => v.contact && set.add(v.contact));
     return Array.from(set).sort();
-  }, [voiceActivity]);
+  }, [voiceActivity, voiceWeek]);
+
+  // Bucket the last 7 days of CALL activity (inbound + outbound) by day for the
+  // selected number. Returns an array of length 7 — index 0 = 6 days ago, index 6 = today.
+  const sparklineData = useMemo(() => {
+    const days: { label: string; date: Date; count: number }[] = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      days.push({
+        label: d.toLocaleDateString(undefined, { weekday: "short" }),
+        date: d,
+        count: 0,
+      });
+    }
+    const filtered = voiceWeek.filter(
+      (v) =>
+        (v.type === "call_inbound" || v.type === "call_outbound") &&
+        (numberFilter === "all" || v.contact === numberFilter)
+    );
+    filtered.forEach((v) => {
+      const d: Date | null = v.timestamp?.toDate ? v.timestamp.toDate() : null;
+      if (!d) return;
+      const idx = days.findIndex(
+        (b) =>
+          b.date.getFullYear() === d.getFullYear() &&
+          b.date.getMonth() === d.getMonth() &&
+          b.date.getDate() === d.getDate()
+      );
+      if (idx >= 0) days[idx].count += 1;
+    });
+    return days;
+  }, [voiceWeek, numberFilter]);
+
+  const sparklineMax = useMemo(() => Math.max(1, ...sparklineData.map((d) => d.count)), [sparklineData]);
+  const sparklineTotal = useMemo(() => sparklineData.reduce((s, d) => s + d.count, 0), [sparklineData]);
 
   // Apply the active-number filter to the activity feed and stats
   const filteredVoiceActivity = useMemo(
@@ -248,6 +323,44 @@ const Analytics: React.FC = () => {
           <div className="rounded-lg border border-border p-3">
             <div className="flex items-center gap-2 text-xs text-muted-foreground"><MessageCircle className="h-3.5 w-3.5 text-primary" /> Outbound SMS</div>
             <p className="text-xl font-bold text-card-foreground mt-1">{voiceStats.outboundSms}</p>
+          </div>
+        </div>
+
+        {/* 7-day call volume sparkline. Bars scale to the per-window max so even
+            small differences are visible. Reflects the active number filter. */}
+        <div className="rounded-lg border border-border bg-muted/20 p-3 mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Activity className="h-3.5 w-3.5" />
+              7-day call volume
+              <span className="ml-1 text-[10px] font-normal text-muted-foreground/80 normal-case tracking-normal">
+                {numberFilter === "all" ? "(all numbers)" : `(${numberFilter})`}
+              </span>
+            </p>
+            <span className="text-[11px] text-muted-foreground">
+              {sparklineTotal} call{sparklineTotal === 1 ? "" : "s"}
+            </span>
+          </div>
+          <div className="flex items-end gap-1.5 h-14">
+            {sparklineData.map((d, i) => {
+              const pct = (d.count / sparklineMax) * 100;
+              return (
+                <div
+                  key={i}
+                  className="flex-1 bg-primary/70 hover:bg-primary transition-colors rounded-sm min-w-0"
+                  style={{ height: `${Math.max(4, pct)}%` }}
+                  title={`${d.label}: ${d.count} call${d.count === 1 ? "" : "s"}`}
+                  aria-label={`${d.label}: ${d.count} calls`}
+                />
+              );
+            })}
+          </div>
+          <div className="flex gap-1.5 mt-1.5">
+            {sparklineData.map((d, i) => (
+              <span key={i} className="flex-1 text-center text-[10px] text-muted-foreground">
+                {d.label.charAt(0)}
+              </span>
+            ))}
           </div>
         </div>
 

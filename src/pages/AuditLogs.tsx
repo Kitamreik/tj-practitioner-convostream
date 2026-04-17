@@ -8,6 +8,8 @@ import {
   onSnapshot,
   deleteDoc,
   doc,
+  writeBatch,
+  getDocs,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -24,6 +26,7 @@ import {
   Phone,
   ChevronLeft,
   ChevronRight,
+  Eraser,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -281,6 +284,81 @@ const AuditLogs: React.FC = () => {
     }
   };
 
+  /**
+   * Wipe every document in an audit collection.
+   *
+   * Firestore writeBatch is capped at 500 operations, so we chunk through the
+   * collection in 400-doc passes. We pull IDs via getDocs (one-shot read) rather
+   * than relying on the live snapshot to avoid racing the listener.
+   */
+  const handleClearAll = async (
+    collectionName: "login_attempts" | "noteAudit" | "peopleAudit",
+    label: string
+  ) => {
+    try {
+      const snap = await getDocs(collection(db, collectionName));
+      if (snap.empty) {
+        toast({ title: "Nothing to clear", description: `No ${label} entries.` });
+        return;
+      }
+      const docs = snap.docs;
+      const CHUNK = 400;
+      for (let i = 0; i < docs.length; i += CHUNK) {
+        const batch = writeBatch(db);
+        docs.slice(i, i + CHUNK).forEach((d) => batch.delete(doc(db, collectionName, d.id)));
+        await batch.commit();
+      }
+      toast({ title: `${label} cleared`, description: `${docs.length} entries permanently deleted.` });
+    } catch (e: any) {
+      console.error("Failed to clear collection:", e);
+      toast({ title: "Clear failed", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  /**
+   * Confirm-then-wipe trigger placed in the toolbar above each tab's table.
+   * Disabled when the tab is empty so users get visual feedback.
+   */
+  const ClearAllButton: React.FC<{
+    label: string;
+    count: number;
+    onConfirm: () => Promise<void> | void;
+  }> = ({ label, count, onConfirm }) => (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+          disabled={count === 0}
+          aria-label={`Clear all ${label}`}
+        >
+          <Eraser className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Clear all</span>
+          <span className="sm:hidden">Clear</span>
+          {count > 0 && <span className="text-[10px] opacity-70">({count})</span>}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Clear all {label}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This permanently deletes <strong>{count}</strong> {label} entries. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onConfirm}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Delete all {count}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6 md:mb-8">
@@ -315,6 +393,13 @@ const AuditLogs: React.FC = () => {
         </TabsList>
 
         <TabsContent value="logins">
+          <div className="flex items-center justify-end mb-3">
+            <ClearAllButton
+              label="login attempts"
+              count={loginAttempts.length}
+              onConfirm={() => handleClearAll("login_attempts", "login attempts")}
+            />
+          </div>
           <div className="rounded-xl border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px]">
@@ -375,6 +460,13 @@ const AuditLogs: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="notes">
+          <div className="flex items-center justify-end mb-3">
+            <ClearAllButton
+              label="notification changes"
+              count={notes.length}
+              onConfirm={() => handleClearAll("noteAudit", "notification changes")}
+            />
+          </div>
           <div className="rounded-xl border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px]">
@@ -451,6 +543,13 @@ const AuditLogs: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="people">
+          <div className="flex items-center justify-end mb-3">
+            <ClearAllButton
+              label="new people"
+              count={people.length}
+              onConfirm={() => handleClearAll("peopleAudit", "new people")}
+            />
+          </div>
           <div className="rounded-xl border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px]">

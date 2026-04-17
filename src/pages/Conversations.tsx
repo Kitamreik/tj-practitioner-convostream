@@ -64,6 +64,7 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { restoreItem } from "@/lib/softDelete";
+import { getBoolPref, setBoolPref } from "@/lib/userPrefs";
 import { Switch } from "@/components/ui/switch";
 import NewConversationDialog from "@/components/NewConversationDialog";
 import ConversationTemplates, { type MessageTemplate } from "@/components/ConversationTemplates";
@@ -192,14 +193,28 @@ function buildCSV(convo: Conversation, msgs: ConversationMessage[]): string {
   return rows.join("\n");
 }
 
+/**
+ * SECURITY: HTML-escape every value before interpolating into the export markup.
+ * Without this, Firestore-supplied fields (customerName, message text, etc.)
+ * could inject <script> tags that execute in the popup with same-origin access.
+ */
+function escHtml(s: unknown): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function buildPDFHTML(convo: Conversation, msgs: ConversationMessage[]): string {
   const msgRows = msgs
     .map(
       (msg) =>
-        `<tr><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;">${formatFullTimestamp(msg.timestamp)}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;">${msg.sender === "agent" ? "Agent" : convo.customerName}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;">${msg.text}</td></tr>`
+        `<tr><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;">${escHtml(formatFullTimestamp(msg.timestamp))}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;">${escHtml(msg.sender === "agent" ? "Agent" : convo.customerName)}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;">${escHtml(msg.text)}</td></tr>`
     )
     .join("");
-  return `<html><head><style>body{font-family:Arial,sans-serif;padding:32px;color:#1a1a1a}h1{font-size:18px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:16px}th{text-align:left;padding:8px;background:#f3f4f6;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #d1d5db}</style></head><body><h1>Conversation Transcript</h1><p style="margin:4px 0;font-size:13px;color:#6b7280">Customer: ${convo.customerName} (${convo.customerEmail})<br/>Channel: ${convo.channel.toUpperCase()} · Status: ${convo.status}<br/>Exported: ${new Date().toLocaleString()}</p><table><thead><tr><th>Time</th><th>Sender</th><th>Message</th></tr></thead><tbody>${msgRows}</tbody></table></body></html>`;
+  return `<html><head><style>body{font-family:Arial,sans-serif;padding:32px;color:#1a1a1a}h1{font-size:18px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:16px}th{text-align:left;padding:8px;background:#f3f4f6;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #d1d5db}</style></head><body><h1>Conversation Transcript</h1><p style="margin:4px 0;font-size:13px;color:#6b7280">Customer: ${escHtml(convo.customerName)} (${escHtml(convo.customerEmail)})<br/>Channel: ${escHtml(convo.channel.toUpperCase())} · Status: ${escHtml(convo.status)}<br/>Exported: ${escHtml(new Date().toLocaleString())}</p><table><thead><tr><th>Time</th><th>Sender</th><th>Message</th></tr></thead><tbody>${msgRows}</tbody></table></body></html>`;
 }
 
 function downloadFile(content: string, filename: string, mime: string) {
@@ -226,7 +241,7 @@ function downloadPDF(html: string, filename: string) {
 }
 
 const Conversations: React.FC = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [allMessages, setAllMessages] = useState<Record<string, ConversationMessage[]>>({});
@@ -240,7 +255,15 @@ const Conversations: React.FC = () => {
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
+  // Persist 'Show archived' across refresh, namespaced per Firebase UID.
+  const [showArchived, setShowArchivedState] = useState<boolean>(false);
+  useEffect(() => {
+    setShowArchivedState(getBoolPref(user?.uid, "conversations.showArchived", false));
+  }, [user?.uid]);
+  const setShowArchived = (v: boolean) => {
+    setShowArchivedState(v);
+    setBoolPref(user?.uid, "conversations.showArchived", v);
+  };
   const replyInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 

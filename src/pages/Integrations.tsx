@@ -73,9 +73,11 @@ const integrations: Integration[] = [
     icon: <Mail className="h-6 w-6" />,
     provider: "Google Workspace",
     configFields: [
+      // SECURITY: NEVER ask for the OAuth Client Secret in the browser. The Gmail
+      // integration uses Google Identity Services (GIS) implicit flow, which only
+      // needs the public Client ID + browser-restricted API key.
       { key: "clientId", label: "OAuth Client ID", placeholder: "xxxx.apps.googleusercontent.com", type: "password", secret: true, schema: googleClientIdSchema },
-      { key: "clientSecret", label: "OAuth Client Secret", placeholder: "GOCSPX-xxxxxxxx", type: "password", secret: true, schema: oauthSecretSchema },
-      { key: "redirectUri", label: "Redirect URI", placeholder: "https://your-app.com/auth/gmail/callback", type: "url", schema: httpsUrlSchema },
+      { key: "redirectUri", label: "Authorized JavaScript Origin", placeholder: "https://your-app.com", type: "url", schema: httpsUrlSchema },
       { key: "syncEmail", label: "Gmail Address to Sync", placeholder: "support@yourbrand.com", type: "email", schema: emailSchema },
     ],
   },

@@ -17,6 +17,7 @@ import {
   Lock,
   CheckCircle2,
   Wifi,
+  MailCheck,
 } from "lucide-react";
 import DOMPurify from "dompurify";
 import { Button } from "@/components/ui/button";
@@ -187,6 +188,7 @@ const GmailAPI: React.FC = () => {
   const [composeBody, setComposeBody] = useState("");
   const [sending, setSending] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [replyContext, setReplyContext] = useState<{ messageIdHeader: string; threadId: string; references: string } | null>(null);
 
@@ -526,6 +528,47 @@ const GmailAPI: React.FC = () => {
     }
   }, [clientReady, authorized]);
 
+  // Send a tiny self-addressed email to confirm the send pipeline works end-to-end.
+  // Uses the authorized account's own address (looked up via users.getProfile)
+  // — no user input required, no risk of sending to a wrong recipient.
+  const handleSendTestEmail = useCallback(async () => {
+    if (!authorized || window.gapi.client.getToken() === null) {
+      toast({ title: "Not authorized", description: "Click Authorize first.", variant: "destructive" });
+      return;
+    }
+    setSendingTest(true);
+    setTestResult(null);
+    try {
+      const profileResp = await window.gapi.client.gmail.users.getProfile({ userId: "me" });
+      const myEmail = profileResp?.result?.emailAddress;
+      if (!myEmail) throw new Error("Couldn't determine your Gmail address.");
+
+      const stamp = new Date().toLocaleString();
+      const raw = buildRawEmail({
+        to: myEmail,
+        subject: `ConvoHub test message · ${stamp}`,
+        body: [
+          "This is an automated test email sent from ConvoHub.",
+          "",
+          `Sent at: ${stamp}`,
+          "If you can read this in your inbox, the Gmail API send pipeline is working.",
+        ].join("\n"),
+      });
+      await window.gapi.client.gmail.users.messages.send({ userId: "me", resource: { raw } });
+      const okMsg = `Test email delivered to ${myEmail}.`;
+      setTestResult({ ok: true, message: okMsg });
+      toast({ title: "Test email sent", description: okMsg });
+      // Refresh inbox so the test message shows up immediately
+      fetchMessages();
+    } catch (e: any) {
+      const m = e?.result?.error?.message || e?.message || "Failed to send test email";
+      setTestResult({ ok: false, message: m });
+      toast({ title: "Test email failed", description: m, variant: "destructive" });
+    } finally {
+      setSendingTest(false);
+    }
+  }, [authorized, fetchMessages]);
+
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
       <div className="mb-6 md:mb-8 flex items-center justify-between gap-3">
@@ -665,6 +708,15 @@ const GmailAPI: React.FC = () => {
               >
                 <Wifi className={`h-4 w-4 ${testing ? "animate-pulse" : ""}`} />
                 {testing ? "Testing…" : "Test Connection"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleSendTestEmail}
+                disabled={sendingTest}
+                className="gap-2"
+              >
+                <MailCheck className={`h-4 w-4 ${sendingTest ? "animate-pulse" : ""}`} />
+                {sendingTest ? "Sending…" : "Send test email to myself"}
               </Button>
               <Button variant="ghost" onClick={handleSignout} className="gap-2 text-destructive">
                 <LogOut className="h-4 w-4" /> Sign Out

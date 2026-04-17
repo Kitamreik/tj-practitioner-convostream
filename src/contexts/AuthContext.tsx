@@ -31,7 +31,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, role: UserRole, displayName: string) => Promise<void>;
+  signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -91,12 +91,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, password: string, role: UserRole, displayName: string) => {
+  const signUp = async (email: string, password: string, displayName: string) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
+    // SECURITY: Role is NEVER accepted from the client. New accounts always get the
+    // baseline "admin" role (no access to webmaster-gated routes like /audit).
+    // Privileged roles must be granted out-of-band by an existing webmaster directly
+    // in Firestore, or via a server-side Cloud Function with proper authorization.
     const profileData: UserProfile = {
       uid: cred.user.uid,
       email,
-      role,
+      role: "admin",
       displayName,
       createdAt: new Date(),
     };
