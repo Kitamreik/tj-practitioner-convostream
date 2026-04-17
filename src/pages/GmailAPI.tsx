@@ -709,7 +709,15 @@ const GmailAPI: React.FC = () => {
                 <Wifi className={`h-4 w-4 ${testing ? "animate-pulse" : ""}`} />
                 {testing ? "Testing…" : "Test Connection"}
               </Button>
-              <Button variant="ghost" onClick={handleSignout} className="gap-2 text-destructive">
+              <Button
+                variant="outline"
+                onClick={handleSendTestEmail}
+                disabled={sendingTest}
+                className="gap-2"
+              >
+                <MailCheck className={`h-4 w-4 ${sendingTest ? "animate-pulse" : ""}`} />
+                {sendingTest ? "Sending…" : "Send test email to myself"}
+              </Button>
                 <LogOut className="h-4 w-4" /> Sign Out
               </Button>
               {slackWebhook && (
