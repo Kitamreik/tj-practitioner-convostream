@@ -65,6 +65,7 @@ const People: React.FC = () => {
   const [usingFallback, setUsingFallback] = useState(false);
   const [editPerson, setEditPerson] = useState<EditablePerson | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const openEdit = (p: Person) => {
     setEditPerson({ id: p.id, name: p.name, email: p.email, phone: p.phone, tags: p.tags });
