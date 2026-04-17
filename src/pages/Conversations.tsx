@@ -843,33 +843,39 @@ const Conversations: React.FC = () => {
         </PullToRefresh>
       </div>
 
-      {/* Thread Detail */}
-      {selected ? (
-        <div
-          className={cn("flex flex-1 flex-col", !selectedId ? "hidden" : "")}
-          onTouchStart={(e) => {
-            const t = e.touches[0];
-            (e.currentTarget as any)._sx = t.clientX;
-            (e.currentTarget as any)._sy = t.clientY;
-            (e.currentTarget as any)._st = Date.now();
-          }}
-          onTouchEnd={(e) => {
-            const el = e.currentTarget as any;
-            const startX = el._sx as number | undefined;
-            const startY = el._sy as number | undefined;
-            const startT = el._st as number | undefined;
-            if (startX == null || startY == null || startT == null) return;
-            const t = e.changedTouches[0];
-            const dx = t.clientX - startX;
-            const dy = t.clientY - startY;
-            const dt = Date.now() - startT;
-            // Right-swipe from near the left edge: ≥80px horizontal, mostly horizontal, < 600ms.
-            if (startX < 60 && dx > 80 && Math.abs(dy) < 60 && dt < 600) {
-              setSelectedId(null);
-            }
-          }}
-        >
-          {/* Header */}
+      {/* Thread Detail — animated overlay sliding in from the right */}
+      <AnimatePresence mode="wait">
+        {selected ? (
+          <motion.div
+            key={selected.id}
+            initial={{ x: "100%", opacity: 0.6 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: "100%", opacity: 0.6 }}
+            transition={{ type: "tween", duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+            className={cn("flex flex-1 flex-col", !selectedId ? "hidden" : "")}
+            onTouchStart={(e) => {
+              const t = e.touches[0];
+              (e.currentTarget as any)._sx = t.clientX;
+              (e.currentTarget as any)._sy = t.clientY;
+              (e.currentTarget as any)._st = Date.now();
+            }}
+            onTouchEnd={(e) => {
+              const el = e.currentTarget as any;
+              const startX = el._sx as number | undefined;
+              const startY = el._sy as number | undefined;
+              const startT = el._st as number | undefined;
+              if (startX == null || startY == null || startT == null) return;
+              const t = e.changedTouches[0];
+              const dx = t.clientX - startX;
+              const dy = t.clientY - startY;
+              const dt = Date.now() - startT;
+              // Right-swipe from near the left edge: ≥80px horizontal, mostly horizontal, < 600ms.
+              if (startX < 60 && dx > 80 && Math.abs(dy) < 60 && dt < 600) {
+                setSelectedId(null);
+              }
+            }}
+          >
+            {/* Header */}
           <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 md:px-6 md:py-4">
             <div className="flex min-w-0 items-center gap-2 md:gap-3">
               <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setSelectedId(null)} aria-label="Back to conversation list">
