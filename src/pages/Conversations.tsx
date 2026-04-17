@@ -909,6 +909,8 @@ const Conversations: React.FC = () => {
                   }
                 }}
               >
+                <Mail className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Email</span>
+              </Button>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
