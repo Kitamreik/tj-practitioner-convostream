@@ -66,6 +66,7 @@ const App = () => (
                 }
               >
                 <Route path="/" element={<Conversations />} />
+                <Route path="/conversations/:id" element={<Conversations />} />
                 <Route path="/people" element={<People />} />
                 <Route path="/notifications" element={<Notifications />} />
                 <Route path="/integrations" element={<ProtectedRoute escalated><Integrations /></ProtectedRoute>} />
