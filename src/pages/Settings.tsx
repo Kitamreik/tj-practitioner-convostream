@@ -103,6 +103,44 @@ interface InvestigationRow {
 const SettingsPage: React.FC = () => {
   const { user, profile } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const isMobile = useIsMobile();
+
+  // Resizable nav-pane width (desktop + webmaster only). Mirrors the pattern in
+  // Conversations: persisted in localStorage, bounded to a sensible range.
+  const NAV_WIDTH_KEY = "convohub.settings.navWidth";
+  const [navWidth, setNavWidth] = useState<number>(() => {
+    if (typeof window === "undefined") return 240;
+    const stored = Number(localStorage.getItem(NAV_WIDTH_KEY));
+    return Number.isFinite(stored) && stored >= 180 && stored <= 420 ? stored : 240;
+  });
+  const navResizingRef = useRef(false);
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!navResizingRef.current) return;
+      const next = Math.min(420, Math.max(180, e.clientX));
+      setNavWidth(next);
+    };
+    const onUp = () => {
+      if (!navResizingRef.current) return;
+      navResizingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      try { localStorage.setItem(NAV_WIDTH_KEY, String(navWidth)); } catch { /* noop */ }
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [navWidth]);
+  const startNavResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    navResizingRef.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
 
   // ---- Promote (webmaster only) ----
   const [promoteEmail, setPromoteEmail] = useState("");
