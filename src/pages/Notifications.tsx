@@ -40,16 +40,23 @@ const Notifications: React.FC = () => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
+  const isMobile = useIsMobile();
+  const handleRefresh = async () => {
+    await new Promise((r) => setTimeout(r, 600));
+    toast({ title: "Refreshed", description: "Notifications are up to date." });
+  };
+
   return (
-    <div className="p-8 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
-          <p className="text-muted-foreground mt-1">Stay on top of every interaction</p>
+    <PullToRefresh onRefresh={handleRefresh} disabled={!isMobile} className="h-full">
+    <div className="p-4 md:p-8 max-w-3xl mx-auto">
+      <div className="flex items-center justify-between mb-6 md:mb-8 gap-3">
+        <div className="min-w-0">
+          <h1 className="hidden md:block text-2xl font-bold text-foreground">Notifications</h1>
+          <p className="text-muted-foreground mt-1 text-sm md:text-base">Stay on top of every interaction</p>
         </div>
-        <Button variant="outline" size="sm" className="gap-2" onClick={markAllRead}>
+        <Button variant="outline" size="sm" className="gap-2 flex-shrink-0" onClick={markAllRead}>
           <Check className="h-4 w-4" />
-          Mark all read
+          <span className="hidden sm:inline">Mark all read</span>
         </Button>
       </div>
 
