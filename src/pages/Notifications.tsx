@@ -10,6 +10,8 @@ import PullToRefresh from "@/components/PullToRefresh";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { sanitizeText, singleLine, safeValidate } from "@/lib/validation";
+import { logNoteAudit } from "@/lib/auditLog";
+import { useAuth } from "@/contexts/AuthContext";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +59,9 @@ const typeLabels: Record<NotificationType, string> = {
 };
 
 const Notifications: React.FC = () => {
+  const { profile } = useAuth();
+  const actorName = profile?.displayName || profile?.email || "Unknown";
+
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -65,13 +70,21 @@ const Notifications: React.FC = () => {
   const [draftDescription, setDraftDescription] = useState("");
 
   const markAllRead = () => {
+    const unread = notifications.filter((n) => !n.read);
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     toast({ title: "All notifications marked as read" });
+    unread.forEach((n) => {
+      logNoteAudit({ action: "mark_read", type: n.type, title: n.title, description: n.description, actor: actorName });
+    });
   };
 
   const deleteNotification = (id: string) => {
+    const target = notifications.find((n) => n.id === id);
     setNotifications((prev) => prev.filter((n) => n.id !== id));
     toast({ title: "Notification deleted" });
+    if (target) {
+      logNoteAudit({ action: "delete", type: target.type, title: target.title, description: target.description, actor: actorName });
+    }
   };
 
   const openCreate = (type: NotificationType) => {
@@ -105,6 +118,7 @@ const Notifications: React.FC = () => {
         )
       );
       toast({ title: "Notification updated" });
+      logNoteAudit({ action: "edit", type: draftType, title: titleRes.data, description: descRes.data, actor: actorName });
     } else {
       const newNote: Notification = {
         id: `note-${Date.now()}`,
@@ -117,6 +131,7 @@ const Notifications: React.FC = () => {
       };
       setNotifications((prev) => [newNote, ...prev]);
       toast({ title: "Note added", description: typeLabels[draftType] });
+      logNoteAudit({ action: "create", type: draftType, title: titleRes.data, description: descRes.data, actor: actorName });
     }
     setEditorOpen(false);
   };

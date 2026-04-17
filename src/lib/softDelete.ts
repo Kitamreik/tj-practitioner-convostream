@@ -1,4 +1,5 @@
-import { Timestamp } from "firebase/firestore";
+import { Timestamp, doc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export const ARCHIVE_RETENTION_DAYS = 30;
 
@@ -23,3 +24,15 @@ export function daysRemaining(deletedAt: any): number {
 export function isArchived(item: Archivable): boolean {
   return !!item.archived;
 }
+
+/**
+ * Restore a soft-deleted item by clearing its `archived` + `deletedAt` fields.
+ * Used by undo toasts and the Archive page.
+ */
+export async function restoreItem(
+  collectionName: "conversations" | "people",
+  id: string
+): Promise<void> {
+  await updateDoc(doc(db, collectionName, id), { archived: false, deletedAt: null });
+}
+

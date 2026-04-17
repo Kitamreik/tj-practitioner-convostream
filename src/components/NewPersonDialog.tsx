@@ -8,9 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { nameSchema, emailSchema, phoneSchema, tagsSchema, safeValidate } from "@/lib/validation";
+import { logPersonCreated } from "@/lib/auditLog";
+import { useAuth } from "@/contexts/AuthContext";
 
 const NewPersonDialog: React.FC = () => {
   const { toast } = useToast();
+  const { profile } = useAuth();
+  const actorName = profile?.displayName || profile?.email || "Unknown";
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
@@ -61,6 +65,13 @@ const NewPersonDialog: React.FC = () => {
         createdAt: serverTimestamp(),
       });
       toast({ title: "Person added", description: `${nameRes.data} saved (id: ${ref.id.slice(0, 6)}…)` });
+      logPersonCreated({
+        personId: ref.id,
+        name: nameRes.data,
+        email: cleanEmail,
+        phone: cleanPhone,
+        actor: actorName,
+      });
       setOpen(false);
       reset();
     } catch (err: any) {

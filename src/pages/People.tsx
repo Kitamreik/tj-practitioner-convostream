@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, Trash2, Pencil } from "lucide-react";
+import { Search, Trash2, Pencil, ArchiveRestore } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import NewPersonDialog from "@/components/NewPersonDialog";
@@ -11,6 +13,7 @@ import EditPersonDialog, { type EditablePerson } from "@/components/EditPersonDi
 import PullToRefresh from "@/components/PullToRefresh";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { restoreItem, isExpired, daysRemaining } from "@/lib/softDelete";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,6 +65,7 @@ const People: React.FC = () => {
   const [usingFallback, setUsingFallback] = useState(false);
   const [editPerson, setEditPerson] = useState<EditablePerson | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const openEdit = (p: Person) => {
     setEditPerson({ id: p.id, name: p.name, email: p.email, phone: p.phone, tags: p.tags });
@@ -88,9 +92,9 @@ const People: React.FC = () => {
           setUsingFallback(true);
         } else {
           const docs = snapshot.docs
-            .map((d) => ({ id: d.id, ...d.data() } as Person & { archived?: boolean }))
-            .filter((p) => !p.archived);
-          setPeople(docs);
+            .map((d) => ({ id: d.id, ...d.data() } as Person & { archived?: boolean; deletedAt?: any }))
+            .filter((p) => (showArchived ? p.archived && !isExpired(p.deletedAt) : !p.archived));
+          setPeople(docs as Person[]);
           setUsingFallback(false);
         }
       },
@@ -101,7 +105,7 @@ const People: React.FC = () => {
       }
     );
     return unsub;
-  }, []);
+  }, [showArchived]);
 
   const filtered = people.filter(
     (p) =>
@@ -114,6 +118,15 @@ const People: React.FC = () => {
   const handleRefresh = async () => {
     await new Promise((r) => setTimeout(r, 600));
     toast({ title: "Refreshed", description: "People list is up to date." });
+  };
+
+  const handleInlineRestore = async (person: Person) => {
+    try {
+      await restoreItem("people", person.id);
+      toast({ title: "Restored", description: `${person.name} is back in your active list.` });
+    } catch (e: any) {
+      toast({ title: "Restore failed", description: e?.message, variant: "destructive" });
+    }
   };
 
   const handleDelete = async (person: Person) => {
@@ -129,7 +142,12 @@ const People: React.FC = () => {
       });
       toast({
         title: "Profile archived",
-        description: `${person.name}'s profile is restorable from Archive for 30 days.`,
+        description: `${person.name} restorable for 30 days.`,
+        action: (
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => handleInlineRestore(person)}>
+            <ArchiveRestore className="h-3.5 w-3.5" /> Undo
+          </Button>
+        ) as any,
       });
     } catch (e: any) {
       console.error(e);
@@ -182,15 +200,29 @@ const People: React.FC = () => {
         <NewPersonDialog />
       </div>
 
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search people..."
-          className="pl-9 max-w-md"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search people..."
+            className="pl-9 max-w-md"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
+          <Switch id="show-archived-people" checked={showArchived} onCheckedChange={setShowArchived} />
+          <Label htmlFor="show-archived-people" className="text-xs cursor-pointer flex items-center gap-1.5">
+            <ArchiveRestore className="h-3.5 w-3.5" /> Show archived
+          </Label>
+        </div>
       </div>
+
+      {showArchived && people.length > 0 && (
+        <p className="text-xs text-muted-foreground mb-3">
+          Viewing archived profiles. Each will be permanently deleted after 30 days.
+        </p>
+      )}
 
       {/* Mobile card view */}
       <div className="md:hidden space-y-2">
