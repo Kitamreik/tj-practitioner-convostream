@@ -22,6 +22,7 @@ import {
   RotateCcw,
   Tag,
   Radio,
+  Archive as ArchiveIcon,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -62,6 +63,8 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { restoreItem } from "@/lib/softDelete";
+import { Switch } from "@/components/ui/switch";
 import NewConversationDialog from "@/components/NewConversationDialog";
 import ConversationTemplates, { type MessageTemplate } from "@/components/ConversationTemplates";
 import EditPersonDialog, { type EditablePerson } from "@/components/EditPersonDialog";
@@ -82,6 +85,8 @@ interface Conversation {
   unread: boolean;
   status: "active" | "waiting" | "resolved";
   assignedAgent?: string;
+  archived?: boolean;
+  deletedAt?: any;
 }
 
 interface ConversationMessage {
@@ -235,6 +240,7 @@ const Conversations: React.FC = () => {
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const replyInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
@@ -332,13 +338,14 @@ const Conversations: React.FC = () => {
           setUsingFallback(true);
           setSelectedId("mock-1");
         } else {
-          const convos = snapshot.docs
-            .map((d) => ({ id: d.id, ...d.data() } as Conversation & { archived?: boolean }))
-            .filter((c) => !c.archived);
+          const convos = snapshot.docs.map(
+            (d) => ({ id: d.id, ...d.data() } as Conversation)
+          );
           setConversations(convos);
           setUsingFallback(false);
-          if (!selectedId || !convos.find((c) => c.id === selectedId)) {
-            setSelectedId(convos[0]?.id || null);
+          const visible = convos.filter((c) => (showArchived ? c.archived : !c.archived));
+          if (!selectedId || !visible.find((c) => c.id === selectedId)) {
+            setSelectedId(visible[0]?.id || null);
           }
         }
       },
@@ -387,6 +394,8 @@ const Conversations: React.FC = () => {
   }, [usingFallback]);
 
   const filtered = conversations.filter((c) => {
+    const archivedMatch = showArchived ? !!c.archived : !c.archived;
+    if (!archivedMatch) return false;
     const lowerSearch = search.toLowerCase();
     const matchesBasic =
       c.customerName.toLowerCase().includes(lowerSearch) ||
@@ -504,6 +513,21 @@ const Conversations: React.FC = () => {
     toast({
       title: "Moved to Archive",
       description: "Restorable for 30 days from the Archive page.",
+      action: !usingFallback ? (
+        <button
+          onClick={async () => {
+            try {
+              await restoreItem("conversations", idToDelete);
+              toast({ title: "Restored", description: "Conversation is back in your active list." });
+            } catch (e) {
+              toast({ title: "Restore failed", variant: "destructive" });
+            }
+          }}
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs font-medium hover:bg-accent transition-colors"
+        >
+          <RotateCcw className="h-3 w-3" /> Undo
+        </button>
+      ) : undefined,
     });
   };
 
@@ -607,6 +631,20 @@ const Conversations: React.FC = () => {
                 <X className="h-3.5 w-3.5" />
               </Button>
             )}
+          </div>
+          <div className="flex items-center justify-between mt-3 rounded-md border border-border/60 bg-muted/30 px-3 py-1.5">
+            <label htmlFor="show-archived-convos" className="text-xs text-muted-foreground flex items-center gap-1.5 cursor-pointer">
+              <ArchiveIcon className="h-3 w-3" />
+              Show archived
+            </label>
+            <Switch
+              id="show-archived-convos"
+              checked={showArchived}
+              onCheckedChange={(v) => {
+                setShowArchived(v);
+                setSelectedId(null);
+              }}
+            />
           </div>
         </div>
 
@@ -763,16 +801,39 @@ const Conversations: React.FC = () => {
                 </TooltipTrigger>
                 <TooltipContent>{selected.status === "resolved" ? "Reopen conversation (E)" : "Mark as resolved (E)"}</TooltipContent>
               </Tooltip>
-              {/* Delete */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive" aria-label="Delete conversation">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Delete conversation</TooltipContent>
-              </Tooltip>
-              {/* Shortcuts help — desktop only */}
+              {/* Delete or Restore */}
+              {selected.archived ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await restoreItem("conversations", selected.id);
+                          toast({ title: "Restored", description: "Conversation moved back to active." });
+                        } catch {
+                          toast({ title: "Restore failed", variant: "destructive" });
+                        }
+                      }}
+                      className="gap-1.5 px-2 sm:px-3"
+                      aria-label="Restore conversation"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Restore</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Restore from archive</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive" aria-label="Delete conversation">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Delete conversation</TooltipContent>
+                </Tooltip>
+              )}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="ghost" size="sm" onClick={() => setShowShortcuts((p) => !p)} className="hidden md:inline-flex" aria-label="Keyboard shortcuts">

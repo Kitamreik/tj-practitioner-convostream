@@ -16,6 +16,7 @@ import {
   Reply,
   Lock,
   CheckCircle2,
+  Wifi,
 } from "lucide-react";
 import DOMPurify from "dompurify";
 import { Button } from "@/components/ui/button";
@@ -185,6 +186,8 @@ const GmailAPI: React.FC = () => {
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [replyContext, setReplyContext] = useState<{ messageIdHeader: string; threadId: string; references: string } | null>(null);
 
   // Load Google scripts once
@@ -496,6 +499,33 @@ const GmailAPI: React.FC = () => {
     return match ? match[1].trim() : from.split("@")[0];
   };
 
+  // Lightweight, read-only verification that creds + OAuth are valid.
+  // Pings users.getProfile (cheapest authenticated Gmail call).
+  const handleTestConnection = useCallback(async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      if (!clientReady) {
+        throw new Error("Client not initialized. Save credentials first.");
+      }
+      if (!authorized || window.gapi.client.getToken() === null) {
+        throw new Error("Not authorized. Click Authorize to grant Gmail access.");
+      }
+      const res = await window.gapi.client.gmail.users.getProfile({ userId: "me" });
+      const email = res?.result?.emailAddress;
+      const total = res?.result?.messagesTotal;
+      const msg = email ? `Connected as ${email} · ${total ?? 0} messages` : "Connected";
+      setTestResult({ ok: true, message: msg });
+      toast({ title: "Connection OK", description: msg });
+    } catch (e: any) {
+      const m = e?.result?.error?.message || e?.message || "Connection failed";
+      setTestResult({ ok: false, message: m });
+      toast({ title: "Connection failed", description: m, variant: "destructive" });
+    } finally {
+      setTesting(false);
+    }
+  }, [clientReady, authorized]);
+
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
       <div className="mb-6 md:mb-8 flex items-center justify-between gap-3">
@@ -603,6 +633,15 @@ const GmailAPI: React.FC = () => {
               <Button onClick={handleAuth} className="gap-2" disabled={!clientReady}>
                 <LogIn className="h-4 w-4" /> Authorize
               </Button>
+              <Button
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={!clientReady || testing}
+                className="gap-2"
+              >
+                <Wifi className={`h-4 w-4 ${testing ? "animate-pulse" : ""}`} />
+                {testing ? "Testing…" : "Test Connection"}
+              </Button>
               {!credsSaved && (
                 <p className="text-xs text-muted-foreground self-center">Save credentials above to enable.</p>
               )}
@@ -618,6 +657,15 @@ const GmailAPI: React.FC = () => {
               <Button variant="outline" onClick={fetchMessages} className="gap-2" disabled={loadingMessages}>
                 <RefreshCw className={`h-4 w-4 ${loadingMessages ? "animate-spin" : ""}`} /> Refresh
               </Button>
+              <Button
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={testing}
+                className="gap-2"
+              >
+                <Wifi className={`h-4 w-4 ${testing ? "animate-pulse" : ""}`} />
+                {testing ? "Testing…" : "Test Connection"}
+              </Button>
               <Button variant="ghost" onClick={handleSignout} className="gap-2 text-destructive">
                 <LogOut className="h-4 w-4" /> Sign Out
               </Button>
@@ -629,6 +677,18 @@ const GmailAPI: React.FC = () => {
             </>
           )}
         </div>
+        {testResult && (
+          <div
+            className={`mt-3 rounded-md border px-3 py-2 text-xs flex items-center gap-2 ${
+              testResult.ok
+                ? "border-success/30 bg-success/5 text-success"
+                : "border-destructive/30 bg-destructive/5 text-destructive"
+            }`}
+          >
+            {testResult.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+            <span className="break-all">{testResult.message}</span>
+          </div>
+        )}
       </motion.div>
 
       {error && (

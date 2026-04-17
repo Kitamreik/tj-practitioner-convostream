@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck, PhoneIncoming, PhoneOutgoing, MessageCircle } from "lucide-react";
+import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck, PhoneIncoming, PhoneOutgoing, MessageCircle, Filter, X } from "lucide-react";
 import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 
 interface AgentWorkloadData {
   name: string;
@@ -45,6 +47,7 @@ const Analytics: React.FC = () => {
   const [agentWorkload, setAgentWorkload] = useState<AgentWorkloadData[]>(fallbackAgentWorkload);
   const [voiceActivity, setVoiceActivity] = useState<VoiceActivity[]>(fallbackVoiceActivity);
   const [voiceLive, setVoiceLive] = useState(false);
+  const [numberFilter, setNumberFilter] = useState<string>("all");
 
   // Listen to conversations and compute per-agent workload
   useEffect(() => {
@@ -101,11 +104,24 @@ const Analytics: React.FC = () => {
     }
   }, []);
 
+  // Unique numbers across all observed voice activity (for the filter dropdown)
+  const voiceNumbers = useMemo(() => {
+    const set = new Set<string>();
+    voiceActivity.forEach((v) => v.contact && set.add(v.contact));
+    return Array.from(set).sort();
+  }, [voiceActivity]);
+
+  // Apply the active-number filter to the activity feed and stats
+  const filteredVoiceActivity = useMemo(
+    () => (numberFilter === "all" ? voiceActivity : voiceActivity.filter((v) => v.contact === numberFilter)),
+    [voiceActivity, numberFilter]
+  );
+
   const voiceStats = {
-    inboundCalls: voiceActivity.filter((v) => v.type === "call_inbound").length,
-    outboundCalls: voiceActivity.filter((v) => v.type === "call_outbound").length,
-    inboundSms: voiceActivity.filter((v) => v.type === "sms_inbound").length,
-    outboundSms: voiceActivity.filter((v) => v.type === "sms_outbound").length,
+    inboundCalls: filteredVoiceActivity.filter((v) => v.type === "call_inbound").length,
+    outboundCalls: filteredVoiceActivity.filter((v) => v.type === "call_outbound").length,
+    inboundSms: filteredVoiceActivity.filter((v) => v.type === "sms_inbound").length,
+    outboundSms: filteredVoiceActivity.filter((v) => v.type === "sms_outbound").length,
   };
 
   const formatRelative = (ts: any): string => {
@@ -184,15 +200,36 @@ const Analytics: React.FC = () => {
 
       {/* Google Voice Live Engagement */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="rounded-xl border border-border bg-card p-6 mb-8">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h3 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
             <PhoneIncoming className="h-5 w-5 text-primary" />
             Google Voice — Live Engagement
           </h3>
-          <span className="flex items-center gap-1.5 text-xs">
-            <span className={`h-2 w-2 rounded-full ${voiceLive ? "bg-success animate-pulse" : "bg-muted-foreground/40"}`} />
-            <span className="text-muted-foreground">{voiceLive ? "Live" : "Sample data"}</span>
-          </span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+              <Select value={numberFilter} onValueChange={setNumberFilter}>
+                <SelectTrigger className="h-8 w-[180px] text-xs" aria-label="Filter by Google Voice number">
+                  <SelectValue placeholder="All numbers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All numbers</SelectItem>
+                  {voiceNumbers.map((n) => (
+                    <SelectItem key={n} value={n}>{n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {numberFilter !== "all" && (
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setNumberFilter("all")} aria-label="Clear filter">
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+            <span className="flex items-center gap-1.5 text-xs">
+              <span className={`h-2 w-2 rounded-full ${voiceLive ? "bg-success animate-pulse" : "bg-muted-foreground/40"}`} />
+              <span className="text-muted-foreground">{voiceLive ? "Live" : "Sample data"}</span>
+            </span>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
@@ -216,7 +253,7 @@ const Analytics: React.FC = () => {
 
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent activity</p>
-          {voiceActivity.slice(0, 6).map((v) => (
+          {filteredVoiceActivity.slice(0, 6).map((v) => (
             <div key={v.id} className="flex items-center gap-3 rounded-lg border border-border/60 p-3 hover:bg-muted/30 transition-colors">
               <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-muted">
                 {voiceIcon(v.type)}
@@ -232,6 +269,9 @@ const Analytics: React.FC = () => {
               </div>
             </div>
           ))}
+          {filteredVoiceActivity.length === 0 && (
+            <p className="text-xs text-muted-foreground italic px-1 py-3">No activity for this number yet.</p>
+          )}
         </div>
       </motion.div>
 
