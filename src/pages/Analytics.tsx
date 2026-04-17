@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck } from "lucide-react";
-import { collection, onSnapshot } from "firebase/firestore";
+import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck, PhoneIncoming, PhoneOutgoing, MessageCircle } from "lucide-react";
+import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 interface AgentWorkloadData {
@@ -11,11 +11,27 @@ interface AgentWorkloadData {
   resolved: number;
 }
 
+interface VoiceActivity {
+  id: string;
+  type: "call_inbound" | "call_outbound" | "sms_inbound" | "sms_outbound";
+  contact: string;
+  durationSec?: number;
+  preview?: string;
+  timestamp: any;
+}
+
 const fallbackAgentWorkload: AgentWorkloadData[] = [
   { name: "Alice Johnson", active: 12, waiting: 3, resolved: 45 },
   { name: "Bob Smith", active: 8, waiting: 5, resolved: 38 },
   { name: "Carol Davis", active: 15, waiting: 2, resolved: 52 },
   { name: "Dan Lee", active: 6, waiting: 7, resolved: 29 },
+];
+
+const fallbackVoiceActivity: VoiceActivity[] = [
+  { id: "v1", type: "call_inbound", contact: "+1 555-0142", durationSec: 184, timestamp: { toDate: () => new Date(Date.now() - 60_000) } },
+  { id: "v2", type: "sms_inbound", contact: "+1 555-0118", preview: "Hi, can someone help me with a refund?", timestamp: { toDate: () => new Date(Date.now() - 8 * 60_000) } },
+  { id: "v3", type: "call_outbound", contact: "+1 555-0177", durationSec: 92, timestamp: { toDate: () => new Date(Date.now() - 22 * 60_000) } },
+  { id: "v4", type: "sms_outbound", contact: "+1 555-0118", preview: "Of course — what's your order number?", timestamp: { toDate: () => new Date(Date.now() - 7 * 60_000) } },
 ];
 
 const stats = [
