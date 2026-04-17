@@ -818,11 +818,9 @@ const Conversations: React.FC = () => {
           {/* Header */}
           <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 md:px-6 md:py-4">
             <div className="flex min-w-0 items-center gap-2 md:gap-3">
-              {isMobile && (
-                <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setSelectedId(null)} aria-label="Back">
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              )}
+              <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setSelectedId(null)} aria-label="Back to conversation list">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{selected.customerName.charAt(0)}</div>
               <div className="min-w-0">
                 <h3 className="truncate font-semibold text-foreground">{selected.customerName}</h3>
