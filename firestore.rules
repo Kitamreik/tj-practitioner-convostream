@@ -122,7 +122,8 @@ service cloud.firestore {
     // `escalationRequests` lets a signed-in user create their own request and
     // webmasters can read everything.
     match /roleGrants/{id} {
-      allow read: if isWebmaster();
+      allow read: if isWebmaster()
+        || (isSignedIn() && resource.data.targetUid == request.auth.uid);
       allow write: if false; // server only
     }
     match /escalationRequests/{id} {

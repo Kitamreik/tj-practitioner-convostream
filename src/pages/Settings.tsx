@@ -167,6 +167,46 @@ const SettingsPage: React.FC = () => {
     return unsub;
   }, [user]);
 
+  // Subscribe to the user's most recent revoke entry so they see why their
+  // previous escalated access was removed (only relevant when they currently
+  // do NOT have escalated access).
+  const [latestRevoke, setLatestRevoke] = useState<{
+    reason: string;
+    grantedAt: any;
+    grantedByEmail: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, "roleGrants"),
+      where("targetUid", "==", user.uid),
+      where("action", "==", "revokeEscalatedAccess"),
+      orderBy("grantedAt", "desc"),
+      limit(1)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        if (snap.empty) {
+          setLatestRevoke(null);
+          return;
+        }
+        const d = snap.docs[0].data() as any;
+        setLatestRevoke({
+          reason: d.reason || "",
+          grantedAt: d.grantedAt,
+          grantedByEmail: d.grantedByEmail ?? null,
+        });
+      },
+      (err) => {
+        console.warn("Latest revoke listener error:", err);
+        setLatestRevoke(null);
+      }
+    );
+    return unsub;
+  }, [user]);
+
   const handleEscalate = async () => {
     setRequesting(true);
     try {
@@ -810,6 +850,22 @@ const SettingsPage: React.FC = () => {
                 ? `You currently have escalated access to Integrations, Analytics, and the Gmail API. A webmaster can revoke this at any time.`
                 : `Your admin account doesn't have access to Integrations, Analytics, or the Gmail API. Request escalation to notify a webmaster (${ESCALATION_NOTIFY_EMAIL}).`}
             </p>
+
+            {latestRevoke && !hasEscalatedAccess && (
+              <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs">
+                <div className="flex items-center gap-2 font-medium text-foreground">
+                  <ShieldOff className="h-3.5 w-3.5 text-destructive" />
+                  Your previous escalated access was revoked
+                </div>
+                <p className="mt-1 text-muted-foreground">
+                  <span className="italic">"{latestRevoke.reason || "(no reason recorded)"}"</span>
+                </p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  {latestRevoke.grantedByEmail ? `By ${latestRevoke.grantedByEmail} · ` : ""}
+                  {formatTime(latestRevoke.grantedAt)}
+                </p>
+              </div>
+            )}
 
             {!hasEscalatedAccess && (
               <div className="space-y-3">

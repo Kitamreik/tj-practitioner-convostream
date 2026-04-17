@@ -430,7 +430,17 @@ const Conversations: React.FC = () => {
   useEffect(() => {
     const requestedOpen = searchParams.get("open");
     if (!requestedOpen) return;
-    if (conversations.find((c) => c.id === requestedOpen)) {
+    const target = conversations.find((c) => c.id === requestedOpen);
+    if (target) {
+      // If the target is archived but the Show archived toggle is off, flip it
+      // on so the conversation appears in the list (not just the detail pane).
+      if (target.archived && !showArchived) {
+        setShowArchived(true);
+        toast({
+          title: "Showing archived",
+          description: "Switched to archived view to surface this conversation.",
+        });
+      }
       setSelectedId(requestedOpen);
       // Clear the param so navigating away/back doesn't pin the selection.
       const next = new URLSearchParams(searchParams);
@@ -438,7 +448,7 @@ const Conversations: React.FC = () => {
       setSearchParams(next, { replace: true });
       toast({ title: "Conversation opened", description: "Linked from Investigation requests." });
     }
-  }, [conversations, searchParams, setSearchParams]);
+  }, [conversations, searchParams, setSearchParams, showArchived]);
 
   // Real-time messages listener for selected conversation
   useEffect(() => {
