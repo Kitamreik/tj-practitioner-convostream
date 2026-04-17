@@ -413,6 +413,114 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  // ---- Promote agent → admin / Demote admin → agent (webmaster only) ----
+  const [roleChangingUid, setRoleChangingUid] = useState<string | null>(null);
+
+  const promoteAgentToAdmin = async (acc: AccountRow) => {
+    if (!acc.email) {
+      toast({ title: "No email on account", description: "Cannot promote without an email.", variant: "destructive" });
+      return;
+    }
+    setRoleChangingUid(acc.uid);
+    try {
+      const fn = httpsCallable<{ targetEmail: string; role: "admin" }, { ok: boolean; previousRole: string; newRole: string }>(
+        functions,
+        "promoteToWebmaster"
+      );
+      const res = await fn({ targetEmail: acc.email, role: "admin" });
+      toast({
+        title: "Promoted to admin",
+        description: `${acc.email} ${res.data.previousRole} → ${res.data.newRole}.`,
+      });
+    } catch (e: any) {
+      toast({ title: "Promote failed", description: e?.message || "Unable to promote.", variant: "destructive" });
+    } finally {
+      setRoleChangingUid(null);
+    }
+  };
+
+  const demoteToAgent = async (acc: AccountRow) => {
+    setRoleChangingUid(acc.uid);
+    try {
+      const fn = httpsCallable<{ targetUid: string; reason?: string }, { ok: boolean; previousRole?: string; newRole?: string }>(
+        functions,
+        "demoteAgent"
+      );
+      await fn({ targetUid: acc.uid });
+      toast({ title: "Demoted to agent", description: `${acc.email || acc.uid} is now an agent.` });
+    } catch (e: any) {
+      toast({ title: "Demote failed", description: e?.message || "Unable to demote.", variant: "destructive" });
+    } finally {
+      setRoleChangingUid(null);
+    }
+  };
+
+  // ---- Rename history (webmaster only) ----
+  // Subscribe to recent renameAgent entries from `roleGrants` and group by targetUid
+  // so each agent row can show its most recent renames inline.
+  interface RenameEvent {
+    id: string;
+    targetUid: string;
+    previousDisplayName: string;
+    newDisplayName: string;
+    grantedByEmail: string | null;
+    grantedAt: any;
+  }
+  const [renameEvents, setRenameEvents] = useState<RenameEvent[]>([]);
+  useEffect(() => {
+    if (!isWebmaster) return;
+    const q = query(
+      collection(db, "roleGrants"),
+      where("action", "==", "renameAgent"),
+      orderBy("grantedAt", "desc"),
+      limit(100)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const rows: RenameEvent[] = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            targetUid: data.targetUid ?? "",
+            previousDisplayName: data.previousDisplayName ?? "",
+            newDisplayName: data.newDisplayName ?? "",
+            grantedByEmail: data.grantedByEmail ?? null,
+            grantedAt: data.grantedAt,
+          };
+        });
+        setRenameEvents(rows);
+      },
+      (err) => {
+        console.warn("Rename history listener error:", err);
+        setRenameEvents([]);
+      }
+    );
+    return unsub;
+  }, [isWebmaster]);
+
+  const renamesByUid = useMemo(() => {
+    const map = new Map<string, RenameEvent[]>();
+    for (const ev of renameEvents) {
+      if (!ev.targetUid) continue;
+      const arr = map.get(ev.targetUid) ?? [];
+      arr.push(ev);
+      map.set(ev.targetUid, arr);
+    }
+    return map;
+  }, [renameEvents]);
+
+  // Track which agent rows have rename-history expanded (collapsed by default).
+  const [openHistory, setOpenHistory] = useState<Set<string>>(new Set());
+  const toggleHistory = (uid: string) => {
+    setOpenHistory((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+  };
+
   // Agents = anyone whose role is "agent" (the new baseline) OR legacy "admin".
   // Webmasters are excluded — they manage themselves via the Accounts panel.
   const agentRows = accounts.filter(
