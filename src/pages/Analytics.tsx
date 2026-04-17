@@ -182,6 +182,59 @@ const Analytics: React.FC = () => {
         </div>
       </div>
 
+      {/* Google Voice Live Engagement */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="rounded-xl border border-border bg-card p-6 mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
+            <PhoneIncoming className="h-5 w-5 text-primary" />
+            Google Voice — Live Engagement
+          </h3>
+          <span className="flex items-center gap-1.5 text-xs">
+            <span className={`h-2 w-2 rounded-full ${voiceLive ? "bg-success animate-pulse" : "bg-muted-foreground/40"}`} />
+            <span className="text-muted-foreground">{voiceLive ? "Live" : "Sample data"}</span>
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><PhoneIncoming className="h-3.5 w-3.5 text-success" /> Inbound calls</div>
+            <p className="text-xl font-bold text-card-foreground mt-1">{voiceStats.inboundCalls}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><PhoneOutgoing className="h-3.5 w-3.5 text-primary" /> Outbound calls</div>
+            <p className="text-xl font-bold text-card-foreground mt-1">{voiceStats.outboundCalls}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><MessageCircle className="h-3.5 w-3.5 text-success" /> Inbound SMS</div>
+            <p className="text-xl font-bold text-card-foreground mt-1">{voiceStats.inboundSms}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><MessageCircle className="h-3.5 w-3.5 text-primary" /> Outbound SMS</div>
+            <p className="text-xl font-bold text-card-foreground mt-1">{voiceStats.outboundSms}</p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent activity</p>
+          {voiceActivity.slice(0, 6).map((v) => (
+            <div key={v.id} className="flex items-center gap-3 rounded-lg border border-border/60 p-3 hover:bg-muted/30 transition-colors">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-muted">
+                {voiceIcon(v.type)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-card-foreground truncate">{v.contact}</span>
+                  <span className="text-xs text-muted-foreground flex-shrink-0">{formatRelative(v.timestamp)}</span>
+                </div>
+                <p className="text-xs text-muted-foreground truncate">
+                  {v.type.startsWith("call") ? `Call · ${formatDuration(v.durationSec)}` : v.preview || "SMS"}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+
       {/* Agent Workload */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="rounded-xl border border-border bg-card p-6">
         <h3 className="text-lg font-semibold text-card-foreground mb-4 flex items-center gap-2">
