@@ -64,6 +64,7 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { restoreItem } from "@/lib/softDelete";
+import { getBoolPref, setBoolPref } from "@/lib/userPrefs";
 import { Switch } from "@/components/ui/switch";
 import NewConversationDialog from "@/components/NewConversationDialog";
 import ConversationTemplates, { type MessageTemplate } from "@/components/ConversationTemplates";
@@ -254,7 +255,16 @@ const Conversations: React.FC = () => {
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
+  // Persist 'Show archived' across refresh, namespaced per Firebase UID.
+  const { user } = useAuth();
+  const [showArchived, setShowArchivedState] = useState<boolean>(false);
+  useEffect(() => {
+    setShowArchivedState(getBoolPref(user?.uid, "conversations.showArchived", false));
+  }, [user?.uid]);
+  const setShowArchived = (v: boolean) => {
+    setShowArchivedState(v);
+    setBoolPref(user?.uid, "conversations.showArchived", v);
+  };
   const replyInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 

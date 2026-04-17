@@ -13,6 +13,8 @@ import EditPersonDialog, { type EditablePerson } from "@/components/EditPersonDi
 import PullToRefresh from "@/components/PullToRefresh";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/contexts/AuthContext";
+import { getBoolPref, setBoolPref } from "@/lib/userPrefs";
 import { restoreItem, isExpired, daysRemaining } from "@/lib/softDelete";
 import {
   AlertDialog,
@@ -60,12 +62,21 @@ function formatLastActive(ts: any): string {
 }
 
 const People: React.FC = () => {
+  const { user } = useAuth();
   const [people, setPeople] = useState<Person[]>([]);
   const [search, setSearch] = useState("");
   const [usingFallback, setUsingFallback] = useState(false);
   const [editPerson, setEditPerson] = useState<EditablePerson | null>(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
+  // Persist 'Show archived' across refresh, namespaced per Firebase UID.
+  const [showArchived, setShowArchivedState] = useState<boolean>(false);
+  useEffect(() => {
+    setShowArchivedState(getBoolPref(user?.uid, "people.showArchived", false));
+  }, [user?.uid]);
+  const setShowArchived = (v: boolean) => {
+    setShowArchivedState(v);
+    setBoolPref(user?.uid, "people.showArchived", v);
+  };
 
   const openEdit = (p: Person) => {
     setEditPerson({ id: p.id, name: p.name, email: p.email, phone: p.phone, tags: p.tags });
