@@ -17,6 +17,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { subscribeCooldownMin, DEFAULT_COOLDOWN_MIN, type CooldownMinutes } from "@/lib/webmasterCooldown";
+import { notifyWebmasterOnContact } from "@/lib/notifyWebmaster";
 
 /**
  * WebmasterContactButtons — direct call/SMS shortcuts to the on-call
@@ -46,7 +48,9 @@ const WEBMASTER_NUMBER = "+17206639706"; // (720) 663-9706
 const DISPLAY_NUMBER = "(720) 663-9706";
 const LAST_CONTACT_KEY_PREFIX = "convohub.webmasterLastContact.";
 const LONG_PRESS_MS = 500;
-const COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
+// Cooldown is configurable via /settings (5/15/30/60 min). This is just the
+// initial fallback used before the Firestore subscription delivers a value.
+
 
 interface Props {
   /** "compact" = icon-only buttons (sidebar/bottom-sheet); "full" = labelled. */
@@ -96,6 +100,10 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
   // Confirm dialog for the soft cooldown. We stash which channel
   // (call/text) the user picked so we can launch it after they confirm.
   const [confirmChannel, setConfirmChannel] = useState<"call" | "text" | null>(null);
+  // Live cooldown duration (minutes) — synced from appSettings/webmasterContact.
+  const [cooldownMin, setCooldownMin] = useState<CooldownMinutes>(DEFAULT_COOLDOWN_MIN);
+  useEffect(() => subscribeCooldownMin(setCooldownMin), []);
+  const cooldownMs = cooldownMin * 60 * 1000;
 
   const lastKey = profile?.uid ? LAST_CONTACT_KEY_PREFIX + profile.uid : null;
   const userUid = profile?.uid ?? null;
@@ -172,9 +180,9 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
   const contextLine = buildContextLine(senderName, location.pathname);
   const smsHref = buildSmsHref(senderName, location.pathname);
   const telHref = buildTelHref(senderName, location.pathname);
-  const inCooldown = lastContactMs !== null && Date.now() - lastContactMs < COOLDOWN_MS;
+  const inCooldown = lastContactMs !== null && Date.now() - lastContactMs < cooldownMs;
 
-  const recordContact = () => {
+  const recordContact = (channel: "call" | "text") => {
     const now = Date.now();
     setLastContactMs(now);
     if (lastKey) {
@@ -191,6 +199,15 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
         console.warn("Failed to persist lastWebmasterContact:", err);
       });
     }
+    // Fan out to every webmaster's bell so they see the heads-up even if
+    // they miss the call/text. Best-effort — never block the OS hand-off.
+    notifyWebmasterOnContact({
+      channel,
+      agentName: senderName,
+      route: location.pathname,
+    }).catch((err) => {
+      console.warn("Failed to notify webmaster:", err);
+    });
   };
 
   const startLongPress = () => {
@@ -216,13 +233,13 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
 
   // Suppress the link navigation if the long-press fired (so the user
   // doesn't also get bounced into the dialer/composer).
-  const guardClick = (e: React.MouseEvent) => {
+  const guardClick = (channel: "call" | "text") => (e: React.MouseEvent) => {
     if (longPressFiredRef.current) {
       e.preventDefault();
       longPressFiredRef.current = false;
       return;
     }
-    recordContact();
+    recordContact(channel);
   };
 
   // Programmatically open a tel:/sms: link from the confirm dialog.
@@ -237,7 +254,7 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
     document.body.appendChild(a);
     a.click();
     a.remove();
-    recordContact();
+    recordContact(channel);
   };
 
   return (
@@ -275,7 +292,7 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
                 <a
                   href={telHref}
                   aria-label={`Call webmaster at ${DISPLAY_NUMBER}. Long-press to copy context.`}
-                  onClick={guardClick}
+                  onClick={guardClick("call")}
                   onMouseDown={startLongPress}
                   onMouseUp={cancelLongPress}
                   onMouseLeave={cancelLongPress}
@@ -306,7 +323,7 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
                 <a
                   href={smsHref}
                   aria-label={`Text webmaster at ${DISPLAY_NUMBER}. Long-press to copy context.`}
-                  onClick={guardClick}
+                  onClick={guardClick("text")}
                   onMouseDown={startLongPress}
                   onMouseUp={cancelLongPress}
                   onMouseLeave={cancelLongPress}

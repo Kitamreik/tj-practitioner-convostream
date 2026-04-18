@@ -29,6 +29,7 @@ import {
   Eye,
   EyeOff,
   Copy,
+  PhoneCall,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -83,6 +84,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  COOLDOWN_OPTIONS_MIN,
+  DEFAULT_COOLDOWN_MIN,
+  setCooldownMin,
+  subscribeCooldownMin,
+  type CooldownMinutes,
+} from "@/lib/webmasterCooldown";
 
 const ESCALATION_NOTIFY_EMAIL = "kit.tjclasses@gmail.com";
 
@@ -305,6 +313,30 @@ const SettingsPage: React.FC = () => {
 
   const isWebmaster = profile?.role === "webmaster";
   const hasEscalatedAccess = profile?.escalatedAccess === true;
+
+  // ---- Webmaster contact cooldown (team-wide setting) ----
+  const [cooldownMin, setCooldownMinState] = useState<CooldownMinutes>(DEFAULT_COOLDOWN_MIN);
+  const [savingCooldown, setSavingCooldown] = useState(false);
+  useEffect(() => subscribeCooldownMin(setCooldownMinState), []);
+  const handleCooldownChange = async (value: string) => {
+    const n = Number(value) as CooldownMinutes;
+    setSavingCooldown(true);
+    try {
+      await setCooldownMin(n, profile?.uid);
+      toast({
+        title: "Cooldown updated",
+        description: `Agents must now wait ${n} min between webmaster contacts.`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Could not save cooldown",
+        description: e?.message || "Try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingCooldown(false);
+    }
+  };
 
   // ---- Pending escalation requests (webmaster only) ----
   const [pending, setPending] = useState<PendingEscalation[]>([]);
@@ -995,6 +1027,7 @@ const SettingsPage: React.FC = () => {
     ...(isWebmaster
       ? [
           { id: "overview", label: "Overview" },
+          { id: "webmaster-contact", label: "Webmaster contact" },
           { id: "promote", label: "Promote to Webmaster" },
           { id: "pending", label: "Pending escalations" },
           { id: "agents", label: "Agents" },
@@ -1099,6 +1132,47 @@ const SettingsPage: React.FC = () => {
             </Button>
           </div>
         </div>
+
+        {/* Webmaster-only: contact cooldown duration */}
+        {isWebmaster && (
+          <div id="webmaster-contact" className="rounded-xl border border-border bg-card p-6">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-2">
+              <PhoneCall className="h-5 w-5 text-primary" />
+              Webmaster contact cooldown
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              How long an agent must wait between consecutive Call/Text Webmaster
+              shortcuts before the buttons swap to the
+              <span className="font-medium text-foreground"> "Just contacted — call again?" </span>
+              confirm dialog. Tune this lower during high-volume incidents so
+              follow-ups aren't blocked.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">Cooldown window</p>
+                <p className="text-xs text-muted-foreground">
+                  Applies to every agent and admin in real time.
+                </p>
+              </div>
+              <Select
+                value={String(cooldownMin)}
+                onValueChange={handleCooldownChange}
+                disabled={savingCooldown}
+              >
+                <SelectTrigger className="w-full sm:w-44" aria-label="Webmaster contact cooldown">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {COOLDOWN_OPTIONS_MIN.map((m) => (
+                    <SelectItem key={m} value={String(m)}>
+                      {m} minutes
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
 
         {/* Webmaster-only: Overview — at-a-glance assigned conversations per agent */}
         {isWebmaster && (

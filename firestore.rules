@@ -275,6 +275,17 @@ service cloud.firestore {
       allow delete: if isWebmaster();
     }
 
+    // -------- appSettings/{docId} — team-wide tunables --------
+    // Holds small config docs like `webmasterContact` (cooldown duration
+    // shared across all agents). Any signed-in teammate can read so the
+    // shortcut buttons can render the current cooldown; only webmasters
+    // can write.
+    match /appSettings/{docId} {
+      allow read: if isSignedIn();
+      allow create, update: if isWebmaster();
+      allow delete: if isWebmaster();
+    }
+
     // -------- managedPasswords/{uid} — webmaster-only password vault --------
     // The webmaster can stash the most recently set password for each user
     // here so they can look it up later (Firebase Auth itself never exposes
