@@ -375,9 +375,14 @@ const Notifications: React.FC = () => {
           </div>
         </div>
 
-        {/* Per-user mute switch for team-wide broadcasts. */}
+        {/* Per-user mute switch for team-wide broadcasts.
+            id="mute-broadcasts-toggle" — linked from the bell-icon dot in the
+            sidebar/bottom nav so users can jump straight here. */}
         {user && (
-          <div className="mb-4 rounded-xl border border-border bg-card/50 p-3 md:p-4 flex items-center justify-between gap-3">
+          <div
+            id="mute-broadcasts-toggle"
+            className="mb-4 rounded-xl border border-border bg-card/50 p-3 md:p-4 flex items-center justify-between gap-3 scroll-mt-20"
+          >
             <div className="flex items-start gap-2.5 min-w-0">
               <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                 {muteBroadcasts ? <BellOff className="h-4 w-4" /> : <Megaphone className="h-4 w-4" />}
