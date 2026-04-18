@@ -29,6 +29,7 @@ import {
   Eye,
   EyeOff,
   Copy,
+  PhoneCall,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -83,6 +84,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  COOLDOWN_OPTIONS_MIN,
+  DEFAULT_COOLDOWN_MIN,
+  setCooldownMin,
+  subscribeCooldownMin,
+  type CooldownMinutes,
+} from "@/lib/webmasterCooldown";
 
 const ESCALATION_NOTIFY_EMAIL = "kit.tjclasses@gmail.com";
 
@@ -995,6 +1003,7 @@ const SettingsPage: React.FC = () => {
     ...(isWebmaster
       ? [
           { id: "overview", label: "Overview" },
+          { id: "webmaster-contact", label: "Webmaster contact" },
           { id: "promote", label: "Promote to Webmaster" },
           { id: "pending", label: "Pending escalations" },
           { id: "agents", label: "Agents" },
