@@ -239,5 +239,16 @@ service cloud.firestore {
           )
         );
     }
+
+    // -------- system/* — server-managed health & status docs --------
+    // `system/integrationsHealth` is written exclusively by the
+    // `integrationsHealthCheck` callable and the every-5-days scheduled job
+    // (admin SDK bypasses these rules). Webmasters need to read it so the
+    // AppSidebar/BottomNav can surface a red indicator when any provider
+    // failed its last check.
+    match /system/{docId} {
+      allow read: if isWebmaster();
+      allow write: if false; // server only
+    }
   }
 }
