@@ -260,6 +260,7 @@ const BottomNav: React.FC = () => {
             {/* One-tap call/text the on-call webmaster — hidden for the
                 webmaster role (component handles gating). */}
             <WebmasterContactButtons className="w-full" />
+            <Button variant="ghost" size="sm" className="w-full justify-start gap-3" onClick={toggleTheme}>
               {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
               {theme === "light" ? "Dark Mode" : "Light Mode"}
             </Button>
