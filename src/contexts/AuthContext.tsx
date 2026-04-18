@@ -97,8 +97,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           doc(db, "users", firebaseUser.uid),
           async (snap) => {
             if (snap.exists()) {
-              setProfile(snap.data() as UserProfile);
+              const data = snap.data() as UserProfile;
+              setProfile(data);
               setLoading(false);
+              // If this real Firestore agent has a leftover local-roster
+              // placeholder with the same email, drop it now.
+              cleanupLocalAgentForEmail(data.email);
               return;
             }
             // Self-heal: legacy accounts that exist in Firebase Auth but were
@@ -123,6 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 createdAt: serverTimestamp(),
               });
               setProfile(fallback);
+              cleanupLocalAgentForEmail(fallback.email);
             } catch (e) {
               console.error("Self-heal failed to create users/{uid} doc:", e);
               setProfile(null);
