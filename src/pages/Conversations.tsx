@@ -594,6 +594,65 @@ const Conversations: React.FC = () => {
     }
   }, [conversations, searchParams, setSearchParams, showArchived]);
 
+  // Honor #<slug> deep links — Slack-channel conversations only. Resolves
+  // the slug against the current Slack-slug index, opens the matching
+  // thread, and warns when the slug is ambiguous (two threads share the
+  // same customer name) so the user knows to use the canonical /:id URL.
+  // Re-runs on hashchange so back/forward navigation works as expected.
+  useEffect(() => {
+    const tryResolveHash = () => {
+      const raw = window.location.hash.replace(/^#/, "").trim().toLowerCase();
+      if (!raw) return;
+      // Already on the right thread — nothing to do.
+      const current = conversations.find((c) => c.id === selectedId);
+      if (current && slugifyConversationName(current.customerName) === raw) return;
+
+      if (slackSlugs.duplicateSlugs.has(raw)) {
+        toast({
+          title: "Ambiguous link",
+          description: `Multiple Slack conversations share the slug "${raw}". Use the full /conversations/<id> link instead.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      const target = slackSlugs.bySlug.get(raw);
+      if (!target) return;
+      const archived = (target as any).archived === true;
+      if (archived && !showArchived) {
+        setShowArchived(true);
+        toast({
+          title: "Showing archived",
+          description: "Switched to archived view to surface this conversation.",
+        });
+      }
+      setSelectedId(target.id);
+    };
+    tryResolveHash();
+    window.addEventListener("hashchange", tryResolveHash);
+    return () => window.removeEventListener("hashchange", tryResolveHash);
+  }, [conversations, slackSlugs, selectedId, showArchived, setShowArchived]);
+
+  // When a Slack-channel conversation is selected, mirror its slug into
+  // window.location.hash so the user can copy the URL bar verbatim as a
+  // bookmark. Non-Slack channels (and slug-collisions) clear the hash
+  // back to nothing — the canonical /:id URL is enough on its own.
+  useEffect(() => {
+    if (!selected) return;
+    const desired =
+      selected.channel === "slack"
+        ? (() => {
+            const slug = slugifyConversationName(selected.customerName);
+            const owner = slug ? slackSlugs.bySlug.get(slug) : null;
+            return slug && owner && owner.id === selected.id ? `#${slug}` : "";
+          })()
+        : "";
+    if (window.location.hash === desired) return;
+    // Use replaceState so we don't pollute browser history with one entry
+    // per selection change.
+    const url = `${window.location.pathname}${window.location.search}${desired}`;
+    window.history.replaceState(window.history.state, "", url);
+  }, [selected, slackSlugs]);
+
   // Real-time messages listener for selected conversation
   useEffect(() => {
     if (!selectedId) return;
