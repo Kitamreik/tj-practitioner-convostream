@@ -75,6 +75,48 @@ async function pingSlack(input: NotifyWebmasterInput): Promise<boolean> {
   }
 }
 
+/**
+ * Send the fixed "review ConvoHub" alert to the team Slack channel.
+ * Used by the new Slack Alert button — no phone hand-off, no in-app bell
+ * fan-out, no cooldown gate. Returns true on best-effort send (no-cors
+ * means we can't read the response, but Slack still receives it).
+ */
+export async function pingWebmasterSlackAlert(input: {
+  agentName: string;
+  route: string;
+}): Promise<boolean> {
+  const url = getLocalSlackWebhookUrl();
+  if (!url || !url.startsWith("https://hooks.slack.com/")) return false;
+  const safe = (s: string) => String(s).replace(/[\u0000-\u001F\u007F]/g, " ").slice(0, 240);
+  const agent = safe(input.agentName);
+  const route = safe(input.route || "/");
+  const message =
+    "An agent has pinged this channel for review of the ConvoHub app. Please review or get Kit for scanning.";
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      mode: "no-cors",
+      body: JSON.stringify({
+        text: `:rotating_light: ${message} (from ${agent} · ${route})`,
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `:rotating_light: *${message}*\n>From *${agent}* on \`${route}\``,
+            },
+          },
+        ],
+      }),
+    });
+    return true;
+  } catch (e) {
+    console.warn("pingWebmasterSlackAlert: Slack ping failed:", e);
+    return false;
+  }
+}
+
 export async function notifyWebmasterOnContact(input: NotifyWebmasterInput): Promise<number> {
   // Fire Slack + the append-only contact log in parallel with the bell
   // fan-out so a slow Firestore query can't delay the heads-up.

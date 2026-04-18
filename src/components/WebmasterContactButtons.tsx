@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Phone, MessageSquare, Clock } from "lucide-react";
+import { Phone, MessageSquare, Clock, Bell } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -18,7 +18,8 @@ import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { subscribeCooldownMin, subscribeSlackWebhookUrl, DEFAULT_COOLDOWN_MIN, type CooldownMinutes } from "@/lib/webmasterCooldown";
-import { notifyWebmasterOnContact } from "@/lib/notifyWebmaster";
+import { notifyWebmasterOnContact, pingWebmasterSlackAlert } from "@/lib/notifyWebmaster";
+import { getLocalSlackWebhookUrl } from "@/lib/webmasterCooldown";
 
 /**
  * WebmasterContactButtons — direct call/SMS shortcuts to the on-call
@@ -103,9 +104,11 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
   // Live cooldown duration (minutes) — synced from appSettings/webmasterContact.
   const [cooldownMin, setCooldownMin] = useState<CooldownMinutes>(DEFAULT_COOLDOWN_MIN);
   useEffect(() => subscribeCooldownMin(setCooldownMin), []);
-  // Keep the team-wide Slack webhook URL hot in localStorage so the
-  // notifyWebmasterOnContact helper can read it synchronously.
-  useEffect(() => subscribeSlackWebhookUrl(() => {}), []);
+  // Track whether the team-wide Slack webhook is configured so we can
+  // disable the Slack Alert button (and explain why) when it's empty.
+  const [slackWebhook, setSlackWebhook] = useState<string>(() => getLocalSlackWebhookUrl());
+  useEffect(() => subscribeSlackWebhookUrl(setSlackWebhook), []);
+  const [slackSending, setSlackSending] = useState(false);
   const cooldownMs = cooldownMin * 60 * 1000;
 
   const lastKey = profile?.uid ? LAST_CONTACT_KEY_PREFIX + profile.uid : null;
@@ -261,8 +264,63 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
     recordContact(channel);
   };
 
+  // Slack Alert — fires the fixed "review ConvoHub" message to the team
+  // channel. Standalone from Call/Text: no dialer hand-off, no contact
+  // record, no cooldown gate. Disabled when the webhook isn't set.
+  const webhookConfigured = !!slackWebhook && slackWebhook.startsWith("https://hooks.slack.com/");
+  const handleSlackAlert = async () => {
+    if (!webhookConfigured || slackSending) return;
+    setSlackSending(true);
+    try {
+      const ok = await pingWebmasterSlackAlert({
+        agentName: senderName,
+        route: location.pathname,
+      });
+      toast({
+        title: ok ? "Slack channel pinged" : "Slack alert not sent",
+        description: ok
+          ? "The webmaster channel has been notified for review."
+          : "Webhook isn't configured. Ask the webmaster to set it on Settings.",
+        variant: ok ? undefined : "destructive",
+      });
+    } finally {
+      setSlackSending(false);
+    }
+  };
+
   return (
     <div className={["flex flex-col gap-1.5", className].filter(Boolean).join(" ")}>
+      {/* Slack Alert — sits above Call/Text. Independent escalation: pings
+          the team Slack channel with the fixed review message and never
+          opens the dialer/composer. Always visible (even during cooldown)
+          since it's a distinct channel. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!webhookConfigured || slackSending}
+            onClick={handleSlackAlert}
+            className="w-full justify-center gap-2 border-primary/40 text-primary hover:bg-primary/10"
+            aria-label="Send Slack alert asking the webmaster to review ConvoHub"
+          >
+            <Bell className="h-4 w-4" />
+            {compact ? null : <span>{slackSending ? "Sending…" : "Slack Alert"}</span>}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs max-w-[260px]">
+          {webhookConfigured ? (
+            <>
+              Pings the team Slack channel asking the webmaster to review ConvoHub.
+              <div className="mt-1 text-muted-foreground">No call or text is sent.</div>
+            </>
+          ) : (
+            <>Slack webhook isn't set. Ask the webmaster to configure it on Settings.</>
+          )}
+        </TooltipContent>
+      </Tooltip>
+
       {inCooldown ? (
         // Cooldown view: one button + confirm dialog. Mirrors the layout
         // height of the two-button row so the sidebar/sheet doesn't jump.
