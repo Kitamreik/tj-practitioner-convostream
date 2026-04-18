@@ -12,6 +12,7 @@ import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getActiveCount, subscribeRecordings } from "@/lib/fileRecordings";
 import { getBoolPref, subscribeBoolPref } from "@/lib/userPrefs";
+import { useIntegrationsHealth } from "@/hooks/useIntegrationsHealth";
 
 interface NavItem {
   label: string;
