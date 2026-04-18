@@ -102,6 +102,19 @@ const AppSidebar: React.FC = () => {
     return unsub;
   }, [userUid]);
 
+  // Active (non-resolved) staff updates — drives the red sidebar badge.
+  useEffect(() => {
+    const q = query(collection(db, "staff_updates"), where("status", "in", ["ongoing", "maintenance"]));
+    const unsub = onSnapshot(q, (snap) => setStaffActive(snap.size), () => setStaffActive(0));
+    return unsub;
+  }, []);
+
+  // Active file recordings — local-only, but updates live via custom event.
+  useEffect(() => {
+    setRecordingsActive(getActiveCount());
+    return subscribeRecordings(() => setRecordingsActive(getActiveCount()));
+  }, []);
+
   const totalUnread = unreadCounts.active + unreadCounts.waiting;
 
   const filteredNav = navItems.filter((item) => {
@@ -116,6 +129,8 @@ const AppSidebar: React.FC = () => {
   const getBadge = (item: NavItem) => {
     if (item.badgeKey === "conversations" && totalUnread > 0) return totalUnread;
     if (item.badgeKey === "notifications" && notificationCount > 0) return notificationCount;
+    if (item.badgeKey === "staff" && staffActive > 0) return staffActive;
+    if (item.badgeKey === "recordings" && recordingsActive > 0) return recordingsActive;
     return 0;
   };
 
