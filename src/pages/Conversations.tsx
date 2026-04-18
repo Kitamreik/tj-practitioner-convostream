@@ -1275,11 +1275,18 @@ const Conversations: React.FC = () => {
                 ) : (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" size="sm" onClick={() => setConfirmDeleteOpen(true)} className="px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive" aria-label="Delete conversation">
-                        <Trash2 className="h-3.5 w-3.5" />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setConfirmDeleteOpen(true)}
+                        className="gap-1.5 px-2 sm:px-3"
+                        aria-label="Archive conversation"
+                      >
+                        <ArchiveIcon className="h-3.5 w-3.5" />
+                        <span className="hidden lg:inline">Archive</span>
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Delete conversation</TooltipContent>
+                    <TooltipContent>Archive conversation</TooltipContent>
                   </Tooltip>
                 )}
                 <Tooltip>
@@ -1341,9 +1348,9 @@ const Conversations: React.FC = () => {
                   ) : (
                     <DropdownMenuItem
                       onClick={() => setConfirmDeleteOpen(true)}
-                      className="gap-2 text-destructive focus:text-destructive"
+                      className="gap-2"
                     >
-                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                      <ArchiveIcon className="h-3.5 w-3.5" /> Archive
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
@@ -1604,19 +1611,35 @@ const Conversations: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Confirm Delete */}
+      {/* Confirm Archive — explicit policy reminder so agents don't hide
+          a thread without a real reason. Wording was requested verbatim by
+          ops: archiving is reserved for clients who asked us to stand down. */}
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Move to Archive?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The thread will be hidden from your active list. You can restore it from the Archive page within 30 days, after which it will be permanently deleted.
+            <AlertDialogTitle className="flex items-center gap-2">
+              <ArchiveIcon className="h-5 w-5 text-warning" />
+              Archive this conversation?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span className="block font-medium text-foreground">
+                Archiving conversations should only be done if the client requested disengagement.
+              </span>
+              <span className="block">
+                The thread will be hidden from your active list and moved to the
+                Archive page. You can restore it from there within 30 days, after
+                which it will be permanently deleted.
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConversation} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Archive
+            <AlertDialogAction
+              onClick={handleDeleteConversation}
+              className="gap-1.5"
+            >
+              <ArchiveIcon className="h-4 w-4" />
+              Yes, archive
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
