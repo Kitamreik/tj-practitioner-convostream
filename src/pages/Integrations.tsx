@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { MessageSquare, Phone, Mail, Hash, Check, Settings, X, Lock, Webhook, Copy, Send, Activity, Loader2, AlertCircle } from "lucide-react";
+import { MessageSquare, Phone, Mail, Hash, Check, Settings, X, Lock, Webhook, Copy, Send, Activity, Loader2, AlertCircle, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db, functions } from "@/lib/firebase";
 import { httpsCallable } from "firebase/functions";
 import {
