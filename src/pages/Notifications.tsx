@@ -309,6 +309,12 @@ const Notifications: React.FC = () => {
     toast({ title: "Refreshed", description: "Notifications are up to date." });
   };
 
+  // Derived view: hide broadcasts when the user has muted them.
+  const visibleNotifications = muteBroadcasts
+    ? notifications.filter((n) => !n.broadcast)
+    : notifications;
+  const hiddenBroadcastCount = notifications.filter((n) => n.broadcast).length;
+
   return (
     <PullToRefresh onRefresh={handleRefresh} disabled={!isMobile} className="h-full">
       <div className="p-4 md:p-8 max-w-3xl mx-auto">
