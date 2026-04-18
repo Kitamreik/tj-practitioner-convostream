@@ -1,13 +1,15 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Paperclip, FileText, X, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { extractDocText, ExtractDocError } from "@/lib/extractDocText";
 
 const NewConversationDialog: React.FC = () => {
   const { toast } = useToast();
@@ -18,6 +20,60 @@ const NewConversationDialog: React.FC = () => {
   const [phone, setPhone] = useState("");
   const [channel, setChannel] = useState<string>("email");
   const [message, setMessage] = useState("");
+  const [attachedDocName, setAttachedDocName] = useState<string | null>(null);
+  const [attachedDocTruncated, setAttachedDocTruncated] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const reset = () => {
+    setName("");
+    setEmail("");
+    setPhone("");
+    setMessage("");
+    setChannel("email");
+    setAttachedDocName(null);
+    setAttachedDocTruncated(false);
+  };
+
+  /**
+   * Extract text from an uploaded document and prefill the message body so
+   * the agent can review & edit before the conversation lands in the queue.
+   * Supported: .txt/.md/.csv/.json/.html and simple .pdf (best-effort).
+   * The original file is NOT uploaded anywhere — only the extracted text is
+   * persisted with the conversation, which keeps storage cheap and avoids
+   * any binary-blob handling.
+   */
+  const handleFile = async (file: File | null) => {
+    if (!file) return;
+    setExtracting(true);
+    try {
+      const result = await extractDocText(file);
+      // Prepend a clear marker so agents can see the message was seeded from
+      // a document rather than typed by the customer.
+      const banner = `[Imported from ${result.sourceName}]\n\n`;
+      setMessage((prev) => (prev ? `${prev}\n\n${banner}${result.text}` : `${banner}${result.text}`));
+      setAttachedDocName(result.sourceName);
+      setAttachedDocTruncated(result.truncated);
+      toast({
+        title: "Document attached",
+        description: result.truncated
+          ? `${result.sourceName} extracted (truncated to 4 000 chars).`
+          : `${result.sourceName} extracted into the message.`,
+      });
+    } catch (err) {
+      const msg =
+        err instanceof ExtractDocError ? err.message : "Could not read this file.";
+      toast({ title: "Could not extract text", description: msg, variant: "destructive" });
+    } finally {
+      setExtracting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const clearAttachment = () => {
+    setAttachedDocName(null);
+    setAttachedDocTruncated(false);
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,11 +84,17 @@ const NewConversationDialog: React.FC = () => {
         customerName: name.trim(),
         customerEmail: email.trim(),
         customerPhone: phone.trim() || null,
-        lastMessage: message.trim(),
+        // Trim the preview to a single line for the queue list; the full
+        // text (including the imported document body) lives in the first
+        // message doc below.
+        lastMessage: message.trim().split(/\n+/)[0].slice(0, 240),
         channel,
         timestamp: serverTimestamp(),
         unread: true,
         status: "active",
+        ...(attachedDocName
+          ? { sourceDocName: attachedDocName, sourceDocTruncated: attachedDocTruncated }
+          : {}),
       });
       await addDoc(collection(db, "conversations", convoRef.id, "messages"), {
         conversationId: convoRef.id,
@@ -40,14 +102,16 @@ const NewConversationDialog: React.FC = () => {
         text: message.trim(),
         timestamp: serverTimestamp(),
         channel,
+        ...(attachedDocName ? { sourceDocName: attachedDocName } : {}),
       });
-      toast({ title: "Conversation created" });
+      toast({
+        title: "Conversation created",
+        description: attachedDocName
+          ? `Seeded from ${attachedDocName}.`
+          : undefined,
+      });
       setOpen(false);
-      setName("");
-      setEmail("");
-      setPhone("");
-      setMessage("");
-      setChannel("email");
+      reset();
     } catch (err: any) {
       toast({ title: "Failed to create conversation", description: err?.message, variant: "destructive" });
     } finally {
@@ -56,7 +120,13 @@ const NewConversationDialog: React.FC = () => {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) reset();
+      }}
+    >
       <DialogTrigger asChild>
         <Button size="sm" className="h-8 w-8 p-0">
           <Plus className="h-4 w-4" />
@@ -91,11 +161,66 @@ const NewConversationDialog: React.FC = () => {
               </SelectContent>
             </Select>
           </div>
+
           <div className="space-y-2">
-            <Label>Initial Message</Label>
-            <Input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="How can we help?" required />
+            <div className="flex items-center justify-between gap-2">
+              <Label>Initial Message</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.md,.csv,.json,.log,.html,.htm,.xml,.pdf,text/plain,text/csv,text/html,application/json,application/pdf"
+                className="hidden"
+                onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                disabled={extracting}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {extracting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Paperclip className="h-3.5 w-3.5" />
+                )}
+                {extracting ? "Reading…" : "Attach document"}
+              </Button>
+            </div>
+            <Textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="How can we help? Or attach a document to seed the message."
+              required
+              rows={5}
+              className="resize-y"
+            />
+            {attachedDocName && (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-xs">
+                <span className="flex items-center gap-1.5 text-muted-foreground truncate">
+                  <FileText className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{attachedDocName}</span>
+                  {attachedDocTruncated && (
+                    <span className="text-warning">· truncated</span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={clearAttachment}
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label="Remove attached document reference"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              Supported uploads: .txt, .md, .csv, .json, .html, .pdf (max 2MB). Only extracted
+              text is saved — the file itself is not uploaded.
+            </p>
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full" disabled={loading || extracting}>
             {loading ? "Creating..." : "Create Conversation"}
           </Button>
         </form>
