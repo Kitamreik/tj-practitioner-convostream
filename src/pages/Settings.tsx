@@ -57,6 +57,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { httpsCallable } from "firebase/functions";
 import { functions, db } from "@/lib/firebase";
+import { subscribeLocalAgents, type LocalAgent } from "@/lib/localAgents";
 import {
   collection,
   query,
