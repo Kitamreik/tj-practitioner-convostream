@@ -1664,6 +1664,49 @@ const SettingsPage: React.FC = () => {
                       </div>
                       <p className="text-xs text-muted-foreground truncate">{acc.email || acc.uid}</p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">Joined {formatTime(acc.createdAt)}</p>
+                      {/* Password row (webmaster vault). Shows masked dots
+                          unless the eye is toggled; falls back to
+                          localStorage when Firestore is unavailable. */}
+                      {(() => {
+                        const stored = getDisplayPassword(acc.uid);
+                        const revealed = revealedUid === acc.uid;
+                        return (
+                          <div className="mt-1 flex items-center gap-1.5 text-[11px]">
+                            <KeyRound className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-muted-foreground">Password:</span>
+                            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
+                              {stored ? (revealed ? stored : "•".repeat(Math.min(stored.length, 12))) : "(not set via vault)"}
+                            </code>
+                            {stored && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setRevealedUid(revealed ? null : acc.uid)}
+                                  className="text-muted-foreground hover:text-foreground"
+                                  aria-label={revealed ? "Hide password" : "Show password"}
+                                >
+                                  {revealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => copyPassword(acc.uid)}
+                                  className="text-muted-foreground hover:text-foreground"
+                                  aria-label="Copy password"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => openPasswordDialog(acc.uid)}
+                              className="ml-1 text-primary hover:underline"
+                            >
+                              {stored ? "Change" : "Set"}
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="flex flex-shrink-0 gap-2 flex-wrap">
                       {acc.escalatedAccess && acc.role !== "webmaster" && (
