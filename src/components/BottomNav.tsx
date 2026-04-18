@@ -208,6 +208,7 @@ const BottomNav: React.FC = () => {
               .map((item) => {
                 const badge = getBadge(item);
                 const isRed = item.badgeKey === "staff" || item.badgeKey === "recordings";
+                const showHealthDot = item.path === "/integrations" && integrationsFailing;
                 return (
                   <button
                     key={item.path}
@@ -217,8 +218,21 @@ const BottomNav: React.FC = () => {
                       location.pathname === item.path ? "bg-accent" : "hover:bg-muted/50"
                     )}
                   >
-                    {item.icon}
-                    <span className="flex-1 text-left">{item.label}</span>
+                    <span className="relative inline-flex">
+                      {item.icon}
+                      {showHealthDot && (
+                        <span
+                          className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-destructive ring-2 ring-background animate-pulse"
+                          aria-label="Integration issue"
+                        />
+                      )}
+                    </span>
+                    <span className="flex-1 text-left">
+                      {item.label}
+                      {showHealthDot && (
+                        <span className="ml-1 text-[10px] text-destructive font-semibold">• issue</span>
+                      )}
+                    </span>
                     {badge > 0 && (
                       <span className={cn(
                         "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
