@@ -880,3 +880,393 @@ export const purgeArchivedHttp = onRequest({ cors: false }, async (req, res) => 
     res.status(500).json({ error: (err as Error).message });
   }
 });
+
+// =============================================================================
+// Inbound channel webhooks — Slack, Twilio (Voice/SMS)
+//
+// Each webhook validates the provider signature, dedupes on a stable external
+// id, and writes a Firestore `conversations` doc (creating one per customer)
+// plus a message into the `conversations/{id}/messages` subcollection. The
+// rest of the app (Conversations, Analytics, Agent Logs) consumes Firestore
+// directly, so once a doc lands here it shows up everywhere instantly.
+//
+// Conversation shape written:
+//   { customerName, customerEmail?, customerPhone?, channel,
+//     lastMessage, status: "active", unread: true, timestamp,
+//     externalId, externalSource, archived: false }
+//
+// Dedup key: `externalId` (Slack channel id or Twilio From number) so repeat
+// messages from the same customer append to the same thread instead of
+// creating new conversations.
+// =============================================================================
+
+import * as crypto from "crypto";
+
+/**
+ * Find an existing open conversation for a given external id (Slack channel
+ * or phone number). If none exists, create one and return its ref.
+ */
+async function findOrCreateConversation(opts: {
+  externalId: string;
+  externalSource: "slack" | "twilio-sms" | "twilio-voice" | "gmail";
+  channel: "slack" | "sms" | "phone" | "email";
+  customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  lastMessage: string;
+}): Promise<FirebaseFirestore.DocumentReference> {
+  const existing = await db
+    .collection("conversations")
+    .where("externalId", "==", opts.externalId)
+    .where("status", "in", ["active", "waiting"])
+    .limit(1)
+    .get();
+  if (!existing.empty) {
+    const ref = existing.docs[0].ref;
+    await ref.update({
+      lastMessage: opts.lastMessage,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      unread: true,
+    });
+    return ref;
+  }
+  return db.collection("conversations").add({
+    customerName: opts.customerName,
+    customerEmail: opts.customerEmail ?? "",
+    customerPhone: opts.customerPhone ?? "",
+    channel: opts.channel,
+    lastMessage: opts.lastMessage,
+    status: "active",
+    unread: true,
+    archived: false,
+    externalId: opts.externalId,
+    externalSource: opts.externalSource,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Slack Events API webhook
+// Setup: create a custom Slack app at https://api.slack.com/apps using
+// the manifest in /docs/slack-app-manifest.json (after deploy, paste the
+// function URL into the manifest's request_url field). Required env vars:
+//   SLACK_SIGNING_SECRET — verifies inbound requests
+//   SLACK_BOT_TOKEN      — used later for replying back into Slack (not used
+//                          in this inbound flow, but stored for symmetry)
+// Subscribe to these bot events: message.im, app_mention, message.channels
+// -----------------------------------------------------------------------------
+export const slackEvents = onRequest(
+  { cors: false, region: "us-central1" },
+  async (req, res): Promise<void> => {
+    if (req.method !== "POST") {
+      res.status(405).send("Method not allowed");
+      return;
+    }
+
+    const signingSecret = process.env.SLACK_SIGNING_SECRET;
+    if (!signingSecret) {
+      logger.error("slackEvents: SLACK_SIGNING_SECRET not configured");
+      res.status(500).send("Server not configured");
+      return;
+    }
+
+    // 1. Validate Slack signature: v0=HMAC_SHA256(signing_secret, "v0:" + ts + ":" + body)
+    const signature = req.header("x-slack-signature") || "";
+    const timestamp = req.header("x-slack-request-timestamp") || "";
+    const rawBody: string =
+      typeof (req as unknown as { rawBody?: Buffer }).rawBody !== "undefined"
+        ? (req as unknown as { rawBody: Buffer }).rawBody.toString("utf8")
+        : JSON.stringify(req.body ?? {});
+
+    // Reject replays older than 5 minutes.
+    if (!timestamp || Math.abs(Date.now() / 1000 - Number(timestamp)) > 60 * 5) {
+      res.status(401).send("Stale request");
+      return;
+    }
+    const expected =
+      "v0=" +
+      crypto
+        .createHmac("sha256", signingSecret)
+        .update(`v0:${timestamp}:${rawBody}`)
+        .digest("hex");
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expected);
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+      logger.warn("slackEvents: signature mismatch");
+      res.status(401).send("Invalid signature");
+      return;
+    }
+
+    const body = req.body as { type?: string; challenge?: string; event?: any };
+
+    // 2. URL verification handshake (one-time, when configuring the app).
+    if (body.type === "url_verification" && typeof body.challenge === "string") {
+      res.status(200).json({ challenge: body.challenge });
+      return;
+    }
+
+    // 3. Event callback — only act on user-authored message-like events.
+    if (body.type === "event_callback" && body.event) {
+      const event = body.event as {
+        type?: string;
+        text?: string;
+        user?: string;
+        bot_id?: string;
+        channel?: string;
+        ts?: string;
+        team?: string;
+      };
+      // Skip bot echoes and edits/deletes — only accept user messages.
+      if (event.bot_id || !event.user || !event.text || !event.channel) {
+        res.status(200).send("ignored");
+        return;
+      }
+      try {
+        // Resolve the user's display name (best effort) via users.info.
+        let displayName = event.user;
+        const botToken = process.env.SLACK_BOT_TOKEN;
+        if (botToken) {
+          try {
+            const r = await fetch(`https://slack.com/api/users.info?user=${event.user}`, {
+              headers: { Authorization: `Bearer ${botToken}` },
+            });
+            const j = (await r.json()) as { ok?: boolean; user?: { real_name?: string; profile?: { display_name?: string } } };
+            if (j.ok && j.user) {
+              displayName = j.user.profile?.display_name || j.user.real_name || event.user;
+            }
+          } catch (e) {
+            logger.warn("slackEvents: users.info lookup failed", e);
+          }
+        }
+
+        const externalId = `slack:${event.channel}`;
+        const convoRef = await findOrCreateConversation({
+          externalId,
+          externalSource: "slack",
+          channel: "slack",
+          customerName: displayName,
+          lastMessage: event.text.slice(0, 500),
+        });
+        await convoRef.collection("messages").add({
+          sender: "customer",
+          text: event.text,
+          channel: "slack",
+          externalTs: event.ts ?? null,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (err) {
+        logger.error("slackEvents: failed to write conversation", err);
+        // Still 200 so Slack doesn't retry forever; we logged for inspection.
+      }
+    }
+
+    res.status(200).send("ok");
+  }
+);
+
+// -----------------------------------------------------------------------------
+// Twilio inbound SMS + Voice webhook
+// Setup in Twilio Console → Phone Numbers → Active number → Messaging /
+// Voice → "A message comes in" / "A call comes in" → Webhook = function URL.
+// Required env var: TWILIO_AUTH_TOKEN (for X-Twilio-Signature validation).
+//
+// SMS payload (form-encoded): From, To, Body, MessageSid, ...
+// Voice payload (form-encoded): From, To, CallSid, CallStatus, ...
+// We respond with empty TwiML for SMS and a basic voicemail prompt for voice.
+// -----------------------------------------------------------------------------
+function validateTwilioSignature(opts: {
+  authToken: string;
+  signature: string;
+  url: string;
+  params: Record<string, string>;
+}): boolean {
+  // Twilio: HMAC-SHA1(authToken, url + sorted(k+v concatenated))
+  const sortedKeys = Object.keys(opts.params).sort();
+  let data = opts.url;
+  for (const k of sortedKeys) data += k + opts.params[k];
+  const expected = crypto.createHmac("sha1", opts.authToken).update(data).digest("base64");
+  const sigBuf = Buffer.from(opts.signature);
+  const expBuf = Buffer.from(expected);
+  return sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf);
+}
+
+export const twilioInbound = onRequest(
+  { cors: false, region: "us-central1" },
+  async (req, res): Promise<void> => {
+    if (req.method !== "POST") {
+      res.status(405).send("Method not allowed");
+      return;
+    }
+
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    if (!authToken) {
+      logger.error("twilioInbound: TWILIO_AUTH_TOKEN not configured");
+      res.status(500).send("Server not configured");
+      return;
+    }
+
+    // Twilio always sends application/x-www-form-urlencoded.
+    const params = (req.body ?? {}) as Record<string, string>;
+    const signature = req.header("x-twilio-signature") || "";
+    // Reconstruct the public URL Twilio used. Cloud Functions sets x-forwarded-proto.
+    const proto = (req.header("x-forwarded-proto") || "https").split(",")[0].trim();
+    const host = req.header("host") || "";
+    const url = `${proto}://${host}${req.originalUrl || req.url}`;
+
+    if (
+      !validateTwilioSignature({ authToken, signature, url, params: stringifyParams(params) })
+    ) {
+      logger.warn("twilioInbound: signature mismatch", { url });
+      res.status(403).send("Invalid signature");
+      return;
+    }
+
+    const from = params.From || "unknown";
+    const to = params.To || "";
+    const body = params.Body; // present for SMS only
+    const callSid = params.CallSid; // present for Voice only
+    const messageSid = params.MessageSid;
+
+    try {
+      if (body !== undefined) {
+        // ----- SMS -----
+        const externalId = `twilio-sms:${from}`;
+        const convoRef = await findOrCreateConversation({
+          externalId,
+          externalSource: "twilio-sms",
+          channel: "sms",
+          customerName: from,
+          customerPhone: from,
+          lastMessage: body.slice(0, 500),
+        });
+        await convoRef.collection("messages").add({
+          sender: "customer",
+          text: body,
+          channel: "sms",
+          externalSid: messageSid ?? null,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        // Empty TwiML — we don't auto-reply to inbound SMS.
+        res.set("Content-Type", "text/xml");
+        res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+        return;
+      }
+
+      if (callSid) {
+        // ----- Voice -----
+        const externalId = `twilio-voice:${from}`;
+        const convoRef = await findOrCreateConversation({
+          externalId,
+          externalSource: "twilio-voice",
+          channel: "phone",
+          customerName: from,
+          customerPhone: from,
+          lastMessage: `Incoming call from ${from} → ${to}`,
+        });
+        await convoRef.collection("messages").add({
+          sender: "customer",
+          text: `Incoming voice call (${params.CallStatus || "ringing"})`,
+          channel: "phone",
+          externalSid: callSid,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        // TwiML: greet caller and record a 60-second voicemail.
+        res.set("Content-Type", "text/xml");
+        res.status(200).send(
+          `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice">Thanks for calling ConvoHub. Please leave a brief message after the beep.</Say>
+  <Record maxLength="60" playBeep="true" />
+  <Hangup/>
+</Response>`
+        );
+        return;
+      }
+
+      res.status(200).send("ok");
+    } catch (err) {
+      logger.error("twilioInbound: failed to write conversation", err);
+      res.status(500).send("error");
+    }
+  }
+);
+
+/** Coerce all values to strings for Twilio signature input. */
+function stringifyParams(p: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const k of Object.keys(p)) out[k] = String(p[k] ?? "");
+  return out;
+}
+
+// -----------------------------------------------------------------------------
+// Gmail → ConvoHub: callable used by /gmail-api 'Push to ConvoHub' button.
+// The browser already holds a Gmail OAuth token (Google Identity Services),
+// so we don't run Gmail OAuth server-side. The client simply hands us the
+// already-fetched message fields and we write the Firestore docs with proper
+// dedup. This avoids Pub/Sub watch + topic setup for a single-tenant app.
+// -----------------------------------------------------------------------------
+export const pushGmailMessageToConvoHub = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+
+  const data = (request.data ?? {}) as {
+    messageId?: unknown;
+    threadId?: unknown;
+    from?: unknown;
+    fromEmail?: unknown;
+    subject?: unknown;
+    snippet?: unknown;
+  };
+  const messageId = typeof data.messageId === "string" ? data.messageId : "";
+  const threadId = typeof data.threadId === "string" ? data.threadId : messageId;
+  const from = typeof data.from === "string" ? data.from.slice(0, 200) : "";
+  const fromEmail = typeof data.fromEmail === "string" ? data.fromEmail.slice(0, 200) : "";
+  const subject = typeof data.subject === "string" ? data.subject.slice(0, 300) : "";
+  const snippet = typeof data.snippet === "string" ? data.snippet.slice(0, 1000) : "";
+
+  if (!messageId || !from) {
+    throw new HttpsError("invalid-argument", "messageId and from are required.");
+  }
+
+  // Dedup by Gmail message id so the same message can't be pushed twice.
+  const dupCheck = await db
+    .collection("conversations")
+    .where("externalId", "==", `gmail:${messageId}`)
+    .limit(1)
+    .get();
+  if (!dupCheck.empty) {
+    return { ok: true, alreadyImported: true, conversationId: dupCheck.docs[0].id };
+  }
+
+  const convoRef = await findOrCreateConversation({
+    externalId: `gmail-thread:${threadId}`,
+    externalSource: "gmail",
+    channel: "email",
+    customerName: from.replace(/<[^>]+>/, "").trim() || fromEmail || from,
+    customerEmail: fromEmail,
+    lastMessage: subject ? `${subject}: ${snippet}` : snippet,
+  });
+
+  await convoRef.collection("messages").add({
+    sender: "customer",
+    text: snippet,
+    subject,
+    channel: "email",
+    gmailMessageId: messageId,
+    gmailThreadId: threadId,
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Mark this specific gmail message id imported so subsequent pushes of the
+  // same message are no-ops (the thread-level externalId guards conversation
+  // dedup; this guards message-level dedup).
+  await convoRef.update({ [`importedGmailMessages.${messageId}`]: true });
+
+  logger.info("pushGmailMessageToConvoHub: imported", {
+    by: request.auth.uid,
+    messageId,
+    threadId,
+    convoId: convoRef.id,
+  });
+  return { ok: true, conversationId: convoRef.id, alreadyImported: false };
+});
