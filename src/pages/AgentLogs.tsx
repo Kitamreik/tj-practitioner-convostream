@@ -340,9 +340,34 @@ const AgentLogs: React.FC = () => {
                     </div>
                     <span className="text-sm font-medium text-foreground truncate">{agentName}</span>
                   </div>
-                  <Badge variant="outline" className="text-[10px]">
-                    {rows.length} resolved
-                  </Badge>
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {(() => {
+                      const m = metricsByAgent.get(agentName);
+                      const avg = m?.avgResolveMs;
+                      const week = m?.resolvedThisWeek ?? 0;
+                      return (
+                        <>
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px]"
+                            title="Resolved between Monday 00:00 and now (your local timezone)"
+                          >
+                            {week} this week
+                          </Badge>
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px]"
+                            title="Average time from first message (or earliest record) to resolution"
+                          >
+                            {avg != null ? `avg ${formatDuration(avg)}` : "avg —"}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px]">
+                            {rows.length} resolved
+                          </Badge>
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
                 <ul className="divide-y divide-border">
                   {rows.map((r) => (
