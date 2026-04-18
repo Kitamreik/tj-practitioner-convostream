@@ -790,16 +790,50 @@ const Conversations: React.FC = () => {
 
   const handleSend = async () => {
     if (!replyText.trim() || !selectedId || usingFallback) return;
+    const textToSend = replyText.trim();
+    const agentName = profile?.displayName || "Agent";
     try {
       await addDoc(collection(db, "conversations", selectedId, "messages"), {
         conversationId: selectedId,
         sender: "agent",
-        text: replyText.trim(),
+        text: textToSend,
         timestamp: serverTimestamp(),
         channel: selected?.channel || "email",
-        agentName: profile?.displayName || "Agent",
+        agentName,
       });
       setReplyText("");
+
+      // Outbound Slack: if this conversation originated from a Slack channel,
+      // mirror the agent's reply back into Slack via the bot token. Failures
+      // are surfaced as a toast but do not block the local message — the
+      // ConvoHub thread is still the source of truth.
+      if (selected && selected.channel === "slack") {
+        try {
+          const fn = httpsCallable<
+            { conversationId: string; text: string; agentName: string },
+            { ok: boolean; ts: string | null }
+          >(functions, "replyToSlackChannel");
+          const res = await fn({ conversationId: selectedId, text: textToSend, agentName });
+          if (res.data.ok) {
+            toast({
+              title: "Reply sent to Slack",
+              description: "Posted back to the originating channel.",
+            });
+          }
+        } catch (err: any) {
+          const msg = String(err?.message || err);
+          // "failed-precondition" = SLACK_BOT_TOKEN not set or convo missing externalId.
+          // Treat as informational so demo conversations don't spam errors.
+          const isConfig = msg.includes("SLACK_BOT_TOKEN") || msg.includes("Slack channel id");
+          toast({
+            title: isConfig ? "Slack not configured" : "Slack post failed",
+            description: isConfig
+              ? "Set SLACK_BOT_TOKEN on the function to mirror replies back to Slack."
+              : msg,
+            variant: isConfig ? "default" : "destructive",
+          });
+        }
+      }
     } catch (e) {
       console.error("Failed to send message:", e);
     }
