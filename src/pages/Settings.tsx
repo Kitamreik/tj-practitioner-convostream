@@ -1768,6 +1768,67 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
 
+        {/* Webmaster-only: Set/change password dialog */}
+        {isWebmaster && (
+          <Dialog
+            open={!!pwDialogUid}
+            onOpenChange={(o) => {
+              if (!o) {
+                setPwDialogUid(null);
+                setPwDraft("");
+              }
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4 text-primary" />
+                  {(() => {
+                    const acc = accounts.find((a) => a.uid === pwDialogUid);
+                    return `Set password for ${acc?.displayName || acc?.email || "user"}`;
+                  })()}
+                </DialogTitle>
+                <DialogDescription>
+                  Updates Firebase Auth immediately. The value is mirrored to{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-[11px]">managedPasswords/{pwDialogUid ?? "{uid}"}</code>{" "}
+                  and your local browser cache so you can look it up later.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <Label htmlFor="managed-password">New password</Label>
+                <Input
+                  id="managed-password"
+                  type="text"
+                  value={pwDraft}
+                  onChange={(e) => setPwDraft(e.target.value)}
+                  placeholder="At least 6 characters"
+                  className="font-mono"
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground">
+                  The user can sign in with this password right away. Existing sessions remain valid until they sign out.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => { setPwDialogUid(null); setPwDraft(""); }} disabled={pwSaving}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    const acc = accounts.find((a) => a.uid === pwDialogUid);
+                    if (acc) saveManagedPassword(acc.uid, acc.email);
+                  }}
+                  disabled={pwSaving || pwDraft.length < 6}
+                  className="gap-1.5"
+                >
+                  <KeyRound className="h-3.5 w-3.5" />
+                  {pwSaving ? "Saving…" : "Save password"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
         {/* Shared revoke-escalation dialog (controlled) */}
         {isWebmaster && (
           <Dialog
