@@ -113,7 +113,22 @@ service cloud.firestore {
     // contain every user's email/UID/user-agent and constitute a sensitive
     // audit log. The /audit UI is already webmaster-gated.
     match /login_attempts/{id} {
-      allow create: if true; // login flow logs even for failed attempts
+      // Schema-guarded anonymous append: prevents audit log pollution by
+      // rejecting documents with extra/missing fields, wrong types, or
+      // oversized strings. Reads/deletes remain webmaster-only.
+      allow create: if request.resource.data.keys().hasOnly(['email','success','uid','timestamp','userAgent'])
+        && request.resource.data.keys().hasAll(['email','success','timestamp'])
+        && request.resource.data.email is string
+        && request.resource.data.email.size() > 0
+        && request.resource.data.email.size() <= 320
+        && request.resource.data.success is bool
+        && (!('uid' in request.resource.data)
+            || request.resource.data.uid == null
+            || (request.resource.data.uid is string && request.resource.data.uid.size() <= 128))
+        && (!('userAgent' in request.resource.data)
+            || request.resource.data.userAgent == null
+            || (request.resource.data.userAgent is string && request.resource.data.userAgent.size() <= 1024))
+        && request.resource.data.timestamp == request.time;
       allow read, delete: if isWebmaster();
       allow update: if false;
     }
