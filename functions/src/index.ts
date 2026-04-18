@@ -1314,7 +1314,12 @@ export const replyToSlackChannel = onCall(async (request) => {
   // id is never trusted from the client.
   const convoSnap = await db.doc(`conversations/${conversationId}`).get();
   if (!convoSnap.exists) throw new HttpsError("not-found", "Conversation not found.");
-  const convo = convoSnap.data() as { externalId?: string; externalSource?: string; channel?: string };
+  const convo = convoSnap.data() as {
+    externalId?: string;
+    externalSource?: string;
+    channel?: string;
+    slackThreadTs?: string;
+  };
   if (convo.channel !== "slack" || convo.externalSource !== "slack") {
     throw new HttpsError("failed-precondition", "Conversation is not a Slack thread.");
   }
@@ -1322,12 +1327,18 @@ export const replyToSlackChannel = onCall(async (request) => {
   const channelId = externalId.startsWith("slack:") ? externalId.slice("slack:".length) : "";
   if (!channelId) throw new HttpsError("failed-precondition", "Conversation is missing a Slack channel id.");
 
+  // Thread continuity: prefer an explicit threadTs from the caller; otherwise
+  // reuse the ts we recorded the first time we posted to (or received from)
+  // this channel. This keeps every agent reply nested under the original
+  // Slack message instead of cluttering the channel with top-level posts.
+  const effectiveThreadTs = threadTs || convo.slackThreadTs || undefined;
+
   // Strip control characters defensively before forwarding to Slack.
   const safeText = text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ");
   const payload: Record<string, unknown> = {
     channel: channelId,
     text: `*${agentName}:* ${safeText}`,
-    ...(threadTs ? { thread_ts: threadTs } : {}),
+    ...(effectiveThreadTs ? { thread_ts: effectiveThreadTs } : {}),
   };
 
   let slackJson: { ok?: boolean; ts?: string; error?: string; channel?: string };
@@ -1351,11 +1362,30 @@ export const replyToSlackChannel = onCall(async (request) => {
     throw new HttpsError("internal", `Slack error: ${slackJson.error || "unknown"}`);
   }
 
+  // Persist the very first ts we see on this conversation so future replies
+  // can use it as thread_ts. Don't overwrite an existing value (the inbound
+  // Slack webhook may have already recorded the customer's original ts).
+  if (slackJson.ts && !convo.slackThreadTs) {
+    try {
+      await convoSnap.ref.update({ slackThreadTs: slackJson.ts });
+    } catch (err) {
+      // Non-fatal — the message is already in Slack; we just lose threading
+      // continuity for the next reply.
+      logger.warn("replyToSlackChannel: failed to record slackThreadTs", err);
+    }
+  }
+
   logger.info("replyToSlackChannel: posted", {
     by: request.auth.uid,
     conversationId,
     channelId,
     ts: slackJson.ts,
+    threadTs: effectiveThreadTs ?? null,
   });
-  return { ok: true, ts: slackJson.ts ?? null, channel: slackJson.channel ?? channelId };
+  return {
+    ok: true,
+    ts: slackJson.ts ?? null,
+    threadTs: effectiveThreadTs ?? slackJson.ts ?? null,
+    channel: slackJson.channel ?? channelId,
+  };
 });

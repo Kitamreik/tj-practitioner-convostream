@@ -793,7 +793,7 @@ const Conversations: React.FC = () => {
     const textToSend = replyText.trim();
     const agentName = profile?.displayName || "Agent";
     try {
-      await addDoc(collection(db, "conversations", selectedId, "messages"), {
+      const messageRef = await addDoc(collection(db, "conversations", selectedId, "messages"), {
         conversationId: selectedId,
         sender: "agent",
         text: textToSend,
@@ -811,13 +811,28 @@ const Conversations: React.FC = () => {
         try {
           const fn = httpsCallable<
             { conversationId: string; text: string; agentName: string },
-            { ok: boolean; ts: string | null }
+            { ok: boolean; ts: string | null; threadTs: string | null }
           >(functions, "replyToSlackChannel");
           const res = await fn({ conversationId: selectedId, text: textToSend, agentName });
           if (res.data.ok) {
+            // Persist the Slack ts on the message so we can correlate edits /
+            // reactions later, and so support engineers can trace a single
+            // ConvoHub message back to its Slack post.
+            if (res.data.ts) {
+              try {
+                await updateDoc(messageRef, {
+                  slackTs: res.data.ts,
+                  slackThreadTs: res.data.threadTs ?? res.data.ts,
+                });
+              } catch {
+                /* non-fatal — message already saved locally */
+              }
+            }
             toast({
               title: "Reply sent to Slack",
-              description: "Posted back to the originating channel.",
+              description: res.data.threadTs && res.data.threadTs !== res.data.ts
+                ? "Threaded under the original Slack message."
+                : "Posted back to the originating channel.",
             });
           }
         } catch (err: any) {
