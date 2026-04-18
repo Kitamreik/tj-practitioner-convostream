@@ -17,11 +17,13 @@ import {
   Archive as ArchiveIcon,
   ScrollText,
   Megaphone,
+  FileVideo,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getActiveCount, subscribeRecordings } from "@/lib/fileRecordings";
 
 interface NavItem {
   label: string;
@@ -37,7 +39,8 @@ const navItems: NavItem[] = [
   { label: "Conversations", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" },
   { label: "Agents", icon: <Users className="h-5 w-5" />, path: "/agents" },
   { label: "Agent Logs", icon: <ScrollText className="h-5 w-5" />, path: "/agent-logs" },
-  { label: "Staff Updates", icon: <Megaphone className="h-5 w-5" />, path: "/staff-updates" },
+  { label: "Staff Updates", icon: <Megaphone className="h-5 w-5" />, path: "/staff-updates", badgeKey: "staff" },
+  { label: "File Recordings", icon: <FileVideo className="h-5 w-5" />, path: "/file-recordings", badgeKey: "recordings" },
   { label: "Notifications", icon: <Bell className="h-5 w-5" />, path: "/notifications", badgeKey: "notifications" },
   { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations", webmasterOrEscalated: true },
   { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit", roles: ["webmaster"] },
@@ -53,8 +56,9 @@ const AppSidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({ active: 0, waiting: 0 });
-
   const [notificationCount, setNotificationCount] = useState(0);
+  const [staffActive, setStaffActive] = useState(0);
+  const [recordingsActive, setRecordingsActive] = useState<number>(() => getActiveCount());
 
   // Listen for unread conversations
   useEffect(() => {
