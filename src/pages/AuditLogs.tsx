@@ -550,8 +550,8 @@ const AuditLogs: React.FC = () => {
           </TabsTrigger>
           <TabsTrigger value="people" className="gap-2">
             <UserPlus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">New People</span>
-            <span className="sm:hidden">People</span>
+            <span className="hidden sm:inline">New Agents</span>
+            <span className="sm:hidden">Agents</span>
           </TabsTrigger>
         </TabsList>
 
