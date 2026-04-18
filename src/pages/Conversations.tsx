@@ -744,7 +744,7 @@ const Conversations: React.FC = () => {
     toast({ title: "Status updated", description: `Conversation is now ${newStatus}.` });
   };
 
-  const handleChangeChannel = async (newChannel: "sms" | "phone" | "email" | "slack") => {
+  const handleChangeChannel = async (newChannel: "sms" | "phone" | "email" | "slack" | "mobile") => {
     if (!selectedId) return;
     setConversations((prev) =>
       prev.map((c) => (c.id === selectedId ? { ...c, channel: newChannel } : c))
