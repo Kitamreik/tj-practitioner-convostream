@@ -10,6 +10,7 @@ import { Plug, Shield, Mail, Settings as SettingsIcon, LogOut, Moon, Sun, Archiv
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getActiveCount, subscribeRecordings } from "@/lib/fileRecordings";
+import { getBoolPref, subscribeBoolPref } from "@/lib/userPrefs";
 
 interface NavItem {
   label: string;
@@ -78,6 +79,15 @@ const BottomNav: React.FC = () => {
     return subscribeRecordings(() => setRecordingsActive(getActiveCount()));
   }, []);
 
+  // "Mute team broadcasts" preference (set on /notifications). When ON we
+  // overlay a small indicator dot on the bell so the user remembers that
+  // Staff Updates / File Recordings are hidden.
+  const [broadcastsMuted, setBroadcastsMuted] = useState(false);
+  useEffect(() => {
+    setBroadcastsMuted(getBoolPref(userUid, "notifications.muteBroadcasts", false));
+    return subscribeBoolPref(userUid, "notifications.muteBroadcasts", setBroadcastsMuted);
+  }, [userUid]);
+
   const getBadge = (item: NavItem) => {
     if (item.badgeKey === "conversations") return unread;
     if (item.badgeKey === "notifications") return notifs;
@@ -118,6 +128,13 @@ const BottomNav: React.FC = () => {
                 <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
                   {badge > 9 ? "9+" : badge}
                 </span>
+              )}
+              {item.badgeKey === "notifications" && broadcastsMuted && badge === 0 && (
+                <span
+                  className="absolute -right-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-warning ring-2 ring-background"
+                  aria-label="Team broadcasts muted"
+                  title="Team broadcasts muted"
+                />
               )}
             </div>
             <span>{item.label}</span>
