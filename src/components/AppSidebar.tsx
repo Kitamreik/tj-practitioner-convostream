@@ -35,6 +35,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Conversations", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" },
   { label: "Agents", icon: <Users className="h-5 w-5" />, path: "/agents" },
+  { label: "Agent Logs", icon: <ScrollText className="h-5 w-5" />, path: "/agent-logs" },
   { label: "Notifications", icon: <Bell className="h-5 w-5" />, path: "/notifications", badgeKey: "notifications" },
   { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations", webmasterOrEscalated: true },
   { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit", roles: ["webmaster"] },
