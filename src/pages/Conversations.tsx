@@ -673,9 +673,22 @@ const Conversations: React.FC = () => {
     }
     toast({
       title: newStatus === "resolved" ? "Resolved" : "Reopened",
-      description: newStatus === "resolved" ? "Conversation marked as resolved." : "Conversation reopened to active.",
+      description:
+        newStatus === "resolved"
+          ? "Moved to Agent Logs. View it from the Agent Logs tab."
+          : "Conversation reopened to active.",
     });
   };
+
+  // Auto-clear selection when the currently selected conversation is resolved
+  // (it's no longer in the visible list, so showing it in the right pane is
+  // confusing — the user should see the empty state instead).
+  useEffect(() => {
+    if (!selected) return;
+    if (!showArchived && selected.status === "resolved") {
+      setSelectedId(null);
+    }
+  }, [selected, showArchived]);
 
   const handleChangeStatus = async (newStatus: "active" | "waiting" | "resolved") => {
     if (!selectedId) return;
