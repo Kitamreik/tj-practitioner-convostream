@@ -23,7 +23,9 @@ interface VoiceActivity {
   timestamp: any;
 }
 
-const fallbackAgentWorkload: AgentWorkloadData[] = [
+// Sample data shown only when no real agents exist yet on the Agents page
+// (i.e. brand-new tenant). Once real agents are added, this is never used.
+const sampleAgentWorkload: AgentWorkloadData[] = [
   { name: "Alice Johnson", active: 12, waiting: 3, resolved: 45 },
   { name: "Bob Smith", active: 8, waiting: 5, resolved: 38 },
   { name: "Carol Davis", active: 15, waiting: 2, resolved: 52 },
