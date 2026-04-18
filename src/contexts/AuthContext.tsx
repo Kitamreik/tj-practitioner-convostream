@@ -9,12 +9,11 @@ import {
 import {
   doc,
   setDoc,
-  collection,
-  addDoc,
   onSnapshot,
   serverTimestamp,
 } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { auth, db, functions } from "@/lib/firebase";
 import { listLocalAgents, removeLocalAgent } from "@/lib/localAgents";
 
 export type UserRole = "agent" | "admin" | "webmaster";
@@ -42,17 +41,23 @@ const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 export const useAuth = () => useContext(AuthContext);
 
-async function logLoginAttempt(email: string, success: boolean, uid?: string) {
+/**
+ * Successful sign-ins are audited server-side by the `recordSuccessfulSignIn`
+ * Auth blocking function (admin SDK). For FAILED sign-ins we call a public
+ * Cloud Function which writes the attempt with admin privileges and applies
+ * rate-limiting. The Firestore rule for `login_attempts` is locked to
+ * `allow create: if false` so no client write path remains.
+ */
+async function logFailedLoginAttempt(email: string): Promise<void> {
   try {
-    await addDoc(collection(db, "login_attempts"), {
-      email,
-      success,
-      uid: uid || null,
-      timestamp: serverTimestamp(),
-      userAgent: navigator.userAgent,
-    });
+    const fn = httpsCallable<{ email: string }, { ok: boolean }>(
+      functions,
+      "recordFailedLoginAttempt"
+    );
+    await fn({ email });
   } catch (e) {
-    console.error("Failed to log login attempt:", e);
+    // Audit must never block the user-facing flow.
+    console.warn("Failed to record failed login attempt:", e);
   }
 }
 
@@ -154,10 +159,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      await logLoginAttempt(email, true, cred.user.uid);
+      await signInWithEmailAndPassword(auth, email, password);
+      // Successful sign-ins are audited server-side via the
+      // `recordSuccessfulSignIn` Auth blocking function — nothing to do here.
     } catch (error) {
-      await logLoginAttempt(email, false);
+      await logFailedLoginAttempt(email);
       throw error;
     }
   };
