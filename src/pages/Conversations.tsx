@@ -28,6 +28,7 @@ import {
   Link2,
   Share2,
   Users as UsersIcon,
+  Footprints,
 } from "lucide-react";
 import {
   AlertDialog,
