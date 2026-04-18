@@ -36,26 +36,38 @@ export async function logNoteAudit(entry: NoteAuditEntry): Promise<void> {
   }
 }
 
-export interface PeopleAuditEntry {
-  /** Doc id of the new person (or "local" for fallback mode). */
+/**
+ * Audit entry for a newly-created agent. Persisted to the `peopleAudit`
+ * collection (kept for backward compatibility — the same Firestore rules
+ * already apply) but rendered on the Audit Logs page as "New Agents".
+ *
+ * `source` distinguishes how the agent entered the roster:
+ *   - "manual" — webmaster used the "Add agent" dialog (local roster only)
+ *   - "invite" — webmaster generated a signup link via the invite dialog
+ */
+export interface AgentAuditEntry {
+  /** Stable id (local:<email> for manual adds, uid for invites). */
   personId: string;
   name: string;
   email?: string;
-  phone?: string;
+  source: "manual" | "invite";
   actor: string;
 }
 
-export async function logPersonCreated(entry: PeopleAuditEntry): Promise<void> {
+export async function logAgentCreated(entry: AgentAuditEntry): Promise<void> {
   try {
     await addDoc(collection(db, "peopleAudit"), {
       personId: entry.personId,
       name: sanitizeText(entry.name).slice(0, 80),
       email: sanitizeText(entry.email || "").slice(0, 254),
-      phone: sanitizeText(entry.phone || "").slice(0, 32),
+      // `phone` retained as empty string so existing AuditLogs readers don't
+      // crash on undefined; semantically agents don't carry phone numbers.
+      phone: "",
+      source: entry.source === "invite" ? "invite" : "manual",
       actor: sanitizeText(entry.actor || "Unknown").slice(0, 80),
       timestamp: serverTimestamp(),
     });
   } catch (err) {
-    console.warn("peopleAudit write failed:", err);
+    console.warn("agentAudit write failed:", err);
   }
 }
