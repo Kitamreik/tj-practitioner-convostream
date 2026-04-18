@@ -105,6 +105,24 @@ const Notifications: React.FC = () => {
   const [draftTitle, setDraftTitle] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
 
+  // Per-user preference: hide team-wide broadcasts (Staff Updates / File
+  // Recordings) so an agent can opt out of every team alert without losing
+  // their personal notes. Persisted in localStorage namespaced by uid.
+  const [muteBroadcasts, setMuteBroadcastsState] = useState<boolean>(false);
+  useEffect(() => {
+    setMuteBroadcastsState(getBoolPref(user?.uid, "notifications.muteBroadcasts", false));
+  }, [user?.uid]);
+  const setMuteBroadcasts = (v: boolean) => {
+    setMuteBroadcastsState(v);
+    setBoolPref(user?.uid, "notifications.muteBroadcasts", v);
+    toast({
+      title: v ? "Broadcasts muted" : "Broadcasts unmuted",
+      description: v
+        ? "Team-wide Staff Updates and File Recordings will be hidden here."
+        : "You'll see team-wide Staff Updates and File Recordings again.",
+    });
+  };
+
   // Agent workload — surfaced here for non-escalated admins (Analytics is hidden for them).
   const showWorkload =
     profile?.role === "admin" && profile?.escalatedAccess !== true;
@@ -161,6 +179,7 @@ const Notifications: React.FC = () => {
             description: data.description || "",
             read: !!data.read,
             isNote: !!data.isNote,
+            broadcast: !!data.broadcast,
             createdAt: data.createdAt,
             time: formatTime(data.createdAt),
           };
