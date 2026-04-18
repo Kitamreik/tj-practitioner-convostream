@@ -103,6 +103,9 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
   // Live cooldown duration (minutes) — synced from appSettings/webmasterContact.
   const [cooldownMin, setCooldownMin] = useState<CooldownMinutes>(DEFAULT_COOLDOWN_MIN);
   useEffect(() => subscribeCooldownMin(setCooldownMin), []);
+  // Keep the team-wide Slack webhook URL hot in localStorage so the
+  // notifyWebmasterOnContact helper can read it synchronously.
+  useEffect(() => subscribeSlackWebhookUrl(() => {}), []);
   const cooldownMs = cooldownMin * 60 * 1000;
 
   const lastKey = profile?.uid ? LAST_CONTACT_KEY_PREFIX + profile.uid : null;
