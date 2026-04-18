@@ -30,6 +30,13 @@ import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import PullToRefresh from "@/components/PullToRefresh";
 import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  addLocalAgent,
+  removeLocalAgent,
+  subscribeLocalAgents,
+  type LocalAgent,
+} from "@/lib/localAgents";
+import { Trash2 } from "lucide-react";
 
 interface AgentRow {
   uid: string;
@@ -38,6 +45,8 @@ interface AgentRow {
   role: "agent" | "admin" | "webmaster";
   escalatedAccess?: boolean;
   createdAt?: any;
+  /** True when this row is a manually-added local agent (no Firestore doc). */
+  isLocal?: boolean;
 }
 
 interface OpenConvo {
@@ -74,6 +83,17 @@ const Agents: React.FC = () => {
   // Live open conversations across the whole tenant so each agent row can
   // show their current load + an Overloaded badge without a Settings detour.
   const [openConvos, setOpenConvos] = useState<OpenConvo[]>([]);
+
+  // Manually-added agents (localStorage). These are merged with the Firestore
+  // users list so they show up in the roster + the assign-agent dropdown
+  // even before they sign up. agent1/agent2 are seeded by default.
+  const [localAgents, setLocalAgents] = useState<LocalAgent[]>([]);
+  useEffect(() => subscribeLocalAgents(setLocalAgents), []);
+
+  // ---- Manual add dialog (webmaster only) ----
+  const [addOpen, setAddOpen] = useState(false);
+  const [addEmail, setAddEmail] = useState("");
+  const [addName, setAddName] = useState("");
 
   // ---- Invite dialog (webmaster only) ----
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -174,9 +194,28 @@ const Agents: React.FC = () => {
     return name ? loadByAgent.get(name) ?? 0 : 0;
   };
 
+  // Merge Firestore users with manually-added local agents. Local entries are
+  // suppressed when a Firestore user with the same email already exists, so
+  // signing up later doesn't create a duplicate row.
+  const merged = useMemo<AgentRow[]>(() => {
+    const existingEmails = new Set(
+      users.map((u) => (u.email || "").toLowerCase()).filter(Boolean)
+    );
+    const localRows: AgentRow[] = localAgents
+      .filter((a) => !existingEmails.has(a.email.toLowerCase()))
+      .map((a) => ({
+        uid: a.id,
+        email: a.email,
+        displayName: a.displayName,
+        role: "agent" as const,
+        isLocal: true,
+      }));
+    return [...users, ...localRows];
+  }, [users, localAgents]);
+
   const filtered = useMemo(
     () =>
-      users
+      merged
         .filter((u) =>
           search.trim() === ""
             ? true
@@ -188,8 +227,28 @@ const Agents: React.FC = () => {
           const order = { agent: 0, admin: 1, webmaster: 2 } as const;
           return order[a.role] - order[b.role] || a.displayName.localeCompare(b.displayName);
         }),
-    [users, search]
+    [merged, search]
   );
+
+  const handleAddLocalAgent = () => {
+    const res = addLocalAgent({ email: addEmail, displayName: addName });
+    if (!res.ok) {
+      toast({ title: "Could not add agent", description: res.reason, variant: "destructive" });
+      return;
+    }
+    toast({
+      title: "Agent added",
+      description: `${res.agent!.displayName} is now available for assignment.`,
+    });
+    setAddEmail("");
+    setAddName("");
+    setAddOpen(false);
+  };
+
+  const handleRemoveLocalAgent = (row: AgentRow) => {
+    removeLocalAgent(row.uid);
+    toast({ title: "Agent removed", description: `${row.displayName} removed from local roster.` });
+  };
 
   const setRole = async (acc: AgentRow, target: "agent" | "admin") => {
     if (!acc.email) {
@@ -304,9 +363,9 @@ const Agents: React.FC = () => {
 
   const counts = useMemo(() => {
     const c = { agent: 0, admin: 0, webmaster: 0 };
-    for (const u of users) c[u.role]++;
+    for (const u of merged) c[u.role]++;
     return c;
-  }, [users]);
+  }, [merged]);
 
   const renderLoadCell = (load: number) => {
     if (load === 0) return <span className="text-xs text-muted-foreground">Idle</span>;
@@ -334,16 +393,29 @@ const Agents: React.FC = () => {
             </p>
           </div>
           {isWebmaster && (
-            <Button
-              size="sm"
-              onClick={() => setInviteOpen(true)}
-              className="gap-1.5 flex-shrink-0"
-              aria-label="Send invite to a new agent"
-            >
-              <UserPlus className="h-4 w-4" />
-              <span className="hidden sm:inline">Send invite</span>
-              <span className="sm:hidden">Invite</span>
-            </Button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAddOpen(true)}
+                className="gap-1.5"
+                aria-label="Manually add an agent"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span className="hidden sm:inline">Add agent</span>
+                <span className="sm:hidden">Add</span>
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setInviteOpen(true)}
+                className="gap-1.5"
+                aria-label="Send invite to a new agent"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span className="hidden sm:inline">Send invite</span>
+                <span className="sm:hidden">Invite</span>
+              </Button>
+            </div>
           )}
         </div>
 
@@ -391,13 +463,30 @@ const Agents: React.FC = () => {
                       <p className="font-medium text-foreground truncate">
                         {u.displayName || "(unnamed)"}
                       </p>
-                      <Badge variant={roleVariant[u.role]} className="text-[10px]">
-                        {roleLabel[u.role]}
-                      </Badge>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Badge variant={roleVariant[u.role]} className="text-[10px]">
+                          {roleLabel[u.role]}
+                        </Badge>
+                        {u.isLocal && (
+                          <Badge variant="outline" className="text-[10px]">Local</Badge>
+                        )}
+                      </div>
                     </div>
                     <p className="text-xs text-muted-foreground truncate">{u.email || u.uid}</p>
                     <div className="mt-2">{renderLoadCell(load)}</div>
-                    {isWebmaster && u.role !== "webmaster" && u.uid !== profile?.uid && (
+                    {isWebmaster && u.isLocal && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRemoveLocalAgent(u)}
+                          className="gap-1.5 h-8"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" /> Remove
+                        </Button>
+                      </div>
+                    )}
+                    {isWebmaster && !u.isLocal && u.role !== "webmaster" && u.uid !== profile?.uid && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {u.role === "agent" ? (
                           <Button
@@ -482,9 +571,16 @@ const Agents: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-muted-foreground">{u.email || "—"}</td>
                     <td className="px-6 py-4">
-                      <Badge variant={roleVariant[u.role]} className="text-xs">
-                        {roleLabel[u.role]}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant={roleVariant[u.role]} className="text-xs">
+                          {roleLabel[u.role]}
+                        </Badge>
+                        {u.isLocal && (
+                          <Badge variant="outline" className="text-[10px]" title="Manually added — not yet signed up">
+                            Local
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">{renderLoadCell(load)}</td>
                     <td className="px-6 py-4 text-xs text-muted-foreground">
@@ -502,7 +598,17 @@ const Agents: React.FC = () => {
                     </td>
                     {isWebmaster && (
                       <td className="px-6 py-4 text-right">
-                        {u.role !== "webmaster" && u.uid !== profile?.uid ? (
+                        {u.isLocal ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRemoveLocalAgent(u)}
+                            className="gap-1.5 h-8"
+                            aria-label={`Remove ${u.displayName}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Remove
+                          </Button>
+                        ) : u.role !== "webmaster" && u.uid !== profile?.uid ? (
                           <div className="flex items-center justify-end gap-2">
                             {u.role === "agent" ? (
                               <Button
@@ -547,6 +653,53 @@ const Agents: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Manual add dialog (webmaster only). Persists locally so the agent
+          shows up in the assign-agent dropdown immediately, without waiting
+          for them to sign up or for a Cloud Function deploy. */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Add agent manually</DialogTitle>
+            <DialogDescription>
+              Adds an agent entry to the local roster (stored on this device).
+              The agent becomes immediately available for assignment on conversations.
+              When they later sign up with the same email, their Firestore profile
+              takes over and the local entry is hidden automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="add-name">Display name</Label>
+              <Input
+                id="add-name"
+                placeholder="Agent One"
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="add-email">Email address</Label>
+              <Input
+                id="add-email"
+                type="email"
+                placeholder="agent@example.com"
+                value={addEmail}
+                onChange={(e) => setAddEmail(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddLocalAgent} className="gap-1.5">
+              <UserPlus className="h-4 w-4" /> Add agent
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Invite dialog (webmaster only) */}
       <Dialog open={inviteOpen} onOpenChange={(v) => (v ? setInviteOpen(true) : closeInviteDialog())}>

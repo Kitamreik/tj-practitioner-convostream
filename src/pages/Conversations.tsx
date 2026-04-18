@@ -72,6 +72,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { restoreItem } from "@/lib/softDelete";
 import { getBoolPref, setBoolPref } from "@/lib/userPrefs";
+import { subscribeLocalAgents } from "@/lib/localAgents";
 import { Switch } from "@/components/ui/switch";
 import NewConversationDialog from "@/components/NewConversationDialog";
 import ConversationTemplates, { type MessageTemplate } from "@/components/ConversationTemplates";
@@ -319,9 +320,12 @@ const Conversations: React.FC = () => {
 
   // Live list of agent display names — pulled from the `users` collection so
   // renames in Settings → Agents reflect immediately on the assign-agent menu.
-  // Falls back to the legacy hardcoded list when Firestore is unreachable.
+  // Also merges in manually-added local agents (localStorage) so webmaster
+  // additions show up without a sign-up step. Falls back to a hardcoded list
+  // when Firestore is unreachable.
   const FALLBACK_AGENTS = ["Alice Johnson", "Bob Smith", "Carol Davis", "Dan Lee"];
-  const [agents, setAgents] = useState<string[]>(FALLBACK_AGENTS);
+  const [firestoreAgents, setFirestoreAgents] = useState<string[]>(FALLBACK_AGENTS);
+  const [localAgentNames, setLocalAgentNames] = useState<string[]>([]);
   useEffect(() => {
     const unsub = onSnapshot(
       collection(db, "users"),
@@ -330,14 +334,22 @@ const Conversations: React.FC = () => {
           .map((d) => d.data() as any)
           .filter((u) => u && (u.role === "agent" || u.role === "admin") && (u.displayName || u.email))
           .map((u) => (u.displayName || u.email) as string)
-          .filter((v, i, arr) => arr.indexOf(v) === i)
-          .sort((a, b) => a.localeCompare(b));
-        setAgents(names.length > 0 ? names : FALLBACK_AGENTS);
+          .filter((v, i, arr) => arr.indexOf(v) === i);
+        setFirestoreAgents(names.length > 0 ? names : FALLBACK_AGENTS);
       },
-      () => setAgents(FALLBACK_AGENTS)
+      () => setFirestoreAgents(FALLBACK_AGENTS)
     );
     return unsub;
   }, []);
+  useEffect(() => {
+    return subscribeLocalAgents((rows) =>
+      setLocalAgentNames(rows.map((r) => r.displayName).filter(Boolean))
+    );
+  }, []);
+  const agents = useMemo(() => {
+    const set = new Set<string>([...firestoreAgents, ...localAgentNames]);
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [firestoreAgents, localAgentNames]);
 
   const handleRefresh = async () => {
     await new Promise((r) => setTimeout(r, 600));
