@@ -18,7 +18,9 @@ import {
   ScrollText,
   Megaphone,
   FileVideo,
+  KeyRound,
 } from "lucide-react";
+import WebmasterContactButtons from "@/components/WebmasterContactButtons";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -50,6 +52,7 @@ const navItems: NavItem[] = [
   { label: "Analytics", icon: <BarChart3 className="h-5 w-5" />, path: "/analytics", webmasterOrEscalated: true },
   { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail", webmasterOrEscalated: true },
   { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" },
+  { label: "Icon Key", icon: <KeyRound className="h-5 w-5" />, path: "/icon-key" },
   { label: "Settings", icon: <Settings className="h-5 w-5" />, path: "/settings" },
 ];
 
