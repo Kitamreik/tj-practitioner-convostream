@@ -1006,6 +1006,16 @@ const Conversations: React.FC = () => {
                         <UserCheck className="h-2.5 w-2.5" />{convo.assignedAgent.split(" ")[0]}
                       </span>
                     )}
+                    {(noteCounts[convo.id] ?? 0) > 0 && (
+                      <span
+                        className="inline-flex h-5 items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-1.5 text-[10px] font-medium text-warning"
+                        title={`${noteCounts[convo.id]} shared note${noteCounts[convo.id] === 1 ? "" : "s"}`}
+                        aria-label={`${noteCounts[convo.id]} notes`}
+                      >
+                        <StickyNote className="h-2.5 w-2.5" />
+                        {noteCounts[convo.id]}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
