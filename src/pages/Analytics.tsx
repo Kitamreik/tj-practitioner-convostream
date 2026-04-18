@@ -386,12 +386,49 @@ const Analytics: React.FC = () => {
                 </Button>
               )}
             </div>
-            <span className="flex items-center gap-1.5 text-xs">
+            <span className="flex items-center gap-1.5 text-xs" title={voiceLive ? "Receiving live events from googleVoiceActivity" : "No live events yet — showing sample data"}>
               <span className={`h-2 w-2 rounded-full ${voiceLive ? "bg-success animate-pulse" : "bg-muted-foreground/40"}`} />
               <span className="text-muted-foreground">{voiceLive ? "Live" : "Sample data"}</span>
             </span>
           </div>
         </div>
+
+        {/* Established Google Voice account banner. Reflects what the user
+            connected on /integrations and surfaces the live link/status. */}
+        {gvLoaded && (
+          <div className="mb-5 rounded-lg border border-border bg-muted/30 p-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <PhoneIncoming className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-medium text-card-foreground truncate">
+                    {gvConnected ? gvAccount || "Google Voice" : "No Google Voice account connected"}
+                  </p>
+                  {gvConnected ? (
+                    <Badge className="bg-success/10 text-success border-success/20 text-[10px] gap-1 h-5">
+                      Connected
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] h-5">Not connected</Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                  {gvConnected
+                    ? `Tracking activity for ${gvNumber}`
+                    : "Connect a Google Voice account on Integrations to see live call and SMS engagement here."}
+                </p>
+              </div>
+            </div>
+            <Button asChild variant={gvConnected ? "outline" : "default"} size="sm" className="gap-1.5 flex-shrink-0">
+              <Link to="/integrations">
+                <Settings className="h-3.5 w-3.5" />
+                {gvConnected ? "Manage" : "Connect"}
+              </Link>
+            </Button>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
           <div className="rounded-lg border border-border p-3">
