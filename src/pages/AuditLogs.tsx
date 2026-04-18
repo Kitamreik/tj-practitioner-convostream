@@ -11,7 +11,8 @@ import {
   writeBatch,
   getDocs,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, functions } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
 import {
   Shield,
   LogIn,
@@ -28,6 +29,7 @@ import {
   ChevronRight,
   Eraser,
   Download,
+  Clock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -414,6 +416,74 @@ const AuditLogs: React.FC = () => {
     </AlertDialog>
   );
 
+  /**
+   * Webmaster-only retention purge: deletes login_attempts older than 90 days
+   * via the `purgeOldLoginAttempts` Cloud Function so the audit log can't be
+   * inflated indefinitely. The Cloud Function enforces the webmaster role
+   * server-side; the AuditLogs page itself is also webmaster-gated upstream.
+   */
+  const PurgeOldButton: React.FC = () => {
+    const [purging, setPurging] = useState(false);
+    const handlePurge = async () => {
+      setPurging(true);
+      try {
+        const fn = httpsCallable<
+          { olderThanDays: number },
+          { ok: boolean; deleted: number; days: number }
+        >(functions, "purgeOldLoginAttempts");
+        const res = await fn({ olderThanDays: 90 });
+        toast({
+          title: "Old login attempts purged",
+          description: `${res.data.deleted} record${res.data.deleted === 1 ? "" : "s"} older than ${res.data.days} days deleted.`,
+        });
+      } catch (e: any) {
+        toast({
+          title: "Purge failed",
+          description: e?.message ?? "Could not purge old records.",
+          variant: "destructive",
+        });
+      } finally {
+        setPurging(false);
+      }
+    };
+    return (
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={purging}
+            aria-label="Purge login attempts older than 90 days"
+          >
+            <Clock className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{purging ? "Purging…" : "Purge >90d"}</span>
+            <span className="sm:hidden">90d</span>
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Purge login attempts older than 90 days?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Permanently deletes every login attempt with a timestamp more than 90 days ago.
+              This protects the audit log from unbounded growth and is the recommended
+              retention window. Recent records are not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handlePurge}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Purge old records
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  };
+
   // ---------- 14-day login attempts bar chart ----------
   /**
    * Bucket login attempts into the last 14 daily buckets (oldest → newest).
@@ -530,7 +600,7 @@ const AuditLogs: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 mb-3">
+          <div className="flex items-center justify-end gap-2 mb-3 flex-wrap">
             <ExportCsvButton
               label="login attempts"
               count={loginAttempts.length}
@@ -548,6 +618,7 @@ const AuditLogs: React.FC = () => {
                 )
               }
             />
+            <PurgeOldButton />
             <ClearAllButton
               label="login attempts"
               count={loginAttempts.length}
