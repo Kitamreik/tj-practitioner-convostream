@@ -1418,28 +1418,25 @@ export const replyToSlackChannel = onCall(async (request) => {
 //     Voice          the per-user webhook secret + voice number are configured
 //                    in Firestore so the dashboard isn't silently empty)
 //
-// Returns a stable shape: { results: { [id]: { ok, message, latencyMs } } }
-// so the UI can render uniformly. Never throws on a single provider failure —
-// failures are surfaced inside `results` so one broken integration doesn't
-// hide the health of the others.
+// Both the on-demand callable and the every-5-days scheduled job persist
+// the latest run to `system/integrationsHealth` so the AppSidebar/BottomNav
+// can show a red dot on the Integrations link when any provider fails,
+// without the webmaster having to open /integrations to find out.
 // =============================================================================
-export const integrationsHealthCheck = onCall(async (request) => {
-  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
-  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
-  const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role;
-  if (callerRole !== "webmaster") {
-    throw new HttpsError("permission-denied", "Webmasters only.");
-  }
+type ProviderResult = { ok: boolean; message: string; latencyMs: number };
+type HealthRunSource = "manual" | "scheduled";
 
-  const data = (request.data ?? {}) as { gmailAccessToken?: unknown };
-  const gmailAccessToken =
-    typeof data.gmailAccessToken === "string" && data.gmailAccessToken
-      ? data.gmailAccessToken
-      : null;
-
-  type ProviderResult = { ok: boolean; message: string; latencyMs: number };
+async function runHealthChecks(opts: {
+  /** GIS access token for the Gmail check. Null when running unattended. */
+  gmailAccessToken: string | null;
+  /**
+   * UID whose integrations doc to consult for the Google Voice check.
+   * For the manual flow this is the caller; for the scheduled flow the
+   * caller picks the first webmaster with a configured voice number.
+   */
+  voiceConfigUid: string | null;
+}): Promise<Record<string, ProviderResult>> {
   const results: Record<string, ProviderResult> = {};
-
   const time = async <T>(fn: () => Promise<T>): Promise<{ value: T; ms: number }> => {
     const t0 = Date.now();
     const value = await fn();
@@ -1486,11 +1483,7 @@ export const integrationsHealthCheck = onCall(async (request) => {
       );
       const j = (await r.json()) as { friendly_name?: string; status?: string; message?: string };
       if (r.ok && j.status === "active") {
-        results.twilio = {
-          ok: true,
-          message: `Account "${j.friendly_name}" is active`,
-          latencyMs: ms,
-        };
+        results.twilio = { ok: true, message: `Account "${j.friendly_name}" is active`, latencyMs: ms };
       } else {
         results.twilio = {
           ok: false,
@@ -1504,11 +1497,8 @@ export const integrationsHealthCheck = onCall(async (request) => {
   }
 
   // ---------- Gmail ----------
-  // The Gmail integration uses Google Identity Services on the client; the
-  // server never holds a long-lived token. The caller (webmaster) passes in
-  // their current GIS access token so we can validate it against Google.
   try {
-    if (!gmailAccessToken) {
+    if (!opts.gmailAccessToken) {
       results.gmail = {
         ok: false,
         message: "Open Gmail API page once to refresh your OAuth token, then retry.",
@@ -1517,7 +1507,7 @@ export const integrationsHealthCheck = onCall(async (request) => {
     } else {
       const { value: r, ms } = await time(() =>
         fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
-          headers: { Authorization: `Bearer ${gmailAccessToken}` },
+          headers: { Authorization: `Bearer ${opts.gmailAccessToken}` },
         })
       );
       const j = (await r.json()) as { emailAddress?: string; error?: { message?: string } };
@@ -1536,19 +1526,17 @@ export const integrationsHealthCheck = onCall(async (request) => {
   }
 
   // ---------- Google Voice ----------
-  // Google Voice has no public REST API. We treat the integration as "live"
-  // when the webmaster has stored a voice number + webhook secret on their
-  // own integrations doc AND at least one inbound event has landed in
-  // `googleVoiceActivity` recently (last 7 days). This mirrors what the
-  // Analytics card surfaces and keeps the health check honest.
   try {
-    const integSnap = await db
-      .doc(`users/${request.auth.uid}/integrations/credentials`)
-      .get();
-    const gv =
-      ((integSnap.data() as Record<string, { connected?: boolean; fields?: Record<string, string> }> | undefined)?.[
-        "google-voice"
-      ]) || null;
+    let gv: { connected?: boolean; fields?: Record<string, string> } | null = null;
+    if (opts.voiceConfigUid) {
+      const integSnap = await db
+        .doc(`users/${opts.voiceConfigUid}/integrations/credentials`)
+        .get();
+      gv =
+        ((integSnap.data() as Record<string, { connected?: boolean; fields?: Record<string, string> }> | undefined)?.[
+          "google-voice"
+        ]) || null;
+    }
     if (!gv?.connected || !gv.fields?.voiceNumber) {
       results["google-voice"] = {
         ok: false,
@@ -1580,5 +1568,97 @@ export const integrationsHealthCheck = onCall(async (request) => {
     };
   }
 
+  return results;
+}
+
+/** Persist the latest run to `system/integrationsHealth` so navs can read it. */
+async function persistHealthSummary(
+  results: Record<string, ProviderResult>,
+  source: HealthRunSource,
+  triggeredByUid: string | null
+): Promise<void> {
+  const failingProviders = Object.entries(results)
+    .filter(([, r]) => !r.ok)
+    .map(([id]) => id);
+  await db.doc("system/integrationsHealth").set({
+    results,
+    failingProviders,
+    anyFailing: failingProviders.length > 0,
+    checkedAt: admin.firestore.FieldValue.serverTimestamp(),
+    checkedAtMs: Date.now(),
+    source,
+    triggeredByUid,
+  });
+}
+
+export const integrationsHealthCheck = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
+  const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role;
+  if (callerRole !== "webmaster") {
+    throw new HttpsError("permission-denied", "Webmasters only.");
+  }
+
+  const data = (request.data ?? {}) as { gmailAccessToken?: unknown };
+  const gmailAccessToken =
+    typeof data.gmailAccessToken === "string" && data.gmailAccessToken
+      ? data.gmailAccessToken
+      : null;
+
+  const results = await runHealthChecks({
+    gmailAccessToken,
+    voiceConfigUid: request.auth.uid,
+  });
+
+  // Persist so the sidebar/bottom-nav indicator updates immediately for
+  // every signed-in webmaster, not just the one who clicked the button.
+  try {
+    await persistHealthSummary(results, "manual", request.auth.uid);
+  } catch (err) {
+    logger.warn("integrationsHealthCheck: failed to persist summary", err);
+  }
+
   return { ok: true, results, checkedAt: Date.now() };
 });
+
+// -----------------------------------------------------------------------------
+// runIntegrationsHealthCheckScheduled — runs unattended every 5 days. Stores
+// the result in `system/integrationsHealth` so the AppSidebar/BottomNav can
+// surface a red dot on the Integrations link when any provider fails. No
+// Gmail token is available in this context, so Gmail will report "open Gmail
+// API to refresh" — that's intentional and surfaces stale OAuth.
+// -----------------------------------------------------------------------------
+export const runIntegrationsHealthCheckScheduled = onSchedule(
+  { schedule: "every 120 hours", timeZone: "Etc/UTC", region: "us-central1" },
+  async () => {
+    // Find any webmaster with a configured Google Voice number so the
+    // unattended Voice check has somewhere to look. Falls back to "no voice
+    // number configured" if none found — which is itself useful signal.
+    let voiceConfigUid: string | null = null;
+    try {
+      const webmasters = await db.collection("users").where("role", "==", "webmaster").get();
+      for (const w of webmasters.docs) {
+        const credSnap = await db.doc(`users/${w.id}/integrations/credentials`).get();
+        const gv =
+          ((credSnap.data() as Record<string, { connected?: boolean; fields?: Record<string, string> }> | undefined)?.[
+            "google-voice"
+          ]) || null;
+        if (gv?.connected && gv.fields?.voiceNumber) {
+          voiceConfigUid = w.id;
+          break;
+        }
+      }
+    } catch (err) {
+      logger.warn("scheduled health check: webmaster lookup failed", err);
+    }
+
+    const results = await runHealthChecks({ gmailAccessToken: null, voiceConfigUid });
+    await persistHealthSummary(results, "scheduled", null);
+    const failing = Object.entries(results).filter(([, r]) => !r.ok).map(([id]) => id);
+    logger.info("scheduled health check complete", {
+      failing,
+      okCount: Object.values(results).filter((r) => r.ok).length,
+    });
+  }
+);
+
