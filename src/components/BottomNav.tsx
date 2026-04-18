@@ -128,10 +128,17 @@ const BottomNav: React.FC = () => {
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
         <SheetTrigger asChild>
           <button
-            className="flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium text-muted-foreground"
+            className="relative flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium text-muted-foreground"
             aria-label="More"
           >
-            <Menu className="h-5 w-5" />
+            <div className="relative">
+              <Menu className="h-5 w-5" />
+              {(staffActive + recordingsActive) > 0 && (
+                <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
+                  {(staffActive + recordingsActive) > 9 ? "9+" : staffActive + recordingsActive}
+                </span>
+              )}
+            </div>
             <span>More</span>
           </button>
         </SheetTrigger>
@@ -146,19 +153,31 @@ const BottomNav: React.FC = () => {
                 if (i.webmasterOrEscalated && !escalated) return false;
                 return true;
               })
-              .map((item) => (
-                <button
-                  key={item.path}
-                  onClick={() => go(item.path)}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg border border-border p-3 text-sm font-medium transition-colors",
-                    location.pathname === item.path ? "bg-accent" : "hover:bg-muted/50"
-                  )}
-                >
-                  {item.icon}
-                  {item.label}
-                </button>
-              ))}
+              .map((item) => {
+                const badge = getBadge(item);
+                const isRed = item.badgeKey === "staff" || item.badgeKey === "recordings";
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => go(item.path)}
+                    className={cn(
+                      "relative flex items-center gap-3 rounded-lg border border-border p-3 text-sm font-medium transition-colors",
+                      location.pathname === item.path ? "bg-accent" : "hover:bg-muted/50"
+                    )}
+                  >
+                    {item.icon}
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {badge > 0 && (
+                      <span className={cn(
+                        "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
+                        isRed ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"
+                      )}>
+                        {badge > 9 ? "9+" : badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
           </div>
           <div className="space-y-2 border-t border-border pt-4">
             <div className="flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2">
