@@ -639,6 +639,9 @@ export const generateAgentSignupLink = onCall(async (request) => {
     tempPassword, // only present when a brand-new auth user was created
   };
 });
+
+/**
+ * Any signed-in user can flag a conversation for webmaster investigation.
  * Persists to `investigationRequests` and emails ESCALATION_NOTIFY_EMAIL.
  *
  * Request: { conversationId: string, customerName?: string, reason?: string }
