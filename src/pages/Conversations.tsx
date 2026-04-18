@@ -28,6 +28,7 @@ import {
   Link2,
   Share2,
   Users as UsersIcon,
+  Footprints,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -96,7 +97,7 @@ interface Conversation {
   customerEmail: string;
   customerPhone?: string;
   lastMessage: string;
-  channel: "sms" | "phone" | "email" | "slack";
+  channel: "sms" | "phone" | "email" | "slack" | "mobile";
   timestamp: any;
   unread: boolean;
   status: "active" | "waiting" | "resolved";
@@ -111,7 +112,7 @@ interface ConversationMessage {
   sender: "customer" | "agent";
   text: string;
   timestamp: any;
-  channel: "sms" | "phone" | "email" | "slack";
+  channel: "sms" | "phone" | "email" | "slack" | "mobile";
   sourceDocName?: string;
   sourceDocTruncated?: boolean;
   extractText?: string;
@@ -122,6 +123,10 @@ const channelIcons = {
   phone: <Phone className="h-3.5 w-3.5" />,
   email: <Mail className="h-3.5 w-3.5" />,
   slack: <MessageSquare className="h-3.5 w-3.5" />,
+  // "Mobile" = activity that originates from someone literally on the move
+  // (e.g. an agent capturing a thread in the field). Footprints conveys the
+  // "someone running" feel without needing a custom asset.
+  mobile: <Footprints className="h-3.5 w-3.5" />,
 };
 
 const statusColors = {
@@ -739,7 +744,7 @@ const Conversations: React.FC = () => {
     toast({ title: "Status updated", description: `Conversation is now ${newStatus}.` });
   };
 
-  const handleChangeChannel = async (newChannel: "sms" | "phone" | "email" | "slack") => {
+  const handleChangeChannel = async (newChannel: "sms" | "phone" | "email" | "slack" | "mobile") => {
     if (!selectedId) return;
     setConversations((prev) =>
       prev.map((c) => (c.id === selectedId ? { ...c, channel: newChannel } : c))
@@ -938,6 +943,7 @@ const Conversations: React.FC = () => {
                 <SelectItem value="sms">SMS</SelectItem>
                 <SelectItem value="phone">Phone</SelectItem>
                 <SelectItem value="slack">Slack</SelectItem>
+                <SelectItem value="mobile">Mobile</SelectItem>
               </SelectContent>
             </Select>
             {hasActiveFilters && (
@@ -1480,6 +1486,7 @@ const Conversations: React.FC = () => {
                   <SelectItem value="sms">SMS</SelectItem>
                   <SelectItem value="phone">Phone</SelectItem>
                   <SelectItem value="slack">Slack</SelectItem>
+                  <SelectItem value="mobile">Mobile</SelectItem>
                 </SelectContent>
               </Select>
             </div>

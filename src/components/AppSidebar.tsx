@@ -18,7 +18,9 @@ import {
   ScrollText,
   Megaphone,
   FileVideo,
+  KeyRound,
 } from "lucide-react";
+import WebmasterContactButtons from "@/components/WebmasterContactButtons";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -50,6 +52,7 @@ const navItems: NavItem[] = [
   { label: "Analytics", icon: <BarChart3 className="h-5 w-5" />, path: "/analytics", webmasterOrEscalated: true },
   { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail", webmasterOrEscalated: true },
   { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" },
+  { label: "Icon Key", icon: <KeyRound className="h-5 w-5" />, path: "/icon-key" },
   { label: "Settings", icon: <Settings className="h-5 w-5" />, path: "/settings" },
 ];
 
@@ -257,6 +260,10 @@ const AppSidebar: React.FC = () => {
       )}
 
       <div className="border-t border-sidebar-border p-3 space-y-2">
+        {/* Direct line to the on-call webmaster — hidden for the webmaster
+            themselves (the component handles that gating). */}
+        <WebmasterContactButtons className="w-full" />
+
         <Button variant="ghost" size="sm" className="w-full justify-start gap-3" onClick={toggleTheme}>
           {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           {theme === "light" ? "Dark Mode" : "Light Mode"}

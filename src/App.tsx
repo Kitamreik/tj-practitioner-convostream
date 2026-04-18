@@ -21,6 +21,7 @@ import Archive from "./pages/Archive";
 import AgentLogs from "./pages/AgentLogs";
 import StaffUpdates from "./pages/StaffUpdates";
 import FileRecordings from "./pages/FileRecordings";
+import IconKey from "./pages/IconKey";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -83,6 +84,7 @@ const App = () => (
                 <Route path="/agent-logs" element={<AgentLogs />} />
                 <Route path="/staff-updates" element={<StaffUpdates />} />
                 <Route path="/file-recordings" element={<FileRecordings />} />
+                <Route path="/icon-key" element={<IconKey />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

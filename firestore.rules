@@ -250,5 +250,29 @@ service cloud.firestore {
       allow read: if isWebmaster();
       allow write: if false; // server only
     }
+
+    // -------- integrationsHealthHistory/{runId} — append-only run log --------
+    // Each scheduled or manual health-check run drops a row here so the
+    // /integrations panel can show the last N runs (timestamp, source,
+    // failing providers) without re-querying Firestore manually. Writes
+    // happen server-side via the admin SDK.
+    match /integrationsHealthHistory/{runId} {
+      allow read: if isWebmaster();
+      allow write: if false; // server only
+    }
+
+    // -------- iconDescriptions/{iconKey} — editable legend on /icon-key --------
+    // Admins and webmasters can edit; every signed-in teammate can read so
+    // the legend tooltip is consistent across the app.
+    match /iconDescriptions/{iconKey} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'webmaster'
+        );
+      allow delete: if isWebmaster();
+    }
   }
 }

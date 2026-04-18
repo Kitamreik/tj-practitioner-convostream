@@ -7,7 +7,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
-import { Plug, Shield, Mail, Settings as SettingsIcon, LogOut, Moon, Sun, Archive as ArchiveIcon, ScrollText, Megaphone, FileVideo } from "lucide-react";
+import { Plug, Shield, Mail, Settings as SettingsIcon, LogOut, Moon, Sun, Archive as ArchiveIcon, ScrollText, Megaphone, FileVideo, KeyRound } from "lucide-react";
+import WebmasterContactButtons from "@/components/WebmasterContactButtons";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getActiveCount, subscribeRecordings } from "@/lib/fileRecordings";
@@ -36,6 +37,7 @@ const moreItems: NavItem[] = [
   { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit", roles: ["webmaster"] },
   { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail", webmasterOrEscalated: true },
   { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" },
+  { label: "Icon Key", icon: <KeyRound className="h-5 w-5" />, path: "/icon-key" },
   { label: "Settings", icon: <SettingsIcon className="h-5 w-5" />, path: "/settings" },
 ];
 
@@ -255,6 +257,9 @@ const BottomNav: React.FC = () => {
                 <p className="truncate text-xs text-muted-foreground">{profile?.email}</p>
               </div>
             </div>
+            {/* One-tap call/text the on-call webmaster — hidden for the
+                webmaster role (component handles gating). */}
+            <WebmasterContactButtons className="w-full" />
             <Button variant="ghost" size="sm" className="w-full justify-start gap-3" onClick={toggleTheme}>
               {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
               {theme === "light" ? "Dark Mode" : "Light Mode"}

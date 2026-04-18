@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { MessageSquare, Phone, Mail, Hash, Check, Settings, X, Lock, Webhook, Copy, Send, Activity, Loader2, AlertCircle } from "lucide-react";
+import { MessageSquare, Phone, Mail, Hash, Check, Settings, X, Lock, Webhook, Copy, Send, Activity, Loader2, AlertCircle, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db, functions } from "@/lib/firebase";
 import { httpsCallable } from "firebase/functions";
 import {
@@ -118,6 +118,47 @@ const Integrations: React.FC = () => {
   const [scheduledRunning, setScheduledRunning] = useState(false);
   const isWebmaster = profile?.role === "webmaster";
   const canTriggerScheduled = isWebmaster || profile?.role === "admin";
+
+  // Live last-5 health-check runs (rules: webmaster-only). Used to show a
+  // small trend table below the panel without hitting Firestore manually.
+  type HistoryRow = {
+    id: string;
+    checkedAtMs: number;
+    source: "manual" | "scheduled" | string;
+    failingProviders: string[];
+    anyFailing: boolean;
+  };
+  const [healthHistory, setHealthHistory] = useState<HistoryRow[]>([]);
+  useEffect(() => {
+    if (!isWebmaster) {
+      setHealthHistory([]);
+      return;
+    }
+    const q = query(
+      collection(db, "integrationsHealthHistory"),
+      orderBy("checkedAtMs", "desc"),
+      limit(5)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setHealthHistory(
+          snap.docs.map((d) => {
+            const data = d.data() as Partial<HistoryRow>;
+            return {
+              id: d.id,
+              checkedAtMs: typeof data.checkedAtMs === "number" ? data.checkedAtMs : 0,
+              source: (data.source as string) ?? "manual",
+              failingProviders: Array.isArray(data.failingProviders) ? data.failingProviders : [],
+              anyFailing: !!data.anyFailing,
+            };
+          })
+        );
+      },
+      (err) => console.warn("integrationsHealthHistory listener:", err)
+    );
+    return unsub;
+  }, [isWebmaster]);
 
   const runHealthCheck = async () => {
     setHealthRunning(true);
@@ -486,6 +527,73 @@ const Integrations: React.FC = () => {
             <p className="mt-3 text-[11px] text-muted-foreground">
               Last checked {new Date(healthCheckedAt).toLocaleTimeString()}
             </p>
+          )}
+
+          {/* Last 5 runs — webmaster-only. Lets the team spot trends without
+              digging into Firestore (e.g. "Slack has failed 3 of the last 5
+              scheduled checks"). */}
+          {isWebmaster && (
+            <div className="mt-5 rounded-lg border border-border bg-muted/20">
+              <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-card-foreground">
+                  <History className="h-3.5 w-3.5 text-muted-foreground" />
+                  Last {Math.min(5, healthHistory.length || 5)} runs
+                </div>
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Newest first
+                </span>
+              </div>
+              {healthHistory.length === 0 ? (
+                <p className="px-3 py-3 text-xs text-muted-foreground italic">
+                  No history yet — the first scheduled or manual run will appear here.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+                        <th className="px-3 py-2 font-medium">When</th>
+                        <th className="px-3 py-2 font-medium">Source</th>
+                        <th className="px-3 py-2 font-medium">Result</th>
+                        <th className="px-3 py-2 font-medium">Failing</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {healthHistory.map((row) => (
+                        <tr key={row.id}>
+                          <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
+                            {row.checkedAtMs ? new Date(row.checkedAtMs).toLocaleString() : "—"}
+                          </td>
+                          <td className="px-3 py-2">
+                            <Badge variant="outline" className="text-[10px] capitalize">
+                              {row.source}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-2">
+                            {row.anyFailing ? (
+                              <Badge className="text-[10px] gap-1 bg-destructive/10 text-destructive border-destructive/20">
+                                <AlertCircle className="h-3 w-3" />
+                                Issue
+                              </Badge>
+                            ) : (
+                              <Badge className="text-[10px] gap-1 bg-success/10 text-success border-success/20">
+                                <Check className="h-3 w-3" />
+                                Healthy
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-muted-foreground">
+                            {row.failingProviders.length === 0
+                              ? "—"
+                              : row.failingProviders.join(", ")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           )}
         </motion.div>
       )}

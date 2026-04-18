@@ -10,15 +10,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Paperclip, FileText, X, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { extractDocText, ExtractDocError } from "@/lib/extractDocText";
+import { useAuth } from "@/contexts/AuthContext";
 
 const NewConversationDialog: React.FC = () => {
   const { toast } = useToast();
+  const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [channel, setChannel] = useState<string>("email");
+  // Default to "mobile" so entries created directly from the conversation
+  // page are tagged as in-app captures (the running-feet icon makes them
+  // easy to spot in the list).
+  const [channel, setChannel] = useState<string>("mobile");
   const [message, setMessage] = useState("");
   const [attachedDocName, setAttachedDocName] = useState<string | null>(null);
   const [attachedDocTruncated, setAttachedDocTruncated] = useState(false);
@@ -31,7 +36,7 @@ const NewConversationDialog: React.FC = () => {
     setEmail("");
     setPhone("");
     setMessage("");
-    setChannel("email");
+    setChannel("mobile");
     setAttachedDocName(null);
     setAttachedDocTruncated(false);
     setExtractText(null);
@@ -95,6 +100,14 @@ const NewConversationDialog: React.FC = () => {
         timestamp: serverTimestamp(),
         unread: true,
         status: "active",
+        // Track entries made directly from the conversation page so audit
+        // logs and analytics can distinguish in-app captures from inbound
+        // webhook traffic (Slack/Twilio/Gmail). The icon/key page reads
+        // `source` to render the running-feet badge for "mobile" entries.
+        source: "conversation-page",
+        createdAt: serverTimestamp(),
+        createdByUid: profile?.uid ?? null,
+        createdByName: profile?.displayName ?? profile?.email ?? null,
         ...(attachedDocName
           ? { sourceDocName: attachedDocName, sourceDocTruncated: attachedDocTruncated }
           : {}),
@@ -163,6 +176,7 @@ const NewConversationDialog: React.FC = () => {
             <Select value={channel} onValueChange={setChannel}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="mobile">Mobile (in-app capture)</SelectItem>
                 <SelectItem value="email">Email</SelectItem>
                 <SelectItem value="sms">SMS</SelectItem>
                 <SelectItem value="phone">Phone</SelectItem>
