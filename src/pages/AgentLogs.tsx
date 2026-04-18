@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { collection, doc, onSnapshot, orderBy, query, updateDoc, where } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { subscribeLocalAgents } from "@/lib/localAgents";
@@ -117,16 +117,28 @@ const AgentLogs: React.FC = () => {
   useEffect(() => {
     // Resolved conversations only. Includes archived-and-resolved so the log
     // is a complete history, not just whatever happens to be unarchived.
+    // NOTE: We intentionally skip `orderBy('timestamp')` here so we don't
+    // require a `status + timestamp` composite Firestore index. Resolved sets
+    // are bounded (a team's lifetime closes, not a feed), so client-side sort
+    // is fine and avoids a manual index-creation step for new deployments.
     const q = query(
       collection(db, "conversations"),
-      where("status", "==", "resolved"),
-      orderBy("timestamp", "desc")
+      where("status", "==", "resolved")
     );
     const unsub = onSnapshot(
       q,
       (snap) => {
         setError(null);
-        setResolved(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as ResolvedConvo)));
+        const rows = snap.docs.map(
+          (d) => ({ id: d.id, ...(d.data() as any) } as ResolvedConvo)
+        );
+        // Newest first by `resolvedAt` if present, falling back to `timestamp`.
+        rows.sort((a, b) => {
+          const aMs = a.resolvedAt?.toDate?.()?.getTime?.() ?? a.timestamp?.toDate?.()?.getTime?.() ?? 0;
+          const bMs = b.resolvedAt?.toDate?.()?.getTime?.() ?? b.timestamp?.toDate?.()?.getTime?.() ?? 0;
+          return bMs - aMs;
+        });
+        setResolved(rows);
         setLoading(false);
       },
       (err) => {
