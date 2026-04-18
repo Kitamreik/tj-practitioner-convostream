@@ -1628,37 +1628,65 @@ export const integrationsHealthCheck = onCall(async (request) => {
 // Gmail token is available in this context, so Gmail will report "open Gmail
 // API to refresh" — that's intentional and surfaces stale OAuth.
 // -----------------------------------------------------------------------------
+// Shared body so the scheduled timer and the QA "trigger now" callable run
+// the exact same path — including persisting the summary with source:"scheduled".
+async function runScheduledHealthCheckBody(): Promise<{
+  results: Record<string, { ok: boolean; message: string; latencyMs: number }>;
+  failing: string[];
+}> {
+  // Find any webmaster with a configured Google Voice number so the
+  // unattended Voice check has somewhere to look. Falls back to "no voice
+  // number configured" if none found — which is itself useful signal.
+  let voiceConfigUid: string | null = null;
+  try {
+    const webmasters = await db.collection("users").where("role", "==", "webmaster").get();
+    for (const w of webmasters.docs) {
+      const credSnap = await db.doc(`users/${w.id}/integrations/credentials`).get();
+      const gv =
+        ((credSnap.data() as Record<string, { connected?: boolean; fields?: Record<string, string> }> | undefined)?.[
+          "google-voice"
+        ]) || null;
+      if (gv?.connected && gv.fields?.voiceNumber) {
+        voiceConfigUid = w.id;
+        break;
+      }
+    }
+  } catch (err) {
+    logger.warn("scheduled health check: webmaster lookup failed", err);
+  }
+
+  const results = await runHealthChecks({ gmailAccessToken: null, voiceConfigUid });
+  await persistHealthSummary(results, "scheduled", null);
+  const failing = Object.entries(results).filter(([, r]) => !r.ok).map(([id]) => id);
+  return { results, failing };
+}
+
 export const runIntegrationsHealthCheckScheduled = onSchedule(
   { schedule: "every 120 hours", timeZone: "Etc/UTC", region: "us-central1" },
   async () => {
-    // Find any webmaster with a configured Google Voice number so the
-    // unattended Voice check has somewhere to look. Falls back to "no voice
-    // number configured" if none found — which is itself useful signal.
-    let voiceConfigUid: string | null = null;
-    try {
-      const webmasters = await db.collection("users").where("role", "==", "webmaster").get();
-      for (const w of webmasters.docs) {
-        const credSnap = await db.doc(`users/${w.id}/integrations/credentials`).get();
-        const gv =
-          ((credSnap.data() as Record<string, { connected?: boolean; fields?: Record<string, string> }> | undefined)?.[
-            "google-voice"
-          ]) || null;
-        if (gv?.connected && gv.fields?.voiceNumber) {
-          voiceConfigUid = w.id;
-          break;
-        }
-      }
-    } catch (err) {
-      logger.warn("scheduled health check: webmaster lookup failed", err);
-    }
-
-    const results = await runHealthChecks({ gmailAccessToken: null, voiceConfigUid });
-    await persistHealthSummary(results, "scheduled", null);
-    const failing = Object.entries(results).filter(([, r]) => !r.ok).map(([id]) => id);
+    const { results, failing } = await runScheduledHealthCheckBody();
     logger.info("scheduled health check complete", {
       failing,
       okCount: Object.values(results).filter((r) => r.ok).length,
     });
   }
 );
+
+// QA hook: lets admins/webmasters trigger the unattended path on demand so
+// the every-5-days timer can be validated without waiting. Mirrors the
+// scheduled job exactly (no Gmail token, source: "scheduled").
+export const triggerScheduledHealthCheckNow = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
+  const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role;
+  if (callerRole !== "webmaster" && callerRole !== "admin") {
+    throw new HttpsError("permission-denied", "Webmaster or admin only.");
+  }
+  const { results, failing } = await runScheduledHealthCheckBody();
+  logger.info("manual-trigger scheduled health check complete", {
+    triggeredBy: request.auth.uid,
+    failing,
+  });
+  return { ok: true, results, failing, checkedAt: Date.now() };
+});
 

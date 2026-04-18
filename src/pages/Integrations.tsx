@@ -108,12 +108,16 @@ const Integrations: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [simulating, setSimulating] = useState<"call" | "sms" | null>(null);
 
-  // Health-check panel state (webmaster-only).
+  // Health-check panel state. Live ping is webmaster-only (matches callable
+  // permission); the "Trigger scheduled run now" QA button is also available
+  // to admins so they can validate the unattended path without waiting 5 days.
   type HealthResult = { ok: boolean; message: string; latencyMs: number };
   const [healthRunning, setHealthRunning] = useState(false);
   const [healthResults, setHealthResults] = useState<Record<string, HealthResult> | null>(null);
   const [healthCheckedAt, setHealthCheckedAt] = useState<number | null>(null);
+  const [scheduledRunning, setScheduledRunning] = useState(false);
   const isWebmaster = profile?.role === "webmaster";
+  const canTriggerScheduled = isWebmaster || profile?.role === "admin";
 
   const runHealthCheck = async () => {
     setHealthRunning(true);
@@ -146,6 +150,40 @@ const Integrations: React.FC = () => {
       });
     } finally {
       setHealthRunning(false);
+    }
+  };
+
+  // QA-only: invokes the same body the every-5-days scheduler runs, so we can
+  // validate the unattended path (no Gmail token, source: "scheduled",
+  // persisted summary doc) without waiting for the timer.
+  const triggerScheduledNow = async () => {
+    setScheduledRunning(true);
+    try {
+      const fn = httpsCallable<
+        Record<string, never>,
+        { ok: boolean; results: Record<string, HealthResult>; failing: string[]; checkedAt: number }
+      >(functions, "triggerScheduledHealthCheckNow");
+      const res = await fn({});
+      // Surface results in the same panel so QA sees what the scheduler saw.
+      setHealthResults(res.data.results);
+      setHealthCheckedAt(res.data.checkedAt);
+      const failing = res.data.failing.length;
+      toast({
+        title: failing === 0 ? "Scheduled run: all healthy" : `Scheduled run: ${failing} issue${failing === 1 ? "" : "s"}`,
+        description:
+          failing === 0
+            ? "Persisted to system/integrationsHealth as source:'scheduled'."
+            : `Failing: ${res.data.failing.join(", ")}`,
+        variant: failing === 0 ? "default" : "destructive",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Could not trigger scheduled run",
+        description: e?.message || "Function call failed.",
+        variant: "destructive",
+      });
+    } finally {
+      setScheduledRunning(false);
     }
   };
 
@@ -348,10 +386,9 @@ const Integrations: React.FC = () => {
         })}
       </div>
 
-      {/* Webmaster-only Health Check panel — pings each connected provider
-          and surfaces a green/red dot per integration so credentials can be
-          verified without leaving the app. */}
-      {isWebmaster && (
+      {/* Health Check panel — webmaster runs the live ping; webmaster+admin can
+          also fire the scheduled-job code path on demand for QA. */}
+      {canTriggerScheduled && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -363,17 +400,33 @@ const Integrations: React.FC = () => {
               <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
                 <Activity className="h-5 w-5 text-primary" />
                 Health Check
-                <Badge variant="outline" className="text-[10px] uppercase tracking-wider">Webmaster</Badge>
+                <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                  {isWebmaster ? "Webmaster" : "Admin"}
+                </Badge>
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
                 Pings Slack <code className="bg-muted px-1 rounded">auth.test</code>, Twilio account info,
                 Gmail token validity, and Google Voice activity to confirm each credential is live.
               </p>
             </div>
-            <Button onClick={runHealthCheck} disabled={healthRunning} className="gap-2 flex-shrink-0">
-              {healthRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Activity className="h-3.5 w-3.5" />}
-              {healthRunning ? "Checking…" : healthResults ? "Re-run check" : "Run check"}
-            </Button>
+            <div className="flex flex-wrap gap-2 flex-shrink-0">
+              {isWebmaster && (
+                <Button onClick={runHealthCheck} disabled={healthRunning} className="gap-2">
+                  {healthRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Activity className="h-3.5 w-3.5" />}
+                  {healthRunning ? "Checking…" : healthResults ? "Re-run check" : "Run check"}
+                </Button>
+              )}
+              <Button
+                onClick={triggerScheduledNow}
+                disabled={scheduledRunning}
+                variant="outline"
+                className="gap-2"
+                title="Runs the same code path as the every-5-days scheduled job and persists the result with source:'scheduled'."
+              >
+                {scheduledRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Activity className="h-3.5 w-3.5" />}
+                {scheduledRunning ? "Triggering…" : "Trigger scheduled run now"}
+              </Button>
+            </div>
           </div>
 
           {healthResults ? (
