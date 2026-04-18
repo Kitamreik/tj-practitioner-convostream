@@ -39,7 +39,8 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { RotateCcw } from "lucide-react";
 
 interface IconRow {
   key: string;
@@ -216,6 +217,24 @@ const IconKey: React.FC = () => {
     }
   };
 
+  // Restore the in-code default by deleting the override doc. Live
+  // listener removes the "Edited" badge automatically.
+  const resetToDefault = async (row: IconRow) => {
+    setSaving(true);
+    try {
+      await deleteDoc(doc(db, "iconDescriptions", row.key));
+      toast({ title: "Reverted to default", description: row.label });
+    } catch (e: any) {
+      toast({
+        title: "Couldn't reset",
+        description: e?.message ?? "Check your permissions and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="container mx-auto max-w-4xl p-4 md:p-8">
       <motion.div
@@ -332,15 +351,29 @@ const IconKey: React.FC = () => {
                         <div className="flex items-start gap-3">
                           <p className="flex-1 text-sm text-muted-foreground">{desc}</p>
                           {canEdit && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => startEdit(row)}
-                              className="gap-1.5 flex-shrink-0"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              Edit
-                            </Button>
+                            <div className="flex flex-shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => startEdit(row)}
+                                className="gap-1.5"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                Edit
+                              </Button>
+                              {isCustom && (
+                                <button
+                                  type="button"
+                                  onClick={() => resetToDefault(row)}
+                                  disabled={saving}
+                                  className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
+                                  aria-label={`Reset ${row.label} description to default`}
+                                >
+                                  <RotateCcw className="h-3 w-3" />
+                                  Reset to default
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       )}

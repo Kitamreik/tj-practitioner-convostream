@@ -26,6 +26,9 @@ import {
   LayoutDashboard,
   MessageCircle,
   ArrowRightLeft,
+  Eye,
+  EyeOff,
+  Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -58,6 +61,10 @@ import { toast } from "@/hooks/use-toast";
 import { httpsCallable } from "firebase/functions";
 import { functions, db } from "@/lib/firebase";
 import { subscribeLocalAgents, type LocalAgent } from "@/lib/localAgents";
+import {
+  setLocalManagedPassword,
+  getLocalManagedPassword,
+} from "@/lib/managedPasswords";
 import {
   collection,
   query,
@@ -657,7 +664,91 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // ---- Revoke escalated access (webmaster only) ----
+  // ---- Managed passwords (webmaster only) ---------------------------------
+  // Mirror of /managedPasswords/{uid}. Webmaster-only (rules enforce). When
+  // Firestore is unreachable we fall back to localStorage so the webmaster
+  // can still see the last-set password offline.
+  const [managedPasswords, setManagedPasswords] = useState<Record<string, string>>({});
+  const [revealedUid, setRevealedUid] = useState<string | null>(null);
+  const [pwDialogUid, setPwDialogUid] = useState<string | null>(null);
+  const [pwDraft, setPwDraft] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isWebmaster) return;
+    const unsub = onSnapshot(
+      collection(db, "managedPasswords"),
+      (snap) => {
+        const next: Record<string, string> = {};
+        snap.docs.forEach((d) => {
+          const data = d.data() as { password?: string };
+          if (typeof data.password === "string") {
+            next[d.id] = data.password;
+            // Refresh local cache so offline lookups stay current.
+            setLocalManagedPassword(d.id, data.password);
+          }
+        });
+        setManagedPasswords(next);
+      },
+      (err) => {
+        console.warn("managedPasswords listener error:", err);
+        setManagedPasswords({});
+      }
+    );
+    return unsub;
+  }, [isWebmaster]);
+
+  const getDisplayPassword = (uid: string): string | null => {
+    return managedPasswords[uid] ?? getLocalManagedPassword(uid);
+  };
+
+  const openPasswordDialog = (uid: string) => {
+    setPwDraft(getDisplayPassword(uid) ?? "");
+    setPwDialogUid(uid);
+  };
+
+  const saveManagedPassword = async (uid: string, email: string) => {
+    const trimmed = pwDraft;
+    if (trimmed.length < 6) {
+      toast({ title: "Password too short", description: "Minimum 6 characters.", variant: "destructive" });
+      return;
+    }
+    setPwSaving(true);
+    try {
+      const fn = httpsCallable<{ targetUid: string; newPassword: string }, { ok: boolean }>(
+        functions,
+        "setUserPassword"
+      );
+      await fn({ targetUid: uid, newPassword: trimmed });
+      // Optimistic local mirror in case the listener is slow.
+      setManagedPasswords((prev) => ({ ...prev, [uid]: trimmed }));
+      setLocalManagedPassword(uid, trimmed);
+      toast({ title: "Password updated", description: `${email || uid} can now sign in with the new password.` });
+      setPwDialogUid(null);
+      setPwDraft("");
+    } catch (e: any) {
+      // Even if the cloud call fails, persist locally so the webmaster
+      // doesn't lose what they just typed.
+      setLocalManagedPassword(uid, trimmed);
+      toast({ title: "Password save failed", description: e?.message ?? "Saved locally as fallback.", variant: "destructive" });
+    } finally {
+      setPwSaving(false);
+    }
+  };
+
+  const copyPassword = async (uid: string) => {
+    const pw = getDisplayPassword(uid);
+    if (!pw) {
+      toast({ title: "No password on file", description: "Set one first.", variant: "destructive" });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(pw);
+      toast({ title: "Password copied" });
+    } catch {
+      toast({ title: "Copy failed", variant: "destructive" });
+    }
+  };
   const [revokingUid, setRevokingUid] = useState<string | null>(null);
   const [revokeDialogUid, setRevokeDialogUid] = useState<string | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
@@ -1572,6 +1663,49 @@ const SettingsPage: React.FC = () => {
                       </div>
                       <p className="text-xs text-muted-foreground truncate">{acc.email || acc.uid}</p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">Joined {formatTime(acc.createdAt)}</p>
+                      {/* Password row (webmaster vault). Shows masked dots
+                          unless the eye is toggled; falls back to
+                          localStorage when Firestore is unavailable. */}
+                      {(() => {
+                        const stored = getDisplayPassword(acc.uid);
+                        const revealed = revealedUid === acc.uid;
+                        return (
+                          <div className="mt-1 flex items-center gap-1.5 text-[11px]">
+                            <KeyRound className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-muted-foreground">Password:</span>
+                            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
+                              {stored ? (revealed ? stored : "•".repeat(Math.min(stored.length, 12))) : "(not set via vault)"}
+                            </code>
+                            {stored && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setRevealedUid(revealed ? null : acc.uid)}
+                                  className="text-muted-foreground hover:text-foreground"
+                                  aria-label={revealed ? "Hide password" : "Show password"}
+                                >
+                                  {revealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => copyPassword(acc.uid)}
+                                  className="text-muted-foreground hover:text-foreground"
+                                  aria-label="Copy password"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => openPasswordDialog(acc.uid)}
+                              className="ml-1 text-primary hover:underline"
+                            >
+                              {stored ? "Change" : "Set"}
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="flex flex-shrink-0 gap-2 flex-wrap">
                       {acc.escalatedAccess && acc.role !== "webmaster" && (
@@ -1631,6 +1765,67 @@ const SettingsPage: React.FC = () => {
               )}
             </div>
           </div>
+        )}
+
+        {/* Webmaster-only: Set/change password dialog */}
+        {isWebmaster && (
+          <Dialog
+            open={!!pwDialogUid}
+            onOpenChange={(o) => {
+              if (!o) {
+                setPwDialogUid(null);
+                setPwDraft("");
+              }
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4 text-primary" />
+                  {(() => {
+                    const acc = accounts.find((a) => a.uid === pwDialogUid);
+                    return `Set password for ${acc?.displayName || acc?.email || "user"}`;
+                  })()}
+                </DialogTitle>
+                <DialogDescription>
+                  Updates Firebase Auth immediately. The value is mirrored to{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-[11px]">managedPasswords/{pwDialogUid ?? "{uid}"}</code>{" "}
+                  and your local browser cache so you can look it up later.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <Label htmlFor="managed-password">New password</Label>
+                <Input
+                  id="managed-password"
+                  type="text"
+                  value={pwDraft}
+                  onChange={(e) => setPwDraft(e.target.value)}
+                  placeholder="At least 6 characters"
+                  className="font-mono"
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground">
+                  The user can sign in with this password right away. Existing sessions remain valid until they sign out.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => { setPwDialogUid(null); setPwDraft(""); }} disabled={pwSaving}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    const acc = accounts.find((a) => a.uid === pwDialogUid);
+                    if (acc) saveManagedPassword(acc.uid, acc.email);
+                  }}
+                  disabled={pwSaving || pwDraft.length < 6}
+                  className="gap-1.5"
+                >
+                  <KeyRound className="h-3.5 w-3.5" />
+                  {pwSaving ? "Saving…" : "Save password"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
 
         {/* Shared revoke-escalation dialog (controlled) */}
