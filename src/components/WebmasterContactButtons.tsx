@@ -254,7 +254,7 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
     document.body.appendChild(a);
     a.click();
     a.remove();
-    recordContact();
+    recordContact(channel);
   };
 
   return (
@@ -292,7 +292,7 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
                 <a
                   href={telHref}
                   aria-label={`Call webmaster at ${DISPLAY_NUMBER}. Long-press to copy context.`}
-                  onClick={guardClick}
+                  onClick={guardClick("call")}
                   onMouseDown={startLongPress}
                   onMouseUp={cancelLongPress}
                   onMouseLeave={cancelLongPress}
@@ -323,7 +323,7 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
                 <a
                   href={smsHref}
                   aria-label={`Text webmaster at ${DISPLAY_NUMBER}. Long-press to copy context.`}
-                  onClick={guardClick}
+                  onClick={guardClick("text")}
                   onMouseDown={startLongPress}
                   onMouseUp={cancelLongPress}
                   onMouseLeave={cancelLongPress}
