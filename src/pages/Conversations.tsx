@@ -109,6 +109,8 @@ interface ConversationMessage {
   timestamp: any;
   channel: "sms" | "phone" | "email" | "slack";
   sourceDocName?: string;
+  sourceDocTruncated?: boolean;
+  extractText?: string;
 }
 
 const channelIcons = {
