@@ -97,6 +97,18 @@ const Notifications: React.FC = () => {
   const { user, profile } = useAuth();
   const actorName = profile?.displayName || profile?.email || "Unknown";
 
+  // Scroll to a target anchor when arriving via /notifications#mute-broadcasts-toggle
+  // (the mute indicator dot in the side/bottom nav links here).
+  useEffect(() => {
+    const hash = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
+    if (!hash) return;
+    // Defer until after the first paint so the target exists in the DOM.
+    const t = setTimeout(() => {
+      document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+    return () => clearTimeout(t);
+  }, []);
+
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [usingStarter, setUsingStarter] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
