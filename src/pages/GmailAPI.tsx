@@ -576,6 +576,52 @@ const GmailAPI: React.FC = () => {
     }
   }, [authorized, fetchMessages]);
 
+  // Push a Gmail message into ConvoHub as a Firestore conversation. The
+  // Cloud Function dedups on Gmail message id so repeat clicks are no-ops.
+  const handlePushToConvoHub = useCallback(
+    async (msg: GmailMessage) => {
+      setPushingId(msg.id);
+      try {
+        const fromEmail = (msg.from.match(/<([^>]+)>/) || [])[1] || msg.from;
+        const fn = httpsCallable<
+          {
+            messageId: string;
+            threadId: string;
+            from: string;
+            fromEmail: string;
+            subject: string;
+            snippet: string;
+          },
+          { ok: boolean; conversationId: string; alreadyImported: boolean }
+        >(functions, "pushGmailMessageToConvoHub");
+        const res = await fn({
+          messageId: msg.id,
+          threadId: msg.threadId,
+          from: msg.from,
+          fromEmail,
+          subject: msg.subject,
+          snippet: msg.snippet,
+        });
+        setPushedToConvo((s) => new Set(s).add(msg.id));
+        toast({
+          title: res.data.alreadyImported ? "Already in ConvoHub" : "Pushed to ConvoHub",
+          description: res.data.alreadyImported
+            ? "This Gmail thread is already imported."
+            : "It now shows up under Conversations.",
+        });
+      } catch (e: any) {
+        toast({
+          title: "Push failed",
+          description: e?.message || "Could not push to ConvoHub.",
+          variant: "destructive",
+        });
+      } finally {
+        setPushingId(null);
+      }
+    },
+    []
+  );
+
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
       <div className="mb-6 md:mb-8 flex items-center justify-between gap-3">
