@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Wifi,
   MailCheck,
+  Send as SendIcon,
 } from "lucide-react";
 import DOMPurify from "dompurify";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,8 @@ import {
   safeValidate,
   singleLine,
 } from "@/lib/validation";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/lib/firebase";
 
 const DISCOVERY_DOC = "https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest";
 // Need send + readonly + modify for compose/reply. Compose scope is preferable to full mail.
