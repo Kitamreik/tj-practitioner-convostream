@@ -90,6 +90,7 @@ import { functions } from "@/lib/firebase";
 import ConversationNotes from "@/components/ConversationNotes";
 import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 import { StickyNote } from "lucide-react";
+import SlackAlertButton from "@/components/SlackAlertButton";
 import {
   buildSlackSlugIndex,
   slugifyConversationName,
@@ -1578,7 +1579,8 @@ const Conversations: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <SlackAlertButton />
               <Button
                 size="sm"
                 variant="outline"
