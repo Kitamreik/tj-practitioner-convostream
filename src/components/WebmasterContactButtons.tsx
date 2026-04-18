@@ -180,9 +180,9 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
   const contextLine = buildContextLine(senderName, location.pathname);
   const smsHref = buildSmsHref(senderName, location.pathname);
   const telHref = buildTelHref(senderName, location.pathname);
-  const inCooldown = lastContactMs !== null && Date.now() - lastContactMs < COOLDOWN_MS;
+  const inCooldown = lastContactMs !== null && Date.now() - lastContactMs < cooldownMs;
 
-  const recordContact = () => {
+  const recordContact = (channel: "call" | "text") => {
     const now = Date.now();
     setLastContactMs(now);
     if (lastKey) {
@@ -199,6 +199,15 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
         console.warn("Failed to persist lastWebmasterContact:", err);
       });
     }
+    // Fan out to every webmaster's bell so they see the heads-up even if
+    // they miss the call/text. Best-effort — never block the OS hand-off.
+    notifyWebmasterOnContact({
+      channel,
+      agentName: senderName,
+      route: location.pathname,
+    }).catch((err) => {
+      console.warn("Failed to notify webmaster:", err);
+    });
   };
 
   const startLongPress = () => {
@@ -224,13 +233,13 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
 
   // Suppress the link navigation if the long-press fired (so the user
   // doesn't also get bounced into the dialer/composer).
-  const guardClick = (e: React.MouseEvent) => {
+  const guardClick = (channel: "call" | "text") => (e: React.MouseEvent) => {
     if (longPressFiredRef.current) {
       e.preventDefault();
       longPressFiredRef.current = false;
       return;
     }
-    recordContact();
+    recordContact(channel);
   };
 
   // Programmatically open a tel:/sms: link from the confirm dialog.
