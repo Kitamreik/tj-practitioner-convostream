@@ -1209,6 +1209,75 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
 
+        {/* Webmaster-only: Slack DM webhook for the Call/Text shortcut.
+            Stored team-wide in `appSettings/webmasterContact.slackWebhookUrl`
+            so every agent's browser can read it (per-user integrations creds
+            are owner-only). */}
+        {isWebmaster && (
+          <div id="webmaster-slack" className="rounded-xl border border-border bg-card p-6">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-2">
+              <Send className="h-5 w-5 text-primary" />
+              Webmaster Slack alerts
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Optional. When set, every Call/Text Webmaster shortcut tap pings this
+              channel with the agent's name and current page — so the on-call
+              webmaster sees the heads-up even when the app is closed. Use a Slack{" "}
+              <a
+                href="https://api.slack.com/messaging/webhooks"
+                target="_blank"
+                rel="noreferrer"
+                className="underline hover:text-foreground"
+              >
+                Incoming Webhook URL
+              </a>{" "}
+              for your alerts channel.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="webmaster-slack-webhook" className="text-xs">
+                  Slack Incoming Webhook URL
+                </Label>
+                <Input
+                  id="webmaster-slack-webhook"
+                  type="url"
+                  inputMode="url"
+                  placeholder="https://hooks.slack.com/services/T.../B.../xxxx"
+                  value={slackWebhookDraft}
+                  onChange={(e) => setSlackWebhookDraft(e.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+              <div className="flex gap-2 sm:shrink-0">
+                <Button
+                  onClick={handleSaveSlackWebhook}
+                  disabled={savingSlackWebhook || slackWebhookDraft === slackWebhook}
+                  className="gap-1.5"
+                >
+                  <Check className="h-4 w-4" />
+                  {savingSlackWebhook ? "Saving…" : "Save"}
+                </Button>
+                {slackWebhook && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setSlackWebhookDraft("")}
+                    disabled={savingSlackWebhook}
+                    aria-label="Clear webhook"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              {slackWebhook
+                ? "Active — Slack pings are firing on every shortcut tap."
+                : "Not configured — only in-app bell notifications fire."}
+            </p>
+          </div>
+        )}
+
         {/* Webmaster-only: Overview — at-a-glance assigned conversations per agent */}
         {isWebmaster && (
           <div id="overview" className="rounded-xl border border-border bg-card p-6">
