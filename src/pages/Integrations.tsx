@@ -108,12 +108,16 @@ const Integrations: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [simulating, setSimulating] = useState<"call" | "sms" | null>(null);
 
-  // Health-check panel state (webmaster-only).
+  // Health-check panel state. Live ping is webmaster-only (matches callable
+  // permission); the "Trigger scheduled run now" QA button is also available
+  // to admins so they can validate the unattended path without waiting 5 days.
   type HealthResult = { ok: boolean; message: string; latencyMs: number };
   const [healthRunning, setHealthRunning] = useState(false);
   const [healthResults, setHealthResults] = useState<Record<string, HealthResult> | null>(null);
   const [healthCheckedAt, setHealthCheckedAt] = useState<number | null>(null);
+  const [scheduledRunning, setScheduledRunning] = useState(false);
   const isWebmaster = profile?.role === "webmaster";
+  const canTriggerScheduled = isWebmaster || profile?.role === "admin";
 
   const runHealthCheck = async () => {
     setHealthRunning(true);
