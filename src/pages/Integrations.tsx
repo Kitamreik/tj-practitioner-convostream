@@ -99,7 +99,7 @@ const integrations: Integration[] = [
 
 const Integrations: React.FC = () => {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [configOpen, setConfigOpen] = useState<string | null>(null);
   const [savedConfigs, setSavedConfigs] = useState<Record<string, IntegrationConfig>>({});
   const [draftConfig, setDraftConfig] = useState<Record<string, string>>({});
@@ -107,6 +107,47 @@ const Integrations: React.FC = () => {
   const [loadingConfigs, setLoadingConfigs] = useState(true);
   const [saving, setSaving] = useState(false);
   const [simulating, setSimulating] = useState<"call" | "sms" | null>(null);
+
+  // Health-check panel state (webmaster-only).
+  type HealthResult = { ok: boolean; message: string; latencyMs: number };
+  const [healthRunning, setHealthRunning] = useState(false);
+  const [healthResults, setHealthResults] = useState<Record<string, HealthResult> | null>(null);
+  const [healthCheckedAt, setHealthCheckedAt] = useState<number | null>(null);
+  const isWebmaster = profile?.role === "webmaster";
+
+  const runHealthCheck = async () => {
+    setHealthRunning(true);
+    try {
+      // Pull the cached Gmail OAuth token (set by /gmail-api after the user
+      // signs in) so the server can validate it. If it's missing the server
+      // returns a non-fatal "open Gmail API once" hint per provider.
+      const gmailAccessToken =
+        sessionStorage.getItem("gmail.accessToken") ||
+        localStorage.getItem("gmail.accessToken") ||
+        null;
+      const fn = httpsCallable<
+        { gmailAccessToken: string | null },
+        { ok: boolean; results: Record<string, HealthResult>; checkedAt: number }
+      >(functions, "integrationsHealthCheck");
+      const res = await fn({ gmailAccessToken });
+      setHealthResults(res.data.results);
+      setHealthCheckedAt(res.data.checkedAt);
+      const failures = Object.values(res.data.results).filter((r) => !r.ok).length;
+      toast({
+        title: failures === 0 ? "All integrations healthy" : `${failures} issue${failures === 1 ? "" : "s"} found`,
+        description: failures === 0 ? "Slack, Twilio, Gmail and Google Voice are live." : "Click each card for details.",
+        variant: failures === 0 ? "default" : "destructive",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Health check failed",
+        description: e?.message || "Could not reach the health-check endpoint.",
+        variant: "destructive",
+      });
+    } finally {
+      setHealthRunning(false);
+    }
+  };
 
   const activeIntg = integrations.find((i) => i.id === configOpen);
 
