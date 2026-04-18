@@ -6,9 +6,10 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/co
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
-import { Plug, Shield, Mail, Settings as SettingsIcon, LogOut, Moon, Sun, Archive as ArchiveIcon, ScrollText, Megaphone } from "lucide-react";
+import { Plug, Shield, Mail, Settings as SettingsIcon, LogOut, Moon, Sun, Archive as ArchiveIcon, ScrollText, Megaphone, FileVideo } from "lucide-react";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getActiveCount, subscribeRecordings } from "@/lib/fileRecordings";
 
 interface NavItem {
   label: string;
@@ -26,7 +27,8 @@ const statsItem: NavItem = { label: "Stats", icon: <BarChart3 className="h-5 w-5
 
 const moreItems: NavItem[] = [
   { label: "Agent Logs", icon: <ScrollText className="h-5 w-5" />, path: "/agent-logs" },
-  { label: "Staff Updates", icon: <Megaphone className="h-5 w-5" />, path: "/staff-updates" },
+  { label: "Staff Updates", icon: <Megaphone className="h-5 w-5" />, path: "/staff-updates", badgeKey: "staff" },
+  { label: "File Recordings", icon: <FileVideo className="h-5 w-5" />, path: "/file-recordings", badgeKey: "recordings" },
   { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations", webmasterOrEscalated: true },
   { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit", roles: ["webmaster"] },
   { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail", webmasterOrEscalated: true },
@@ -41,6 +43,8 @@ const BottomNav: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const [unread, setUnread] = useState(0);
   const [notifs, setNotifs] = useState(0);
+  const [staffActive, setStaffActive] = useState(0);
+  const [recordingsActive, setRecordingsActive] = useState(() => getActiveCount());
   const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
@@ -63,9 +67,22 @@ const BottomNav: React.FC = () => {
     return unsub;
   }, [userUid]);
 
+  useEffect(() => {
+    const q = query(collection(db, "staff_updates"), where("status", "in", ["ongoing", "maintenance"]));
+    const unsub = onSnapshot(q, (s) => setStaffActive(s.size), () => setStaffActive(0));
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    setRecordingsActive(getActiveCount());
+    return subscribeRecordings(() => setRecordingsActive(getActiveCount()));
+  }, []);
+
   const getBadge = (item: NavItem) => {
     if (item.badgeKey === "conversations") return unread;
     if (item.badgeKey === "notifications") return notifs;
+    if (item.badgeKey === "staff") return staffActive;
+    if (item.badgeKey === "recordings") return recordingsActive;
     return 0;
   };
 
@@ -111,10 +128,17 @@ const BottomNav: React.FC = () => {
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
         <SheetTrigger asChild>
           <button
-            className="flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium text-muted-foreground"
+            className="relative flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium text-muted-foreground"
             aria-label="More"
           >
-            <Menu className="h-5 w-5" />
+            <div className="relative">
+              <Menu className="h-5 w-5" />
+              {(staffActive + recordingsActive) > 0 && (
+                <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
+                  {(staffActive + recordingsActive) > 9 ? "9+" : staffActive + recordingsActive}
+                </span>
+              )}
+            </div>
             <span>More</span>
           </button>
         </SheetTrigger>
@@ -129,19 +153,31 @@ const BottomNav: React.FC = () => {
                 if (i.webmasterOrEscalated && !escalated) return false;
                 return true;
               })
-              .map((item) => (
-                <button
-                  key={item.path}
-                  onClick={() => go(item.path)}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg border border-border p-3 text-sm font-medium transition-colors",
-                    location.pathname === item.path ? "bg-accent" : "hover:bg-muted/50"
-                  )}
-                >
-                  {item.icon}
-                  {item.label}
-                </button>
-              ))}
+              .map((item) => {
+                const badge = getBadge(item);
+                const isRed = item.badgeKey === "staff" || item.badgeKey === "recordings";
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => go(item.path)}
+                    className={cn(
+                      "relative flex items-center gap-3 rounded-lg border border-border p-3 text-sm font-medium transition-colors",
+                      location.pathname === item.path ? "bg-accent" : "hover:bg-muted/50"
+                    )}
+                  >
+                    {item.icon}
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {badge > 0 && (
+                      <span className={cn(
+                        "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
+                        isRed ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"
+                      )}>
+                        {badge > 9 ? "9+" : badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
           </div>
           <div className="space-y-2 border-t border-border pt-4">
             <div className="flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2">

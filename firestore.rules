@@ -55,7 +55,10 @@ service cloud.firestore {
     // `role` or `escalatedAccess`. Webmasters can read any profile and are
     // the only ones allowed to write those privileged fields.
     match /users/{uid} {
-      allow read: if isSelf(uid) || isWebmaster();
+      // Any signed-in teammate can read profiles (used to render assignee
+      // names in /agents, /conversations, /agent-logs, /analytics, and to
+      // fan-out broadcast notifications).
+      allow read: if isSignedIn();
 
       // Create: self-signup. The Cloud Function strips role; rules also forbid
       // a client-supplied non-default role unless the caller is a webmaster.
@@ -91,8 +94,17 @@ service cloud.firestore {
     }
 
     // -------- per-user notifications --------
+    // Owner has full control. Additionally, ANY signed-in user can CREATE a
+    // broadcast notification in another user's subcollection (used by the
+    // Staff Updates and File Recording fan-out helpers). The broadcast docs
+    // are flagged with `broadcast: true` and `read: false` so the recipient
+    // can later mark them read or delete them.
     match /users/{uid}/notifications/{noteId} {
-      allow read, write: if isSelf(uid);
+      allow read, update, delete: if isSelf(uid);
+      allow create: if isSelf(uid)
+        || (isSignedIn()
+            && request.resource.data.broadcast == true
+            && request.resource.data.read == false);
     }
 
     // -------- audit collections --------
@@ -178,6 +190,27 @@ service cloud.firestore {
       allow create: if isWebmaster()
         && request.resource.data.authorUid == request.auth.uid;
       allow update, delete: if isWebmaster();
+    }
+
+    // -------- file recordings index --------
+    // Lightweight Firestore mirror of the localStorage vault. Used so the
+    // sidebar/bell badges can count active broadcasts across the team. The
+    // canonical media (video URL, base64 images, links, notes) lives in the
+    // uploader's localStorage. Any signed-in user can create their own entry;
+    // admins/webmasters can edit any entry's status; everyone can read.
+    match /file_recordings/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.uploaderUid == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && (
+          resource.data.uploaderUid == request.auth.uid
+          || isWebmaster()
+          || (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+          )
+        );
     }
   }
 }

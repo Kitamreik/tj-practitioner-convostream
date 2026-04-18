@@ -42,6 +42,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
+import { notifyAllUsers } from "@/lib/notifyAll";
 
 /**
  * Staff Updates — webmaster-authored announcements for the team. Everyone
@@ -160,6 +161,13 @@ const StaffUpdates: React.FC = () => {
         authorName: profile.displayName || profile.email || "Webmaster",
       });
       toast({ title: "Update posted", description: title });
+      // Fan-out a per-user notification so the bell badge lights up.
+      notifyAllUsers({
+        type: "alert",
+        title: `Staff update: ${title}`,
+        description: body || `Status: ${draftStatus}`,
+        link: "/staff-updates",
+      }).catch(() => undefined);
       resetDraft();
       setDialogOpen(false);
     } catch (e: any) {

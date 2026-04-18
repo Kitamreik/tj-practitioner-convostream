@@ -17,11 +17,13 @@ import {
   Archive as ArchiveIcon,
   ScrollText,
   Megaphone,
+  FileVideo,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getActiveCount, subscribeRecordings } from "@/lib/fileRecordings";
 
 interface NavItem {
   label: string;
@@ -37,7 +39,8 @@ const navItems: NavItem[] = [
   { label: "Conversations", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" },
   { label: "Agents", icon: <Users className="h-5 w-5" />, path: "/agents" },
   { label: "Agent Logs", icon: <ScrollText className="h-5 w-5" />, path: "/agent-logs" },
-  { label: "Staff Updates", icon: <Megaphone className="h-5 w-5" />, path: "/staff-updates" },
+  { label: "Staff Updates", icon: <Megaphone className="h-5 w-5" />, path: "/staff-updates", badgeKey: "staff" },
+  { label: "File Recordings", icon: <FileVideo className="h-5 w-5" />, path: "/file-recordings", badgeKey: "recordings" },
   { label: "Notifications", icon: <Bell className="h-5 w-5" />, path: "/notifications", badgeKey: "notifications" },
   { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations", webmasterOrEscalated: true },
   { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit", roles: ["webmaster"] },
@@ -53,8 +56,9 @@ const AppSidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({ active: 0, waiting: 0 });
-
   const [notificationCount, setNotificationCount] = useState(0);
+  const [staffActive, setStaffActive] = useState(0);
+  const [recordingsActive, setRecordingsActive] = useState<number>(() => getActiveCount());
 
   // Listen for unread conversations
   useEffect(() => {
@@ -98,6 +102,19 @@ const AppSidebar: React.FC = () => {
     return unsub;
   }, [userUid]);
 
+  // Active (non-resolved) staff updates — drives the red sidebar badge.
+  useEffect(() => {
+    const q = query(collection(db, "staff_updates"), where("status", "in", ["ongoing", "maintenance"]));
+    const unsub = onSnapshot(q, (snap) => setStaffActive(snap.size), () => setStaffActive(0));
+    return unsub;
+  }, []);
+
+  // Active file recordings — local-only, but updates live via custom event.
+  useEffect(() => {
+    setRecordingsActive(getActiveCount());
+    return subscribeRecordings(() => setRecordingsActive(getActiveCount()));
+  }, []);
+
   const totalUnread = unreadCounts.active + unreadCounts.waiting;
 
   const filteredNav = navItems.filter((item) => {
@@ -112,6 +129,8 @@ const AppSidebar: React.FC = () => {
   const getBadge = (item: NavItem) => {
     if (item.badgeKey === "conversations" && totalUnread > 0) return totalUnread;
     if (item.badgeKey === "notifications" && notificationCount > 0) return notificationCount;
+    if (item.badgeKey === "staff" && staffActive > 0) return staffActive;
+    if (item.badgeKey === "recordings" && recordingsActive > 0) return recordingsActive;
     return 0;
   };
 
@@ -146,7 +165,12 @@ const AppSidebar: React.FC = () => {
               {item.icon}
               <span className="flex-1 text-left">{item.label}</span>
               {badge > 0 && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                <span className={cn(
+                  "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
+                  item.badgeKey === "staff" || item.badgeKey === "recordings"
+                    ? "bg-destructive text-destructive-foreground"
+                    : "bg-primary text-primary-foreground"
+                )}>
                   {badge}
                 </span>
               )}
