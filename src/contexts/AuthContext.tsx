@@ -56,6 +56,27 @@ async function logLoginAttempt(email: string, success: boolean, uid?: string) {
   }
 }
 
+/**
+ * When an agent who was previously added manually (and thus exists only in
+ * the webmaster's localStorage roster) signs up for real, their Firestore
+ * profile should take over. We strip the matching local entry from
+ * localStorage so the dedup-by-email logic on the Agents page doesn't have
+ * to keep masking it forever — the row truly disappears from the local list.
+ */
+function cleanupLocalAgentForEmail(email: string | null | undefined): void {
+  if (!email) return;
+  const target = email.trim().toLowerCase();
+  if (!target) return;
+  try {
+    const matches = listLocalAgents().filter(
+      (a) => a.email.trim().toLowerCase() === target
+    );
+    matches.forEach((m) => removeLocalAgent(m.id));
+  } catch (e) {
+    console.warn("cleanupLocalAgentForEmail failed:", e);
+  }
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
