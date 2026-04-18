@@ -87,6 +87,8 @@ import { httpsCallable } from "firebase/functions";
 import { useSearchParams, useParams, useNavigate } from "react-router-dom";
 import { functions } from "@/lib/firebase";
 import ConversationNotes from "@/components/ConversationNotes";
+import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
+import { StickyNote } from "lucide-react";
 
 interface Conversation {
   id: string;
@@ -360,6 +362,10 @@ const Conversations: React.FC = () => {
     toast({ title: "Refreshed", description: "Conversations are up to date." });
   };
 
+
+  // Single-listener map of conversation → note count, used to render the
+  // "N notes" badge on each row in the list and on /agent-logs row headers.
+  const noteCounts = useConversationNoteCounts();
 
   // Single conversation export handlers
   const selected = conversations.find((c) => c.id === selectedId);
@@ -1002,6 +1008,16 @@ const Conversations: React.FC = () => {
                     {convo.assignedAgent && (
                       <span className="inline-flex h-5 items-center gap-1 rounded-full bg-primary/5 px-1.5 text-[10px] text-primary">
                         <UserCheck className="h-2.5 w-2.5" />{convo.assignedAgent.split(" ")[0]}
+                      </span>
+                    )}
+                    {(noteCounts[convo.id] ?? 0) > 0 && (
+                      <span
+                        className="inline-flex h-5 items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-1.5 text-[10px] font-medium text-warning"
+                        title={`${noteCounts[convo.id]} shared note${noteCounts[convo.id] === 1 ? "" : "s"}`}
+                        aria-label={`${noteCounts[convo.id]} notes`}
+                      >
+                        <StickyNote className="h-2.5 w-2.5" />
+                        {noteCounts[convo.id]}
                       </span>
                     )}
                   </div>

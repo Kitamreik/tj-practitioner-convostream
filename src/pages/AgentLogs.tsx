@@ -11,6 +11,7 @@ import {
   Hash,
   CheckCircle2,
   Loader2,
+  StickyNote,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,7 @@ import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import PullToRefresh from "@/components/PullToRefresh";
 import ConversationNotes from "@/components/ConversationNotes";
+import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 
 /**
  * Agent Logs — read-only history of resolved conversations, grouped by the
@@ -80,6 +82,8 @@ const AgentLogs: React.FC = () => {
   const { profile } = useAuth();
   const isMobile = useIsMobile();
   const isStaff = profile?.role === "webmaster" || profile?.role === "admin";
+  // Shared note-count map drives the per-group "N notes" header badge.
+  const noteCounts = useConversationNoteCounts();
 
   const [resolved, setResolved] = useState<ResolvedConvo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -358,6 +362,8 @@ const AgentLogs: React.FC = () => {
                       const m = metricsByAgent.get(agentName);
                       const avg = m?.avgResolveMs;
                       const week = m?.resolvedThisWeek ?? 0;
+                      // Sum of notes across every resolved conversation for this agent.
+                      const notesTotal = rows.reduce((sum, r) => sum + (noteCounts[r.id] ?? 0), 0);
                       return (
                         <>
                           <Badge
@@ -374,6 +380,16 @@ const AgentLogs: React.FC = () => {
                           >
                             {avg != null ? `avg ${formatDuration(avg)}` : "avg —"}
                           </Badge>
+                          {notesTotal > 0 && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] gap-1 border-warning/40 text-warning"
+                              title={`${notesTotal} shared note${notesTotal === 1 ? "" : "s"} across these conversations`}
+                            >
+                              <StickyNote className="h-2.5 w-2.5" />
+                              {notesTotal}
+                            </Badge>
+                          )}
                           <Badge variant="outline" className="text-[10px]">
                             {rows.length} resolved
                           </Badge>
@@ -395,6 +411,16 @@ const AgentLogs: React.FC = () => {
                           </p>
                           {r.archived && (
                             <Badge variant="outline" className="text-[10px]">Archived</Badge>
+                          )}
+                          {(noteCounts[r.id] ?? 0) > 0 && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] gap-1 border-warning/40 text-warning"
+                              title={`${noteCounts[r.id]} shared note${noteCounts[r.id] === 1 ? "" : "s"}`}
+                            >
+                              <StickyNote className="h-2.5 w-2.5" />
+                              {noteCounts[r.id]}
+                            </Badge>
                           )}
                           <span className="text-[11px] text-muted-foreground">
                             {formatRelative(r.timestamp)}
