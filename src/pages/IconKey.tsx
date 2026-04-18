@@ -39,7 +39,8 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { RotateCcw } from "lucide-react";
 
 interface IconRow {
   key: string;
