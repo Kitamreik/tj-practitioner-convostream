@@ -261,21 +261,35 @@ const IconKey: React.FC = () => {
         </p>
       </motion.div>
 
-      {/* Quick legend strip at the top so users get the gist before scrolling. */}
+      {/* Quick legend strip at the top so users get the gist before scrolling.
+          Each chip is now a button that scrolls the corresponding detailed
+          row into view — saves a long page-scan when the legend gets long. */}
       <div className="mb-8 rounded-xl border border-border bg-card p-4">
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Quick legend
         </h2>
         <div className="flex flex-wrap gap-2">
           {ICON_ROWS.map((r) => (
-            <div
+            <button
               key={`legend-${r.key}`}
-              className="flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs"
-              title={stored[r.key]?.description ?? r.defaultDescription}
+              type="button"
+              onClick={() => {
+                const el = document.getElementById(`icon-row-${r.key}`);
+                if (!el) return;
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                // Brief highlight so the user can see which row matched.
+                el.classList.add("ring-2", "ring-primary", "ring-offset-2", "ring-offset-background");
+                window.setTimeout(() => {
+                  el.classList.remove("ring-2", "ring-primary", "ring-offset-2", "ring-offset-background");
+                }, 1500);
+              }}
+              className="flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              title={`Jump to “${r.label}” — ${stored[r.key]?.description ?? r.defaultDescription}`}
+              aria-label={`Jump to ${r.label} entry`}
             >
               <span className="text-foreground">{r.icon}</span>
               <span className="text-muted-foreground">{r.label}</span>
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -296,7 +310,11 @@ const IconKey: React.FC = () => {
                 const isEditing = editingKey === row.key;
                 const isCustom = !!stored[row.key];
                 return (
-                  <li key={row.key} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
+                  <li
+                    key={row.key}
+                    id={`icon-row-${row.key}`}
+                    className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start scroll-mt-24 rounded-md transition-shadow"
+                  >
                     <div className="flex w-44 flex-shrink-0 items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted/40 text-foreground">
                         {row.icon}

@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { MessageCircle } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import BottomNav from "@/components/BottomNav";
+import ScrollToTop from "@/components/ScrollToTop";
 import PWAInstallBanner from "@/components/PWAInstallBanner";
 import { useAuth } from "@/contexts/AuthContext";
 import { collection, getDocs, limit, query, where } from "firebase/firestore";
@@ -105,8 +106,9 @@ const AppLayout: React.FC = () => {
           </h1>
         </header>
 
-        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+        <main className="flex-1 overflow-y-auto pb-16 md:pb-0 relative">
           <Outlet />
+          <ScrollToTop />
         </main>
       </div>
 
