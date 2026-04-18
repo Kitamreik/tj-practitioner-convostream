@@ -554,7 +554,8 @@ const Agents: React.FC = () => {
 
         {/* Desktop table */}
         <div className="hidden md:block rounded-xl border border-border overflow-hidden">
-          <table className="w-full">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[820px]">
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">

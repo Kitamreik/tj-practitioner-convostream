@@ -549,7 +549,7 @@ const Integrations: React.FC = () => {
                 </p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
+                  <table className="w-full min-w-[480px] text-xs">
                     <thead>
                       <tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                         <th className="px-3 py-2 font-medium">When</th>
