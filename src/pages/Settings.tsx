@@ -93,6 +93,10 @@ import {
   setSlackWebhookUrl,
   type CooldownMinutes,
 } from "@/lib/webmasterCooldown";
+import {
+  subscribeRecentContactEvents,
+  type WebmasterContactEvent,
+} from "@/lib/webmasterContactEvents";
 
 const ESCALATION_NOTIFY_EMAIL = "kit.tjclasses@gmail.com";
 
@@ -353,6 +357,52 @@ const SettingsPage: React.FC = () => {
       setSavingSlackWebhook(false);
     }
   };
+
+  // Fire a test message to whatever URL is currently in the input. Uses the
+  // draft (not the saved value) so the webmaster can validate a freshly
+  // pasted URL without having to save it first. Mirrors the Slack ping
+  // shape used by notifyWebmasterOnContact so a successful test confirms
+  // the same channel will receive real alerts.
+  const [testingPing, setTestingPing] = useState(false);
+  const handleTestPing = async () => {
+    const url = slackWebhookDraft.trim();
+    if (!url || !url.startsWith("https://hooks.slack.com/")) {
+      toast({
+        title: "Enter a Slack webhook URL first",
+        description: "Must start with https://hooks.slack.com/",
+        variant: "destructive",
+      });
+      return;
+    }
+    setTestingPing(true);
+    try {
+      // Slack rejects browser preflight on incoming-webhooks, so we use
+      // mode:'no-cors'. The request still reaches Slack but we can't read
+      // the response — same trade-off as notifyWebmaster.pingSlack. A
+      // network-layer failure throws; otherwise we assume delivery.
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        mode: "no-cors",
+        body: JSON.stringify({
+          text: `:white_check_mark: Test ping from *${profile?.displayName || "the webmaster"}* — ConvoHub Slack alerts are wired up correctly.`,
+        }),
+      });
+      toast({
+        title: "Test ping sent",
+        description: "Check your Slack channel — the message should appear within a few seconds.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Test ping failed",
+        description: e?.message || "Could not reach Slack. Double-check the URL.",
+        variant: "destructive",
+      });
+    } finally {
+      setTestingPing(false);
+    }
+  };
+
   const handleCooldownChange = async (value: string) => {
     const n = Number(value) as CooldownMinutes;
     setSavingCooldown(true);
@@ -372,6 +422,15 @@ const SettingsPage: React.FC = () => {
       setSavingCooldown(false);
     }
   };
+
+  // ---- Recent webmaster-contact events (webmaster only) ----
+  // Drives the small history list under the cooldown section so the on-call
+  // webmaster can spot patterns at a glance.
+  const [recentContacts, setRecentContacts] = useState<WebmasterContactEvent[]>([]);
+  useEffect(() => {
+    if (!isWebmaster) return;
+    return subscribeRecentContactEvents(10, setRecentContacts);
+  }, [isWebmaster]);
 
   // ---- Pending escalation requests (webmaster only) ----
   const [pending, setPending] = useState<PendingEscalation[]>([]);
@@ -1206,6 +1265,61 @@ const SettingsPage: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Recent contact events — last 10. Lets the on-call webmaster
+                spot patterns at a glance ("agent X has texted me 4 times
+                this hour, something's wrong") without leaving /settings.
+                Append-only log; webmaster-only by Firestore rules. */}
+            <div className="mt-6 border-t border-border pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                  <History className="h-3.5 w-3.5 text-muted-foreground" />
+                  Recent webmaster contacts
+                </p>
+                <span className="text-[11px] text-muted-foreground">
+                  Last {Math.min(10, recentContacts.length) || 0} of 10
+                </span>
+              </div>
+              {recentContacts.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-3">
+                  No contacts logged yet — events appear here as agents tap Call/Text.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border rounded-md border border-border bg-muted/30">
+                  {recentContacts.map((ev) => {
+                    const when = ev.createdAt?.toDate ? ev.createdAt.toDate() : null;
+                    const channelLabel = ev.channel === "call" ? "Called" : "Texted";
+                    return (
+                      <li
+                        key={ev.id}
+                        className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs"
+                      >
+                        <Badge
+                          variant={ev.channel === "call" ? "default" : "secondary"}
+                          className="gap-1 shrink-0"
+                        >
+                          {ev.channel === "call" ? (
+                            <PhoneCall className="h-3 w-3" />
+                          ) : (
+                            <MessageCircle className="h-3 w-3" />
+                          )}
+                          {channelLabel}
+                        </Badge>
+                        <span className="font-medium text-foreground truncate min-w-0">
+                          {ev.agentName}
+                        </span>
+                        <span className="text-muted-foreground truncate min-w-0">
+                          from <code className="text-[10px] bg-background px-1 py-0.5 rounded">{ev.route}</code>
+                        </span>
+                        <span className="ml-auto text-muted-foreground shrink-0">
+                          {when ? when.toLocaleString() : "—"}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           </div>
         )}
 
@@ -1249,7 +1363,7 @@ const SettingsPage: React.FC = () => {
                   spellCheck={false}
                 />
               </div>
-              <div className="flex gap-2 sm:shrink-0">
+              <div className="flex flex-wrap gap-2 sm:shrink-0">
                 <Button
                   onClick={handleSaveSlackWebhook}
                   disabled={savingSlackWebhook || slackWebhookDraft === slackWebhook}
@@ -1257,6 +1371,16 @@ const SettingsPage: React.FC = () => {
                 >
                   <Check className="h-4 w-4" />
                   {savingSlackWebhook ? "Saving…" : "Save"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleTestPing}
+                  disabled={testingPing || !slackWebhookDraft.trim()}
+                  className="gap-1.5"
+                  aria-label="Send a test ping to confirm the Slack webhook works"
+                >
+                  <Send className="h-4 w-4" />
+                  {testingPing ? "Sending…" : "Send test ping"}
                 </Button>
                 {slackWebhook && (
                   <Button

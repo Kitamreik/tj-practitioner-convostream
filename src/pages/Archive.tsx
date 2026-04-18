@@ -156,8 +156,15 @@ const Archive: React.FC = () => {
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete forever?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This permanently removes <strong>{item.label}</strong>. It cannot be restored.
+                      <AlertDialogDescription className="space-y-2">
+                        {col === "people" && (
+                          <span className="block font-medium text-foreground">
+                            Archiving and removing contacts should only be done if the client requested disengagement.
+                          </span>
+                        )}
+                        <span className="block">
+                          This permanently removes <strong>{item.label}</strong>. It cannot be restored.
+                        </span>
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

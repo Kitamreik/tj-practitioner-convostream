@@ -23,10 +23,13 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getLocalSlackWebhookUrl } from "@/lib/webmasterCooldown";
+import { logWebmasterContactEvent } from "@/lib/webmasterContactEvents";
 
 export interface NotifyWebmasterInput {
   channel: "call" | "text";
   agentName: string;
+  /** Caller's auth uid — required to satisfy the contact-events rules. */
+  agentUid: string;
   /** Current route the agent is on, for instant context. */
   route: string;
 }
@@ -73,9 +76,15 @@ async function pingSlack(input: NotifyWebmasterInput): Promise<boolean> {
 }
 
 export async function notifyWebmasterOnContact(input: NotifyWebmasterInput): Promise<number> {
-  // Fire Slack in parallel with the bell fan-out so a slow Firestore query
-  // can't delay the Slack heads-up.
+  // Fire Slack + the append-only contact log in parallel with the bell
+  // fan-out so a slow Firestore query can't delay the heads-up.
   void pingSlack(input);
+  void logWebmasterContactEvent({
+    agentUid: input.agentUid,
+    agentName: input.agentName,
+    channel: input.channel,
+    route: input.route,
+  });
 
   let snap;
   try {

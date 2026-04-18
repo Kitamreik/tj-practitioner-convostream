@@ -207,6 +207,7 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
     notifyWebmasterOnContact({
       channel,
       agentName: senderName,
+      agentUid: userUid ?? "",
       route: location.pathname,
     }).catch((err) => {
       console.warn("Failed to notify webmaster:", err);
