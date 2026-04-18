@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Phone, MessageSquare, Clock } from "lucide-react";
+import { Phone, MessageSquare, Clock, Bell } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -18,7 +18,8 @@ import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { subscribeCooldownMin, subscribeSlackWebhookUrl, DEFAULT_COOLDOWN_MIN, type CooldownMinutes } from "@/lib/webmasterCooldown";
-import { notifyWebmasterOnContact } from "@/lib/notifyWebmaster";
+import { notifyWebmasterOnContact, pingWebmasterSlackAlert } from "@/lib/notifyWebmaster";
+import { getLocalSlackWebhookUrl } from "@/lib/webmasterCooldown";
 
 /**
  * WebmasterContactButtons — direct call/SMS shortcuts to the on-call
