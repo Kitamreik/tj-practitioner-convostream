@@ -11,6 +11,7 @@ import {
   Hash,
   CheckCircle2,
   Loader2,
+  StickyNote,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,7 @@ import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import PullToRefresh from "@/components/PullToRefresh";
 import ConversationNotes from "@/components/ConversationNotes";
+import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 
 /**
  * Agent Logs — read-only history of resolved conversations, grouped by the
