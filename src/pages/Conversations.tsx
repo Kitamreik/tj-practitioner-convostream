@@ -318,13 +318,12 @@ const Conversations: React.FC = () => {
   const { id: routeId } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  // Live list of agent display names — pulled from the `users` collection so
-  // renames in Settings → Agents reflect immediately on the assign-agent menu.
-  // Also merges in manually-added local agents (localStorage) so webmaster
-  // additions show up without a sign-up step. Falls back to a hardcoded list
-  // when Firestore is unreachable.
-  const FALLBACK_AGENTS = ["Alice Johnson", "Bob Smith", "Carol Davis", "Dan Lee"];
-  const [firestoreAgents, setFirestoreAgents] = useState<string[]>(FALLBACK_AGENTS);
+  // Live list of agent display names — must match exactly what the Agents page
+  // shows. Sources: (1) Firestore `users` with role agent/admin and (2) the
+  // manually-added local roster (localStorage). No more hardcoded fallback —
+  // if Firestore is unreachable we still surface local agents so demo data
+  // works, but we never invent fake names that don't exist on /agents.
+  const [firestoreAgents, setFirestoreAgents] = useState<string[]>([]);
   const [localAgentNames, setLocalAgentNames] = useState<string[]>([]);
   useEffect(() => {
     const unsub = onSnapshot(
@@ -335,9 +334,9 @@ const Conversations: React.FC = () => {
           .filter((u) => u && (u.role === "agent" || u.role === "admin") && (u.displayName || u.email))
           .map((u) => (u.displayName || u.email) as string)
           .filter((v, i, arr) => arr.indexOf(v) === i);
-        setFirestoreAgents(names.length > 0 ? names : FALLBACK_AGENTS);
+        setFirestoreAgents(names);
       },
-      () => setFirestoreAgents(FALLBACK_AGENTS)
+      () => setFirestoreAgents([])
     );
     return unsub;
   }, []);
