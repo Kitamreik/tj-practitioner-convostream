@@ -314,6 +314,30 @@ const SettingsPage: React.FC = () => {
   const isWebmaster = profile?.role === "webmaster";
   const hasEscalatedAccess = profile?.escalatedAccess === true;
 
+  // ---- Webmaster contact cooldown (team-wide setting) ----
+  const [cooldownMin, setCooldownMinState] = useState<CooldownMinutes>(DEFAULT_COOLDOWN_MIN);
+  const [savingCooldown, setSavingCooldown] = useState(false);
+  useEffect(() => subscribeCooldownMin(setCooldownMinState), []);
+  const handleCooldownChange = async (value: string) => {
+    const n = Number(value) as CooldownMinutes;
+    setSavingCooldown(true);
+    try {
+      await setCooldownMin(n, profile?.uid);
+      toast({
+        title: "Cooldown updated",
+        description: `Agents must now wait ${n} min between webmaster contacts.`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Could not save cooldown",
+        description: e?.message || "Try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingCooldown(false);
+    }
+  };
+
   // ---- Pending escalation requests (webmaster only) ----
   const [pending, setPending] = useState<PendingEscalation[]>([]);
   const [decidingId, setDecidingId] = useState<string | null>(null);
