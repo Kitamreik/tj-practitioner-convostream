@@ -47,23 +47,64 @@ const stats = [
 ];
 
 const Analytics: React.FC = () => {
-  const [agentWorkload, setAgentWorkload] = useState<AgentWorkloadData[]>(fallbackAgentWorkload);
+  const [agentWorkload, setAgentWorkload] = useState<AgentWorkloadData[]>([]);
   const [voiceActivity, setVoiceActivity] = useState<VoiceActivity[]>(fallbackVoiceActivity);
   const [voiceLive, setVoiceLive] = useState(false);
   // Last-7-days raw call activity (separate listener — needs more rows than the live feed).
   const [voiceWeek, setVoiceWeek] = useState<VoiceActivity[]>([]);
   const [numberFilter, setNumberFilter] = useState<string>("all");
 
-  // Listen to conversations and compute per-agent workload
+  // Live agent roster — Firestore users (agent/admin) + manually-added local
+  // agents. The workload chart is restricted to this set so it always matches
+  // what's on the Agents page (no orphan names from old conversations, no
+  // "Unassigned" bucket cluttering the staff view).
+  const [firestoreAgentNames, setFirestoreAgentNames] = useState<string[]>([]);
+  const [localAgentNames, setLocalAgentNames] = useState<string[]>([]);
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, "users"),
+      (snap) => {
+        const names = snap.docs
+          .map((d) => d.data() as any)
+          .filter((u) => u && (u.role === "agent" || u.role === "admin") && (u.displayName || u.email))
+          .map((u) => (u.displayName || u.email) as string);
+        setFirestoreAgentNames(Array.from(new Set(names)));
+      },
+      () => setFirestoreAgentNames([])
+    );
+    return unsub;
+  }, []);
+  useEffect(
+    () => subscribeLocalAgents((rows) => setLocalAgentNames(rows.map((r) => r.displayName).filter(Boolean))),
+    []
+  );
+  const knownAgentSet = useMemo(
+    () => new Set([...firestoreAgentNames, ...localAgentNames].map((n) => n.toLowerCase())),
+    [firestoreAgentNames, localAgentNames]
+  );
+  const knownAgentList = useMemo(
+    () => Array.from(new Set([...firestoreAgentNames, ...localAgentNames])).sort((a, b) => a.localeCompare(b)),
+    [firestoreAgentNames, localAgentNames]
+  );
+
+  // Listen to conversations and compute per-agent workload — restricted to
+  // agents that exist on the Agents page. We pre-seed every known agent with
+  // zeros so brand-new agents render an "all idle" row instead of being missing.
   useEffect(() => {
     const unsub = onSnapshot(
       collection(db, "conversations"),
       (snapshot) => {
         const agentMap: Record<string, AgentWorkloadData> = {};
+        // Pre-seed so every known agent appears, even with zero workload.
+        knownAgentList.forEach((n) => {
+          agentMap[n] = { name: n, active: 0, waiting: 0, resolved: 0 };
+        });
 
         snapshot.docs.forEach((doc) => {
           const data = doc.data();
-          const agent = data.assignedAgent || "Unassigned";
+          const agent = (data.assignedAgent || "").trim();
+          // Skip unassigned and any orphan names not on the Agents page.
+          if (!agent || !knownAgentSet.has(agent.toLowerCase())) return;
           if (!agentMap[agent]) {
             agentMap[agent] = { name: agent, active: 0, waiting: 0, resolved: 0 };
           }
@@ -72,15 +113,18 @@ const Analytics: React.FC = () => {
           else if (data.status === "resolved") agentMap[agent].resolved++;
         });
 
-        const result = Object.values(agentMap);
-        setAgentWorkload(result.length > 0 ? result : fallbackAgentWorkload);
+        const result = Object.values(agentMap).sort((a, b) => a.name.localeCompare(b.name));
+        // Only fall back to sample data when there's no roster at all (fresh tenant).
+        setAgentWorkload(
+          result.length > 0 ? result : knownAgentList.length === 0 ? sampleAgentWorkload : []
+        );
       },
       () => {
-        setAgentWorkload(fallbackAgentWorkload);
+        setAgentWorkload(knownAgentList.length === 0 ? sampleAgentWorkload : []);
       }
     );
     return unsub;
-  }, []);
+  }, [knownAgentList, knownAgentSet]);
 
   // Listen to Google Voice activity (calls + SMS) in real time
   useEffect(() => {
