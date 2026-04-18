@@ -532,7 +532,7 @@ const AuditLogs: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 mb-3">
+          <div className="flex items-center justify-end gap-2 mb-3 flex-wrap">
             <ExportCsvButton
               label="login attempts"
               count={loginAttempts.length}
@@ -550,6 +550,7 @@ const AuditLogs: React.FC = () => {
                 )
               }
             />
+            <PurgeOldButton />
             <ClearAllButton
               label="login attempts"
               count={loginAttempts.length}
