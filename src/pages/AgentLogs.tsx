@@ -412,6 +412,16 @@ const AgentLogs: React.FC = () => {
                           {r.archived && (
                             <Badge variant="outline" className="text-[10px]">Archived</Badge>
                           )}
+                          {(noteCounts[r.id] ?? 0) > 0 && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] gap-1 border-warning/40 text-warning"
+                              title={`${noteCounts[r.id]} shared note${noteCounts[r.id] === 1 ? "" : "s"}`}
+                            >
+                              <StickyNote className="h-2.5 w-2.5" />
+                              {noteCounts[r.id]}
+                            </Badge>
+                          )}
                           <span className="text-[11px] text-muted-foreground">
                             {formatRelative(r.timestamp)}
                           </span>
