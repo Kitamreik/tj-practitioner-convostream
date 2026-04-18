@@ -194,9 +194,28 @@ const Agents: React.FC = () => {
     return name ? loadByAgent.get(name) ?? 0 : 0;
   };
 
+  // Merge Firestore users with manually-added local agents. Local entries are
+  // suppressed when a Firestore user with the same email already exists, so
+  // signing up later doesn't create a duplicate row.
+  const merged = useMemo<AgentRow[]>(() => {
+    const existingEmails = new Set(
+      users.map((u) => (u.email || "").toLowerCase()).filter(Boolean)
+    );
+    const localRows: AgentRow[] = localAgents
+      .filter((a) => !existingEmails.has(a.email.toLowerCase()))
+      .map((a) => ({
+        uid: a.id,
+        email: a.email,
+        displayName: a.displayName,
+        role: "agent" as const,
+        isLocal: true,
+      }));
+    return [...users, ...localRows];
+  }, [users, localAgents]);
+
   const filtered = useMemo(
     () =>
-      users
+      merged
         .filter((u) =>
           search.trim() === ""
             ? true
@@ -208,8 +227,28 @@ const Agents: React.FC = () => {
           const order = { agent: 0, admin: 1, webmaster: 2 } as const;
           return order[a.role] - order[b.role] || a.displayName.localeCompare(b.displayName);
         }),
-    [users, search]
+    [merged, search]
   );
+
+  const handleAddLocalAgent = () => {
+    const res = addLocalAgent({ email: addEmail, displayName: addName });
+    if (!res.ok) {
+      toast({ title: "Could not add agent", description: res.reason, variant: "destructive" });
+      return;
+    }
+    toast({
+      title: "Agent added",
+      description: `${res.agent!.displayName} is now available for assignment.`,
+    });
+    setAddEmail("");
+    setAddName("");
+    setAddOpen(false);
+  };
+
+  const handleRemoveLocalAgent = (row: AgentRow) => {
+    removeLocalAgent(row.uid);
+    toast({ title: "Agent removed", description: `${row.displayName} removed from local roster.` });
+  };
 
   const setRole = async (acc: AgentRow, target: "agent" | "admin") => {
     if (!acc.email) {
