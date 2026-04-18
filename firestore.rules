@@ -183,6 +183,12 @@ service cloud.firestore {
     match /integrations/{id} {
       allow read, write: if isSignedIn();
     }
+    // Per-user integrations credentials subcollection.
+    // Path: users/{uid}/integrations/{credId} — owner-only read/write so each
+    // teammate's Slack/Gmail/Google Voice secrets stay private to them.
+    match /users/{uid}/integrations/{credId} {
+      allow read, write: if isSelf(uid);
+    }
 
     // -------- staff updates --------
     // Webmaster-authored announcements visible to the whole team. Anyone
