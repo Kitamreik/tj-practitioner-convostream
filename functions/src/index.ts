@@ -301,6 +301,59 @@ export const deleteUserAccount = onCall(async (request) => {
 });
 
 /**
+ * Webmaster-only: set (overwrite) another user's password. Updates Firebase
+ * Auth via the admin SDK and stores the plaintext in
+ * `managedPasswords/{targetUid}` so the webmaster can look it up later
+ * (Firebase Auth itself never returns the hash). The client also mirrors
+ * the value into localStorage as an offline fallback.
+ *
+ * Request: { targetUid: string, newPassword: string }
+ */
+export const setUserPassword = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerUid = request.auth.uid;
+  const callerSnap = await db.doc(`users/${callerUid}`).get();
+  const callerData = callerSnap.data() as { role?: string; email?: string } | undefined;
+  if (callerData?.role !== "webmaster") {
+    throw new HttpsError("permission-denied", "Webmasters only.");
+  }
+
+  const data = (request.data ?? {}) as { targetUid?: unknown; newPassword?: unknown };
+  const targetUid = typeof data.targetUid === "string" ? data.targetUid : "";
+  const newPassword = typeof data.newPassword === "string" ? data.newPassword : "";
+  if (!targetUid) throw new HttpsError("invalid-argument", "targetUid required.");
+  if (newPassword.length < 6) {
+    throw new HttpsError("invalid-argument", "Password must be at least 6 characters.");
+  }
+  if (newPassword.length > 128) {
+    throw new HttpsError("invalid-argument", "Password must be 128 characters or fewer.");
+  }
+
+  try {
+    await admin.auth().updateUser(targetUid, { password: newPassword });
+  } catch (err: unknown) {
+    logger.error("setUserPassword: auth update failed", err);
+    throw new HttpsError("internal", `Auth update failed: ${(err as Error).message}`);
+  }
+
+  const targetSnap = await db.doc(`users/${targetUid}`).get();
+  const targetEmail = targetSnap.exists
+    ? (targetSnap.data() as { email?: string }).email ?? null
+    : null;
+
+  await db.doc(`managedPasswords/${targetUid}`).set({
+    password: newPassword,
+    email: targetEmail,
+    setByUid: callerUid,
+    setByEmail: callerData?.email ?? null,
+    setAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  logger.info("setUserPassword: updated", { targetUid, by: callerUid });
+  return { ok: true, targetUid, targetEmail };
+});
+
+/**
  * Webmaster-only: revoke a previously-granted escalated access flag for an
  * admin. Uses the `_serverRoleWrite` sentinel so the
  * `enforceUserRoleOnWrite` trigger accepts the change. Recorded in
