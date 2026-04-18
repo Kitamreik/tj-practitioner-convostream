@@ -790,16 +790,16 @@ const AuditLogs: React.FC = () => {
         <TabsContent value="people">
           <div className="flex items-center justify-end gap-2 mb-3">
             <ExportCsvButton
-              label="new people"
+              label="new agents"
               count={people.length}
               onExport={() =>
                 downloadCsv(
-                  "new-people",
-                  ["Name", "Email", "Phone", "Person ID", "Added By", "Timestamp"],
+                  "new-agents",
+                  ["Name", "Email", "Source", "Agent ID", "Added By", "Timestamp"],
                   people.map((p) => [
                     p.name,
                     p.email ?? "",
-                    p.phone ?? "",
+                    p.source ?? "manual",
                     p.personId,
                     p.actor,
                     p.timestamp?.toDate?.()?.toISOString() ?? "",
@@ -808,9 +808,9 @@ const AuditLogs: React.FC = () => {
               }
             />
             <ClearAllButton
-              label="new people"
+              label="new agents"
               count={people.length}
-              onConfirm={() => handleClearAll("peopleAudit", "new people")}
+              onConfirm={() => handleClearAll("peopleAudit", "new agents")}
             />
           </div>
           <div className="rounded-xl border border-border overflow-hidden">
@@ -818,9 +818,9 @@ const AuditLogs: React.FC = () => {
               <table className="w-full min-w-[720px]">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
-                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Person</th>
+                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Agent</th>
                     <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Email</th>
-                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Phone</th>
+                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Source</th>
                     <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Added by</th>
                     <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">When</th>
                     <th className="px-4 md:px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">Actions</th>
@@ -834,38 +834,45 @@ const AuditLogs: React.FC = () => {
                   ) : visiblePeople.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
-                        No new people yet. Add a person on the People page and they'll show up here.
+                        No new agents yet. Add or invite an agent on the Agents page and they'll show up here.
                       </td>
                     </tr>
                   ) : (
-                    visiblePeople.map((p, i) => (
-                      <motion.tr
-                        key={p.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: i * 0.02 }}
-                        className="border-b border-border last:border-0"
-                      >
-                        <td className="px-4 md:px-6 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                              {(p.name || "?").charAt(0)}
+                    visiblePeople.map((p, i) => {
+                      const source = p.source ?? "manual";
+                      return (
+                        <motion.tr
+                          key={p.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: i * 0.02 }}
+                          className="border-b border-border last:border-0"
+                        >
+                          <td className="px-4 md:px-6 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                                {(p.name || "?").charAt(0)}
+                              </div>
+                              <span className="text-sm font-medium text-foreground">{p.name || "—"}</span>
                             </div>
-                            <span className="text-sm font-medium text-foreground">{p.name || "—"}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 md:px-6 py-3 text-sm text-muted-foreground">{p.email || "—"}</td>
-                        <td className="px-4 md:px-6 py-3 text-sm text-muted-foreground">{p.phone || "—"}</td>
-                        <td className="px-4 md:px-6 py-3 text-sm text-muted-foreground">{p.actor}</td>
-                        <td className="px-4 md:px-6 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatTs(p.timestamp)}</td>
-                        <td className="px-4 md:px-6 py-3 text-right">
-                          <RowDeleteButton
-                            label={`${p.name || "person"} audit entry`}
-                            onConfirm={() => handleDelete("peopleAudit", p.id, p.name)}
-                          />
-                        </td>
-                      </motion.tr>
-                    ))
+                          </td>
+                          <td className="px-4 md:px-6 py-3 text-sm text-muted-foreground">{p.email || "—"}</td>
+                          <td className="px-4 md:px-6 py-3">
+                            <Badge variant={source === "invite" ? "default" : "secondary"} className="text-xs capitalize">
+                              {source}
+                            </Badge>
+                          </td>
+                          <td className="px-4 md:px-6 py-3 text-sm text-muted-foreground">{p.actor}</td>
+                          <td className="px-4 md:px-6 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatTs(p.timestamp)}</td>
+                          <td className="px-4 md:px-6 py-3 text-right">
+                            <RowDeleteButton
+                              label={`${p.name || "agent"} audit entry`}
+                              onConfirm={() => handleDelete("peopleAudit", p.id, p.name)}
+                            />
+                          </td>
+                        </motion.tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
