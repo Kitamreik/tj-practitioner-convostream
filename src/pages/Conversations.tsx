@@ -393,12 +393,30 @@ const Conversations: React.FC = () => {
     return map;
   }, [conversations]);
 
+  // Slug index for Slack-channel conversations only. Lets users bookmark
+  // /conversations#back-end-automation-test as a stable, human-readable
+  // alternative to the canonical /conversations/:id URL. Built once per
+  // conversations snapshot — cheap (O(n) over the existing list).
+  const slackSlugs = useMemo(() => buildSlackSlugIndex(conversations), [conversations]);
+
   // Share/copy a deep link to the currently-selected conversation.
+  // For Slack-channel threads, prefers the slug-hash form (matches the
+  // bookmark format users have asked us to support); falls back to the
+  // canonical /:id URL for other channels or when the slug collides.
   // Prefers the native Web Share API (mobile share sheet) when available;
   // falls back to clipboard on desktop browsers without share support.
   const handleCopyLink = async () => {
     if (!selected) return;
-    const url = `${window.location.origin}/conversations/${selected.id}`;
+    let url = `${window.location.origin}/conversations/${selected.id}`;
+    if (selected.channel === "slack") {
+      const slug = slugifyConversationName(selected.customerName);
+      const owner = slug ? slackSlugs.bySlug.get(slug) : null;
+      // Only hand out the hash form when this conversation owns the slug —
+      // never produce a link that would resolve to a sibling thread.
+      if (slug && owner && owner.id === selected.id) {
+        url = `${window.location.origin}/conversations#${slug}`;
+      }
+    }
     const title = `Conversation with ${selected.customerName}`;
     const shareData: ShareData = {
       title,
