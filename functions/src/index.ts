@@ -1404,3 +1404,181 @@ export const replyToSlackChannel = onCall(async (request) => {
     channel: slackJson.channel ?? channelId,
   };
 });
+
+// =============================================================================
+// integrationsHealthCheck — webmaster-only ping of every connected provider
+// so the /integrations page can show a green/red dot per integration without
+// the user having to leave the app or hand-test each credential.
+//
+// We deliberately make a single, harmless read-only API call per provider:
+//   • Slack    → auth.test           (verifies SLACK_BOT_TOKEN)
+//   • Twilio   → GET /Accounts/{sid} (verifies TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN)
+//   • Gmail    → users/me/profile    (uses caller's OAuth access token)
+//   • Google   → Voice listing       (no public REST API — we surface whether
+//     Voice          the per-user webhook secret + voice number are configured
+//                    in Firestore so the dashboard isn't silently empty)
+//
+// Returns a stable shape: { results: { [id]: { ok, message, latencyMs } } }
+// so the UI can render uniformly. Never throws on a single provider failure —
+// failures are surfaced inside `results` so one broken integration doesn't
+// hide the health of the others.
+// =============================================================================
+export const integrationsHealthCheck = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
+  const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role;
+  if (callerRole !== "webmaster") {
+    throw new HttpsError("permission-denied", "Webmasters only.");
+  }
+
+  const data = (request.data ?? {}) as { gmailAccessToken?: unknown };
+  const gmailAccessToken =
+    typeof data.gmailAccessToken === "string" && data.gmailAccessToken
+      ? data.gmailAccessToken
+      : null;
+
+  type ProviderResult = { ok: boolean; message: string; latencyMs: number };
+  const results: Record<string, ProviderResult> = {};
+
+  const time = async <T>(fn: () => Promise<T>): Promise<{ value: T; ms: number }> => {
+    const t0 = Date.now();
+    const value = await fn();
+    return { value, ms: Date.now() - t0 };
+  };
+
+  // ---------- Slack ----------
+  try {
+    const botToken = process.env.SLACK_BOT_TOKEN;
+    if (!botToken) {
+      results.slack = { ok: false, message: "SLACK_BOT_TOKEN not configured", latencyMs: 0 };
+    } else {
+      const { value: r, ms } = await time(() =>
+        fetch("https://slack.com/api/auth.test", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${botToken}` },
+        })
+      );
+      const j = (await r.json()) as { ok?: boolean; team?: string; user?: string; error?: string };
+      results.slack = j.ok
+        ? { ok: true, message: `Connected as @${j.user} on ${j.team}`, latencyMs: ms }
+        : { ok: false, message: `Slack error: ${j.error || "unknown"}`, latencyMs: ms };
+    }
+  } catch (err) {
+    results.slack = { ok: false, message: `Slack request failed: ${(err as Error).message}`, latencyMs: 0 };
+  }
+
+  // ---------- Twilio ----------
+  try {
+    const sid = process.env.TWILIO_ACCOUNT_SID;
+    const token = process.env.TWILIO_AUTH_TOKEN;
+    if (!sid || !token) {
+      results.twilio = {
+        ok: false,
+        message: "TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN not configured",
+        latencyMs: 0,
+      };
+    } else {
+      const auth = Buffer.from(`${sid}:${token}`).toString("base64");
+      const { value: r, ms } = await time(() =>
+        fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}.json`, {
+          headers: { Authorization: `Basic ${auth}` },
+        })
+      );
+      const j = (await r.json()) as { friendly_name?: string; status?: string; message?: string };
+      if (r.ok && j.status === "active") {
+        results.twilio = {
+          ok: true,
+          message: `Account "${j.friendly_name}" is active`,
+          latencyMs: ms,
+        };
+      } else {
+        results.twilio = {
+          ok: false,
+          message: `Twilio error: ${j.message || j.status || `HTTP ${r.status}`}`,
+          latencyMs: ms,
+        };
+      }
+    }
+  } catch (err) {
+    results.twilio = { ok: false, message: `Twilio request failed: ${(err as Error).message}`, latencyMs: 0 };
+  }
+
+  // ---------- Gmail ----------
+  // The Gmail integration uses Google Identity Services on the client; the
+  // server never holds a long-lived token. The caller (webmaster) passes in
+  // their current GIS access token so we can validate it against Google.
+  try {
+    if (!gmailAccessToken) {
+      results.gmail = {
+        ok: false,
+        message: "Open Gmail API page once to refresh your OAuth token, then retry.",
+        latencyMs: 0,
+      };
+    } else {
+      const { value: r, ms } = await time(() =>
+        fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
+          headers: { Authorization: `Bearer ${gmailAccessToken}` },
+        })
+      );
+      const j = (await r.json()) as { emailAddress?: string; error?: { message?: string } };
+      if (r.ok && j.emailAddress) {
+        results.gmail = { ok: true, message: `Token valid for ${j.emailAddress}`, latencyMs: ms };
+      } else {
+        results.gmail = {
+          ok: false,
+          message: `Gmail error: ${j.error?.message || `HTTP ${r.status}`}`,
+          latencyMs: ms,
+        };
+      }
+    }
+  } catch (err) {
+    results.gmail = { ok: false, message: `Gmail request failed: ${(err as Error).message}`, latencyMs: 0 };
+  }
+
+  // ---------- Google Voice ----------
+  // Google Voice has no public REST API. We treat the integration as "live"
+  // when the webmaster has stored a voice number + webhook secret on their
+  // own integrations doc AND at least one inbound event has landed in
+  // `googleVoiceActivity` recently (last 7 days). This mirrors what the
+  // Analytics card surfaces and keeps the health check honest.
+  try {
+    const integSnap = await db
+      .doc(`users/${request.auth.uid}/integrations/credentials`)
+      .get();
+    const gv =
+      ((integSnap.data() as Record<string, { connected?: boolean; fields?: Record<string, string> }> | undefined)?.[
+        "google-voice"
+      ]) || null;
+    if (!gv?.connected || !gv.fields?.voiceNumber) {
+      results["google-voice"] = {
+        ok: false,
+        message: "No Google Voice number configured on this account.",
+        latencyMs: 0,
+      };
+    } else {
+      const since = admin.firestore.Timestamp.fromMillis(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const { value: snap, ms } = await time(() =>
+        db.collection("googleVoiceActivity").where("timestamp", ">=", since).limit(1).get()
+      );
+      results["google-voice"] = snap.empty
+        ? {
+            ok: false,
+            message: `Configured for ${gv.fields.voiceNumber}, but no events in the last 7 days.`,
+            latencyMs: ms,
+          }
+        : {
+            ok: true,
+            message: `Live — recent events received for ${gv.fields.voiceNumber}.`,
+            latencyMs: ms,
+          };
+    }
+  } catch (err) {
+    results["google-voice"] = {
+      ok: false,
+      message: `Voice check failed: ${(err as Error).message}`,
+      latencyMs: 0,
+    };
+  }
+
+  return { ok: true, results, checkedAt: Date.now() };
+});
