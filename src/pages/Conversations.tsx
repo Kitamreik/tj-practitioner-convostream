@@ -87,6 +87,8 @@ import { httpsCallable } from "firebase/functions";
 import { useSearchParams, useParams, useNavigate } from "react-router-dom";
 import { functions } from "@/lib/firebase";
 import ConversationNotes from "@/components/ConversationNotes";
+import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
+import { StickyNote } from "lucide-react";
 
 interface Conversation {
   id: string;
