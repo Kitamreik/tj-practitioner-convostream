@@ -5,6 +5,7 @@ import { collection, onSnapshot, query, orderBy, limit, where, Timestamp } from 
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { subscribeLocalAgents } from "@/lib/localAgents";
 
 interface AgentWorkloadData {
   name: string;
