@@ -129,7 +129,7 @@ const ICON_ROWS: IconRow[] = [
   { key: "nav-icon-key", label: "Icon Key", group: "Navigation", icon: <KeyRound className="h-5 w-5" />, defaultDescription: "This page — legend for every icon in ConvoHub." },
 
   // ---- Broadcast / contextual ----
-  { key: "broadcast-notes", label: "Conversation notes", group: "Broadcast", icon: <StickyNote className="h-5 w-5 text-amber-500" />, defaultDescription: "Shared notes attached to a conversation. Number badge = note count." },
+  { key: "broadcast-notes", label: "Conversation notes", group: "Broadcast", icon: <StickyNote className="h-5 w-5 text-warning" />, defaultDescription: "Shared notes attached to a conversation. Number badge = note count." },
   { key: "broadcast-health", label: "Integrations health", group: "Broadcast", icon: <Activity className="h-5 w-5" />, defaultDescription: "Last health-check result for connected integrations (red dot = failure)." },
 ];
 
