@@ -19,6 +19,7 @@ import GmailAPI from "./pages/GmailAPI";
 import SettingsPage from "./pages/Settings";
 import Archive from "./pages/Archive";
 import AgentLogs from "./pages/AgentLogs";
+import StaffUpdates from "./pages/StaffUpdates";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -79,6 +80,7 @@ const App = () => (
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/archive" element={<Archive />} />
                 <Route path="/agent-logs" element={<AgentLogs />} />
+                <Route path="/staff-updates" element={<StaffUpdates />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

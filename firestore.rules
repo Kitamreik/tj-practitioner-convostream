@@ -167,5 +167,17 @@ service cloud.firestore {
     match /integrations/{id} {
       allow read, write: if isSignedIn();
     }
+
+    // -------- staff updates --------
+    // Webmaster-authored announcements visible to the whole team. Anyone
+    // signed in can read; only webmasters can create, update (e.g. flip the
+    // status tag), or delete. Defense-in-depth: even if a malicious client
+    // tried to write, the rule rejects without the webmaster role.
+    match /staff_updates/{id} {
+      allow read: if isSignedIn();
+      allow create: if isWebmaster()
+        && request.resource.data.authorUid == request.auth.uid;
+      allow update, delete: if isWebmaster();
+    }
   }
 }
