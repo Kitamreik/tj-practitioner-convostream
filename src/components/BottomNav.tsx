@@ -20,7 +20,7 @@ interface NavItem {
 }
 
 const chatsItem: NavItem = { label: "Chats", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" };
-const peopleItem: NavItem = { label: "People", icon: <Users className="h-5 w-5" />, path: "/people" };
+const peopleItem: NavItem = { label: "Agents", icon: <Users className="h-5 w-5" />, path: "/agents" };
 const alertsItem: NavItem = { label: "Alerts", icon: <Bell className="h-5 w-5" />, path: "/notifications", badgeKey: "notifications" };
 const statsItem: NavItem = { label: "Stats", icon: <BarChart3 className="h-5 w-5" />, path: "/analytics", webmasterOrEscalated: true };
 

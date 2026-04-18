@@ -10,7 +10,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AppLayout from "./components/AppLayout";
 import Conversations from "./pages/Conversations";
-import People from "./pages/People";
+import Agents from "./pages/Agents";
 import Notifications from "./pages/Notifications";
 import Integrations from "./pages/Integrations";
 import AuditLogs from "./pages/AuditLogs";
@@ -67,7 +67,9 @@ const App = () => (
               >
                 <Route path="/" element={<Conversations />} />
                 <Route path="/conversations/:id" element={<Conversations />} />
-                <Route path="/people" element={<People />} />
+                <Route path="/agents" element={<Agents />} />
+                {/* Legacy redirect: /people → /agents */}
+                <Route path="/people" element={<Navigate to="/agents" replace />} />
                 <Route path="/notifications" element={<Notifications />} />
                 <Route path="/integrations" element={<ProtectedRoute escalated><Integrations /></ProtectedRoute>} />
                 <Route path="/audit" element={<ProtectedRoute roles={["webmaster"]}><AuditLogs /></ProtectedRoute>} />
