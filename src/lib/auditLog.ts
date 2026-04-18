@@ -37,16 +37,23 @@ export async function logNoteAudit(entry: NoteAuditEntry): Promise<void> {
 }
 
 /**
- * Audit entry for a newly-created agent. Persisted to the `peopleAudit`
- * collection (kept for backward compatibility — the same Firestore rules
- * already apply) but rendered on the Audit Logs page as "New Agents".
+ * Audit entries for the agent lifecycle. All write to the `peopleAudit`
+ * collection so the AuditLogs "Agent Activity" tab can render the full
+ * history (create + remove + role changes) in one timeline.
  *
- * `source` distinguishes how the agent entered the roster:
- *   - "manual" — webmaster used the "Add agent" dialog (local roster only)
- *   - "invite" — webmaster generated a signup link via the invite dialog
+ * `action` distinguishes the event:
+ *   - "create"      — agent added (manual roster entry or invite-created auth user)
+ *   - "remove"      — local roster entry removed by webmaster
+ *   - "role_change" — Firestore user role flipped (agent ⇄ admin)
+ *
+ * `source` is only meaningful for "create" rows but kept on every entry for
+ * a stable schema. Legacy rows without an `action` field are treated as
+ * "create" by the reader for backward compatibility.
  */
+export type AgentAuditAction = "create" | "remove" | "role_change";
+
 export interface AgentAuditEntry {
-  /** Stable id (local:<email> for manual adds, uid for invites). */
+  /** Stable id (local:<email> for manual adds, uid for invites/role changes). */
   personId: string;
   name: string;
   email?: string;
@@ -57,6 +64,7 @@ export interface AgentAuditEntry {
 export async function logAgentCreated(entry: AgentAuditEntry): Promise<void> {
   try {
     await addDoc(collection(db, "peopleAudit"), {
+      action: "create",
       personId: entry.personId,
       name: sanitizeText(entry.name).slice(0, 80),
       email: sanitizeText(entry.email || "").slice(0, 254),
@@ -69,5 +77,61 @@ export async function logAgentCreated(entry: AgentAuditEntry): Promise<void> {
     });
   } catch (err) {
     console.warn("agentAudit write failed:", err);
+  }
+}
+
+export interface AgentRemovalEntry {
+  personId: string;
+  name: string;
+  email?: string;
+  /** Where the removal happened — currently only "manual" (local roster). */
+  source: "manual";
+  actor: string;
+}
+
+export async function logAgentRemoved(entry: AgentRemovalEntry): Promise<void> {
+  try {
+    await addDoc(collection(db, "peopleAudit"), {
+      action: "remove",
+      personId: entry.personId,
+      name: sanitizeText(entry.name).slice(0, 80),
+      email: sanitizeText(entry.email || "").slice(0, 254),
+      phone: "",
+      source: entry.source,
+      actor: sanitizeText(entry.actor || "Unknown").slice(0, 80),
+      timestamp: serverTimestamp(),
+    });
+  } catch (err) {
+    console.warn("agentRemoval audit write failed:", err);
+  }
+}
+
+export interface AgentRoleChangeEntry {
+  personId: string;
+  name: string;
+  email?: string;
+  fromRole: "agent" | "admin" | "webmaster";
+  toRole: "agent" | "admin" | "webmaster";
+  actor: string;
+}
+
+export async function logAgentRoleChanged(entry: AgentRoleChangeEntry): Promise<void> {
+  try {
+    await addDoc(collection(db, "peopleAudit"), {
+      action: "role_change",
+      personId: entry.personId,
+      name: sanitizeText(entry.name).slice(0, 80),
+      email: sanitizeText(entry.email || "").slice(0, 254),
+      phone: "",
+      // For role changes, `source` carries the transition (e.g. "agent→admin")
+      // so the existing reader doesn't need a schema migration.
+      source: `${entry.fromRole}→${entry.toRole}`,
+      fromRole: entry.fromRole,
+      toRole: entry.toRole,
+      actor: sanitizeText(entry.actor || "Unknown").slice(0, 80),
+      timestamp: serverTimestamp(),
+    });
+  } catch (err) {
+    console.warn("agentRoleChange audit write failed:", err);
   }
 }
