@@ -90,6 +90,10 @@ import { functions } from "@/lib/firebase";
 import ConversationNotes from "@/components/ConversationNotes";
 import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 import { StickyNote } from "lucide-react";
+import {
+  buildSlackSlugIndex,
+  slugifyConversationName,
+} from "@/lib/conversationSlugs";
 
 interface Conversation {
   id: string;
