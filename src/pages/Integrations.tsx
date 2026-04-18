@@ -386,10 +386,9 @@ const Integrations: React.FC = () => {
         })}
       </div>
 
-      {/* Webmaster-only Health Check panel — pings each connected provider
-          and surfaces a green/red dot per integration so credentials can be
-          verified without leaving the app. */}
-      {isWebmaster && (
+      {/* Health Check panel — webmaster runs the live ping; webmaster+admin can
+          also fire the scheduled-job code path on demand for QA. */}
+      {canTriggerScheduled && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -401,17 +400,33 @@ const Integrations: React.FC = () => {
               <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
                 <Activity className="h-5 w-5 text-primary" />
                 Health Check
-                <Badge variant="outline" className="text-[10px] uppercase tracking-wider">Webmaster</Badge>
+                <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                  {isWebmaster ? "Webmaster" : "Admin"}
+                </Badge>
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
                 Pings Slack <code className="bg-muted px-1 rounded">auth.test</code>, Twilio account info,
                 Gmail token validity, and Google Voice activity to confirm each credential is live.
               </p>
             </div>
-            <Button onClick={runHealthCheck} disabled={healthRunning} className="gap-2 flex-shrink-0">
-              {healthRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Activity className="h-3.5 w-3.5" />}
-              {healthRunning ? "Checking…" : healthResults ? "Re-run check" : "Run check"}
-            </Button>
+            <div className="flex flex-wrap gap-2 flex-shrink-0">
+              {isWebmaster && (
+                <Button onClick={runHealthCheck} disabled={healthRunning} className="gap-2">
+                  {healthRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Activity className="h-3.5 w-3.5" />}
+                  {healthRunning ? "Checking…" : healthResults ? "Re-run check" : "Run check"}
+                </Button>
+              )}
+              <Button
+                onClick={triggerScheduledNow}
+                disabled={scheduledRunning}
+                variant="outline"
+                className="gap-2"
+                title="Runs the same code path as the every-5-days scheduled job and persists the result with source:'scheduled'."
+              >
+                {scheduledRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Activity className="h-3.5 w-3.5" />}
+                {scheduledRunning ? "Triggering…" : "Trigger scheduled run now"}
+              </Button>
+            </div>
           </div>
 
           {healthResults ? (
