@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck, PhoneIncoming, PhoneOutgoing, MessageCircle, Filter, X, Activity } from "lucide-react";
+import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck, PhoneIncoming, PhoneOutgoing, MessageCircle, Filter, X, Activity, Settings } from "lucide-react";
+import { Link } from "react-router-dom";
 import { collection, onSnapshot, query, orderBy, limit, where, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { subscribeLocalAgents } from "@/lib/localAgents";
+import { useAuth } from "@/contexts/AuthContext";
+import { loadAllIntegrations, type IntegrationConfig } from "@/lib/integrationsStore";
 
 interface AgentWorkloadData {
   name: string;
@@ -47,12 +51,47 @@ const stats = [
 ];
 
 const Analytics: React.FC = () => {
+  const { user } = useAuth();
   const [agentWorkload, setAgentWorkload] = useState<AgentWorkloadData[]>([]);
   const [voiceActivity, setVoiceActivity] = useState<VoiceActivity[]>(fallbackVoiceActivity);
   const [voiceLive, setVoiceLive] = useState(false);
   // Last-7-days raw call activity (separate listener — needs more rows than the live feed).
   const [voiceWeek, setVoiceWeek] = useState<VoiceActivity[]>([]);
   const [numberFilter, setNumberFilter] = useState<string>("all");
+
+  // Established Google Voice account (from /integrations). When configured we
+  // show the connected email + number on the live engagement card and default
+  // the number filter to it so the "Live" badge tracks that account's traffic.
+  const [gvConfig, setGvConfig] = useState<IntegrationConfig | null>(null);
+  const [gvLoaded, setGvLoaded] = useState(false);
+  useEffect(() => {
+    if (!user) {
+      setGvLoaded(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const all = await loadAllIntegrations(user.uid);
+      if (!cancelled) {
+        setGvConfig(all["google-voice"] || null);
+        setGvLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+  const gvAccount = gvConfig?.fields?.googleAccount || "";
+  const gvNumber = gvConfig?.fields?.voiceNumber || "";
+  const gvConnected = !!gvConfig?.connected && !!gvNumber;
+
+  // Auto-scope the filter to the configured number on first load so the live
+  // metrics actually reflect the established account, not all observed numbers.
+  useEffect(() => {
+    if (gvConnected && numberFilter === "all") {
+      setNumberFilter(gvNumber);
+    }
+  }, [gvConnected, gvNumber]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live agent roster — Firestore users (agent/admin) + manually-added local
   // agents. The workload chart is restricted to this set so it always matches
@@ -347,12 +386,49 @@ const Analytics: React.FC = () => {
                 </Button>
               )}
             </div>
-            <span className="flex items-center gap-1.5 text-xs">
+            <span className="flex items-center gap-1.5 text-xs" title={voiceLive ? "Receiving live events from googleVoiceActivity" : "No live events yet — showing sample data"}>
               <span className={`h-2 w-2 rounded-full ${voiceLive ? "bg-success animate-pulse" : "bg-muted-foreground/40"}`} />
               <span className="text-muted-foreground">{voiceLive ? "Live" : "Sample data"}</span>
             </span>
           </div>
         </div>
+
+        {/* Established Google Voice account banner. Reflects what the user
+            connected on /integrations and surfaces the live link/status. */}
+        {gvLoaded && (
+          <div className="mb-5 rounded-lg border border-border bg-muted/30 p-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <PhoneIncoming className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-medium text-card-foreground truncate">
+                    {gvConnected ? gvAccount || "Google Voice" : "No Google Voice account connected"}
+                  </p>
+                  {gvConnected ? (
+                    <Badge className="bg-success/10 text-success border-success/20 text-[10px] gap-1 h-5">
+                      Connected
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] h-5">Not connected</Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                  {gvConnected
+                    ? `Tracking activity for ${gvNumber}`
+                    : "Connect a Google Voice account on Integrations to see live call and SMS engagement here."}
+                </p>
+              </div>
+            </div>
+            <Button asChild variant={gvConnected ? "outline" : "default"} size="sm" className="gap-1.5 flex-shrink-0">
+              <Link to="/integrations">
+                <Settings className="h-3.5 w-3.5" />
+                {gvConnected ? "Manage" : "Connect"}
+              </Link>
+            </Button>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
           <div className="rounded-lg border border-border p-3">

@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Check, AlertCircle, MessageSquare, Phone, Trash2, Plus, Pencil, X } from "lucide-react";
+import { Bell, BellOff, Check, AlertCircle, MessageSquare, Phone, Trash2, Plus, Pencil, X, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import PullToRefresh from "@/components/PullToRefresh";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { sanitizeText, singleLine, safeValidate } from "@/lib/validation";
 import { logNoteAudit } from "@/lib/auditLog";
+import { getBoolPref, setBoolPref } from "@/lib/userPrefs";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   collection,
@@ -41,6 +43,8 @@ interface Notification {
   time: string;
   read: boolean;
   isNote?: boolean;
+  /** True for team-wide fan-out items (Staff Updates, File Recordings). */
+  broadcast?: boolean;
   createdAt?: any;
 }
 
@@ -101,6 +105,24 @@ const Notifications: React.FC = () => {
   const [draftTitle, setDraftTitle] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
 
+  // Per-user preference: hide team-wide broadcasts (Staff Updates / File
+  // Recordings) so an agent can opt out of every team alert without losing
+  // their personal notes. Persisted in localStorage namespaced by uid.
+  const [muteBroadcasts, setMuteBroadcastsState] = useState<boolean>(false);
+  useEffect(() => {
+    setMuteBroadcastsState(getBoolPref(user?.uid, "notifications.muteBroadcasts", false));
+  }, [user?.uid]);
+  const setMuteBroadcasts = (v: boolean) => {
+    setMuteBroadcastsState(v);
+    setBoolPref(user?.uid, "notifications.muteBroadcasts", v);
+    toast({
+      title: v ? "Broadcasts muted" : "Broadcasts unmuted",
+      description: v
+        ? "Team-wide Staff Updates and File Recordings will be hidden here."
+        : "You'll see team-wide Staff Updates and File Recordings again.",
+    });
+  };
+
   // Agent workload — surfaced here for non-escalated admins (Analytics is hidden for them).
   const showWorkload =
     profile?.role === "admin" && profile?.escalatedAccess !== true;
@@ -157,6 +179,7 @@ const Notifications: React.FC = () => {
             description: data.description || "",
             read: !!data.read,
             isNote: !!data.isNote,
+            broadcast: !!data.broadcast,
             createdAt: data.createdAt,
             time: formatTime(data.createdAt),
           };
@@ -286,6 +309,12 @@ const Notifications: React.FC = () => {
     toast({ title: "Refreshed", description: "Notifications are up to date." });
   };
 
+  // Derived view: hide broadcasts when the user has muted them.
+  const visibleNotifications = muteBroadcasts
+    ? notifications.filter((n) => !n.broadcast)
+    : notifications;
+  const hiddenBroadcastCount = notifications.filter((n) => n.broadcast).length;
+
   return (
     <PullToRefresh onRefresh={handleRefresh} disabled={!isMobile} className="h-full">
       <div className="p-4 md:p-8 max-w-3xl mx-auto">
@@ -346,15 +375,42 @@ const Notifications: React.FC = () => {
           </div>
         </div>
 
+        {/* Per-user mute switch for team-wide broadcasts. */}
+        {user && (
+          <div className="mb-4 rounded-xl border border-border bg-card/50 p-3 md:p-4 flex items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                {muteBroadcasts ? <BellOff className="h-4 w-4" /> : <Megaphone className="h-4 w-4" />}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs md:text-sm font-medium text-foreground">Mute team broadcasts</p>
+                <p className="text-[11px] md:text-xs text-muted-foreground mt-0.5">
+                  Hide Staff Updates and File Recordings here. Your own notes are not affected.
+                </p>
+                {muteBroadcasts && hiddenBroadcastCount > 0 && (
+                  <p className="text-[11px] text-primary mt-1">
+                    {hiddenBroadcastCount} broadcast{hiddenBroadcastCount === 1 ? "" : "s"} hidden
+                  </p>
+                )}
+              </div>
+            </div>
+            <Switch
+              checked={muteBroadcasts}
+              onCheckedChange={setMuteBroadcasts}
+              aria-label="Mute team broadcasts"
+            />
+          </div>
+        )}
+
         <div className="space-y-2">
           <AnimatePresence>
-            {notifications.length === 0 && (
+            {visibleNotifications.length === 0 && (
               <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2">
                 <Bell className="h-8 w-8 opacity-30" />
-                <span>No notifications</span>
+                <span>{muteBroadcasts && hiddenBroadcastCount > 0 ? "Only broadcasts — currently muted" : "No notifications"}</span>
               </div>
             )}
-            {notifications.map((n, i) => (
+            {visibleNotifications.map((n, i) => (
               <motion.div
                 key={n.id}
                 initial={{ opacity: 0, x: -10 }}
