@@ -504,12 +504,30 @@ const SettingsPage: React.FC = () => {
   // dialog have realistic data to exercise during end-to-end tests.
   const [seeding, setSeeding] = useState(false);
   const seedDemoData = async () => {
-    // Prefer an existing agent/admin account; fall back to a synthetic name
-    // so the seeder works even on a brand-new project with only a webmaster.
-    const targetAccount = accounts.find((a) => a.role === "agent")
-      ?? accounts.find((a) => a.role === "admin");
-    const targetAgent =
-      (targetAccount?.displayName || targetAccount?.email || "Demo Agent").trim();
+    // Always assign demo conversations to a REAL existing agent (or admin) so
+    // the assignment banner test fires end-to-end. If no such account exists,
+    // refuse and surface a clear error rather than silently inventing one.
+    const targetAccount =
+      accounts.find((a) => a.role === "agent") ??
+      accounts.find((a) => a.role === "admin");
+    if (!targetAccount) {
+      toast({
+        title: "No agent to assign to",
+        description:
+          "Create or sign in at least one agent account first (e.g. agent1@convohub.dev), then re-run Seed demo data.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const targetAgent = (targetAccount.displayName || targetAccount.email || "").trim();
+    if (!targetAgent) {
+      toast({
+        title: "Agent has no display name",
+        description: "Set a display name on the chosen agent before seeding.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setSeeding(true);
     try {
