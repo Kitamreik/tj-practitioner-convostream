@@ -20,6 +20,7 @@ import SettingsPage from "./pages/Settings";
 import Archive from "./pages/Archive";
 import AgentLogs from "./pages/AgentLogs";
 import StaffUpdates from "./pages/StaffUpdates";
+import FileRecordings from "./pages/FileRecordings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -81,6 +82,7 @@ const App = () => (
                 <Route path="/archive" element={<Archive />} />
                 <Route path="/agent-logs" element={<AgentLogs />} />
                 <Route path="/staff-updates" element={<StaffUpdates />} />
+                <Route path="/file-recordings" element={<FileRecordings />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

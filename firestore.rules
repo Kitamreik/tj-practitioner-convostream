@@ -91,8 +91,17 @@ service cloud.firestore {
     }
 
     // -------- per-user notifications --------
+    // Owner has full control. Additionally, ANY signed-in user can CREATE a
+    // broadcast notification in another user's subcollection (used by the
+    // Staff Updates and File Recording fan-out helpers). The broadcast docs
+    // are flagged with `broadcast: true` and `read: false` so the recipient
+    // can later mark them read or delete them.
     match /users/{uid}/notifications/{noteId} {
-      allow read, write: if isSelf(uid);
+      allow read, update, delete: if isSelf(uid);
+      allow create: if isSelf(uid)
+        || (isSignedIn()
+            && request.resource.data.broadcast == true
+            && request.resource.data.read == false);
     }
 
     // -------- audit collections --------
