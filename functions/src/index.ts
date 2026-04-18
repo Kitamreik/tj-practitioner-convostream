@@ -514,6 +514,133 @@ export const demoteAgent = onCall(async (request) => {
 });
 
 /**
+ * Webmaster-only: generate a Firebase Auth signup link for a target email
+ * so a webmaster can invite a new agent without them self-registering.
+ *
+ * Behavior:
+ *   - If no Auth user exists for the email, one is created with a strong
+ *     random password (the invitee resets it via the email-verification link).
+ *   - If a Firestore profile is missing, a baseline `agent` profile is
+ *     written (server-authored via the `_serverRoleWrite` sentinel so
+ *     `enforceUserRoleOnWrite` accepts it).
+ *   - Returns an action link the webmaster can copy/paste/share with the
+ *     invitee. The link uses Firebase's verifyEmail flow so the invitee
+ *     lands on a Firebase-hosted page that confirms their address; they
+ *     then sign in with the temp password (also returned) and immediately
+ *     change it from the Settings page.
+ *
+ * Audited via `roleGrants` with action="inviteAgent".
+ *
+ * Request: { targetEmail: string, displayName?: string, continueUrl?: string }
+ */
+export const generateAgentSignupLink = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerUid = request.auth.uid;
+  const callerSnap = await db.doc(`users/${callerUid}`).get();
+  const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role;
+  if (callerRole !== "webmaster") {
+    throw new HttpsError("permission-denied", "Webmasters only.");
+  }
+
+  const data = (request.data ?? {}) as {
+    targetEmail?: unknown;
+    displayName?: unknown;
+    continueUrl?: unknown;
+  };
+  const targetEmail =
+    typeof data.targetEmail === "string" ? data.targetEmail.trim().toLowerCase() : "";
+  const displayName =
+    typeof data.displayName === "string" ? data.displayName.trim().slice(0, 80) : "";
+  const continueUrl =
+    typeof data.continueUrl === "string" && /^https?:\/\//.test(data.continueUrl)
+      ? data.continueUrl
+      : "https://convo-hub-71514.web.app/login";
+  if (!targetEmail || !targetEmail.includes("@")) {
+    throw new HttpsError("invalid-argument", "A valid targetEmail is required.");
+  }
+  if (displayName && /[<>\u0000-\u001F\u007F]/.test(displayName)) {
+    throw new HttpsError("invalid-argument", "displayName contains invalid characters.");
+  }
+
+  // 1. Find or create the Auth user.
+  let userRecord: admin.auth.UserRecord | null = null;
+  let createdAuth = false;
+  let tempPassword: string | null = null;
+  try {
+    userRecord = await admin.auth().getUserByEmail(targetEmail);
+  } catch (err: unknown) {
+    if ((err as { code?: string }).code !== "auth/user-not-found") throw err;
+  }
+  if (!userRecord) {
+    // 16-char base64url password, easy to read aloud / paste.
+    tempPassword =
+      Buffer.from(crypto.getRandomValues(new Uint8Array(12))).toString("base64url") + "!1A";
+    userRecord = await admin.auth().createUser({
+      email: targetEmail,
+      password: tempPassword,
+      displayName: displayName || undefined,
+      emailVerified: false,
+      disabled: false,
+    });
+    createdAuth = true;
+  }
+
+  // 2. Ensure a Firestore profile exists with role=agent.
+  const profileRef = db.doc(`users/${userRecord.uid}`);
+  const profileSnap = await profileRef.get();
+  if (!profileSnap.exists) {
+    await profileRef.set({
+      uid: userRecord.uid,
+      email: targetEmail,
+      role: "agent",
+      displayName:
+        displayName ||
+        userRecord.displayName ||
+        targetEmail.split("@")[0],
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      _serverRoleWrite: true,
+    });
+  } else if (displayName && (profileSnap.data() as any)?.displayName !== displayName) {
+    await profileRef.update({ displayName });
+  }
+
+  // 3. Generate a verify-email link the webmaster can share.
+  const actionLink = await admin.auth().generateEmailVerificationLink(targetEmail, {
+    url: continueUrl,
+    handleCodeInApp: false,
+  });
+
+  // 4. Audit row so /audit shows who invited whom.
+  await db.collection("roleGrants").add({
+    targetUid: userRecord.uid,
+    targetEmail,
+    previousRole: profileSnap.exists ? (profileSnap.data() as any)?.role ?? "agent" : null,
+    newRole: "agent",
+    grantedByUid: callerUid,
+    grantedByEmail: callerSnap.data()?.email ?? null,
+    grantedAt: admin.firestore.FieldValue.serverTimestamp(),
+    action: "inviteAgent",
+    createdAuthUser: createdAuth,
+  });
+
+  logger.info("generateAgentSignupLink: invited", {
+    targetUid: userRecord.uid,
+    targetEmail,
+    by: callerUid,
+    createdAuth,
+  });
+
+  return {
+    ok: true,
+    targetUid: userRecord.uid,
+    targetEmail,
+    createdAuthUser: createdAuth,
+    actionLink,
+    tempPassword, // only present when a brand-new auth user was created
+  };
+});
+
+/**
  * Any signed-in user can flag a conversation for webmaster investigation.
  * Persists to `investigationRequests` and emails ESCALATION_NOTIFY_EMAIL.
  *
