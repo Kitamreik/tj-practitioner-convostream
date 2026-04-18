@@ -388,6 +388,12 @@ const SettingsPage: React.FC = () => {
     return unsub;
   }, [isWebmaster]);
 
+  // Manually-added local agents (webmaster's localStorage). Merged into the
+  // Reassign target list so reassignment can target an agent that hasn't
+  // signed up yet (e.g. agent1@convohub.dev seeded by default).
+  const [localAgents, setLocalAgents] = useState<LocalAgent[]>([]);
+  useEffect(() => subscribeLocalAgents(setLocalAgents), []);
+
   // ---- Overview: live conversations grouped by assigned agent (webmaster only) ----
   interface OverviewConvo {
     id: string;
