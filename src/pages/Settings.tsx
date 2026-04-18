@@ -89,6 +89,8 @@ import {
   DEFAULT_COOLDOWN_MIN,
   setCooldownMin,
   subscribeCooldownMin,
+  subscribeSlackWebhookUrl,
+  setSlackWebhookUrl,
   type CooldownMinutes,
 } from "@/lib/webmasterCooldown";
 
@@ -318,6 +320,39 @@ const SettingsPage: React.FC = () => {
   const [cooldownMin, setCooldownMinState] = useState<CooldownMinutes>(DEFAULT_COOLDOWN_MIN);
   const [savingCooldown, setSavingCooldown] = useState(false);
   useEffect(() => subscribeCooldownMin(setCooldownMinState), []);
+
+  // ---- Webmaster Slack webhook (team-wide; pings on Call/Text shortcut) ----
+  const [slackWebhook, setSlackWebhook] = useState<string>("");
+  const [slackWebhookDraft, setSlackWebhookDraft] = useState<string>("");
+  const [savingSlackWebhook, setSavingSlackWebhook] = useState(false);
+  useEffect(
+    () =>
+      subscribeSlackWebhookUrl((url) => {
+        setSlackWebhook(url);
+        setSlackWebhookDraft(url);
+      }),
+    []
+  );
+  const handleSaveSlackWebhook = async () => {
+    setSavingSlackWebhook(true);
+    try {
+      await setSlackWebhookUrl(slackWebhookDraft, profile?.uid);
+      toast({
+        title: slackWebhookDraft ? "Slack webhook saved" : "Slack webhook cleared",
+        description: slackWebhookDraft
+          ? "Future Call/Text shortcuts will ping this channel."
+          : "Slack pings disabled — bell notifications still fire.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Could not save webhook",
+        description: e?.message || "Try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingSlackWebhook(false);
+    }
+  };
   const handleCooldownChange = async (value: string) => {
     const n = Number(value) as CooldownMinutes;
     setSavingCooldown(true);
