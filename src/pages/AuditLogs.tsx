@@ -70,12 +70,16 @@ interface NoteAuditRow {
 
 interface PeopleAuditRow {
   id: string;
+  /** Lifecycle event. Legacy rows without `action` are treated as "create". */
+  action?: "create" | "remove" | "role_change";
   personId: string;
   name: string;
   email?: string;
   phone?: string;
-  /** New rows tag the source ("manual" | "invite"); legacy rows lack it. */
-  source?: "manual" | "invite";
+  /** For "create": "manual" | "invite". For "role_change": "agent→admin" etc. */
+  source?: string;
+  fromRole?: "agent" | "admin" | "webmaster";
+  toRole?: "agent" | "admin" | "webmaster";
   actor: string;
   timestamp: any;
 }
