@@ -18,6 +18,7 @@ import {
   LogIn,
   Bell,
   UserPlus,
+  UserMinus,
   Pencil,
   Trash2,
   Plus,
@@ -30,6 +31,7 @@ import {
   Eraser,
   Download,
   Clock,
+  ArrowUpDown,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -554,7 +556,7 @@ const AuditLogs: React.FC = () => {
           </TabsTrigger>
           <TabsTrigger value="people" className="gap-2">
             <UserPlus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">New Agents</span>
+            <span className="hidden sm:inline">Agent Activity</span>
             <span className="sm:hidden">Agents</span>
           </TabsTrigger>
         </TabsList>
@@ -794,13 +796,14 @@ const AuditLogs: React.FC = () => {
         <TabsContent value="people">
           <div className="flex items-center justify-end gap-2 mb-3">
             <ExportCsvButton
-              label="new agents"
+              label="agent activity"
               count={people.length}
               onExport={() =>
                 downloadCsv(
-                  "new-agents",
-                  ["Name", "Email", "Source", "Agent ID", "Added By", "Timestamp"],
+                  "agent-activity",
+                  ["Action", "Name", "Email", "Source / Transition", "Agent ID", "Actor", "Timestamp"],
                   people.map((p) => [
+                    p.action ?? "create",
                     p.name,
                     p.email ?? "",
                     p.source ?? "manual",
@@ -812,20 +815,21 @@ const AuditLogs: React.FC = () => {
               }
             />
             <ClearAllButton
-              label="new agents"
+              label="agent activity"
               count={people.length}
-              onConfirm={() => handleClearAll("peopleAudit", "new agents")}
+              onConfirm={() => handleClearAll("peopleAudit", "agent activity")}
             />
           </div>
           <div className="rounded-xl border border-border overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px]">
+              <table className="w-full min-w-[820px]">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Action</th>
                     <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Agent</th>
                     <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Email</th>
-                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Source</th>
-                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Added by</th>
+                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Detail</th>
+                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">By</th>
                     <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">When</th>
                     <th className="px-4 md:px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">Actions</th>
                   </tr>
@@ -833,17 +837,28 @@ const AuditLogs: React.FC = () => {
                 <tbody>
                   {loadingPeople ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">Loading...</td>
+                      <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">Loading...</td>
                     </tr>
                   ) : visiblePeople.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
-                        No new agents yet. Add or invite an agent on the Agents page and they'll show up here.
+                      <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
+                        No agent activity yet. Add, invite, remove, or change a role on the Agents page and entries will appear here.
                       </td>
                     </tr>
                   ) : (
                     visiblePeople.map((p, i) => {
-                      const source = p.source ?? "manual";
+                      // Legacy rows (pre-action field) are creations.
+                      const action = p.action ?? "create";
+                      const actionMeta: { label: string; icon: React.ReactNode; variant: "default" | "secondary" | "destructive" | "outline" } =
+                        action === "remove"
+                          ? { label: "Removed", icon: <UserMinus className="h-3 w-3" />, variant: "destructive" }
+                          : action === "role_change"
+                          ? { label: "Role changed", icon: <ArrowUpDown className="h-3 w-3" />, variant: "secondary" }
+                          : { label: "Created", icon: <UserPlus className="h-3 w-3" />, variant: "default" };
+                      // Detail column: source for create/remove, transition arrow for role_change.
+                      const detail = action === "role_change"
+                        ? `${p.fromRole ?? "?"} → ${p.toRole ?? "?"}`
+                        : (p.source ?? "manual");
                       return (
                         <motion.tr
                           key={p.id}
@@ -852,6 +867,12 @@ const AuditLogs: React.FC = () => {
                           transition={{ delay: i * 0.02 }}
                           className="border-b border-border last:border-0"
                         >
+                          <td className="px-4 md:px-6 py-3">
+                            <Badge variant={actionMeta.variant} className="gap-1 text-xs">
+                              {actionMeta.icon}
+                              {actionMeta.label}
+                            </Badge>
+                          </td>
                           <td className="px-4 md:px-6 py-3">
                             <div className="flex items-center gap-2">
                               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
@@ -862,8 +883,8 @@ const AuditLogs: React.FC = () => {
                           </td>
                           <td className="px-4 md:px-6 py-3 text-sm text-muted-foreground">{p.email || "—"}</td>
                           <td className="px-4 md:px-6 py-3">
-                            <Badge variant={source === "invite" ? "default" : "secondary"} className="text-xs capitalize">
-                              {source}
+                            <Badge variant="outline" className="text-xs capitalize font-mono">
+                              {detail}
                             </Badge>
                           </td>
                           <td className="px-4 md:px-6 py-3 text-sm text-muted-foreground">{p.actor}</td>
