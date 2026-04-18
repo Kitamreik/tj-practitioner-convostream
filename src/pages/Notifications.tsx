@@ -127,13 +127,20 @@ const Notifications: React.FC = () => {
   }, [showWorkload]);
 
   // Subscribe to per-user notifications collection.
+  //
+  // BUG FIX: Previously, signed-in users with an empty Firestore subcollection
+  // had the starter (sample) notifications spliced back in. That meant deleting
+  // your last real notification made the samples *reappear*, and the local
+  // mutations on starters (mark-read / delete) would silently revert on the
+  // next snapshot. Starters are now strictly a logged-out preview — once a
+  // user is authenticated we always show their real list, even when empty.
   useEffect(() => {
     if (!user) {
-      // Logged out: just show starters, read-only.
       setNotifications(starterNotifications);
       setUsingStarter(true);
       return;
     }
+    setUsingStarter(false);
     const q = query(
       collection(db, "users", user.uid, "notifications"),
       orderBy("createdAt", "desc")
@@ -141,31 +148,26 @@ const Notifications: React.FC = () => {
     const unsub = onSnapshot(
       q,
       (snap) => {
-        if (snap.empty) {
-          setNotifications(starterNotifications);
-          setUsingStarter(true);
-        } else {
-          const rows: Notification[] = snap.docs.map((d) => {
-            const data = d.data() as any;
-            return {
-              id: d.id,
-              type: data.type,
-              title: data.title || "",
-              description: data.description || "",
-              read: !!data.read,
-              isNote: !!data.isNote,
-              createdAt: data.createdAt,
-              time: formatTime(data.createdAt),
-            };
-          });
-          setNotifications(rows);
-          setUsingStarter(false);
-        }
+        const rows: Notification[] = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            type: data.type,
+            title: data.title || "",
+            description: data.description || "",
+            read: !!data.read,
+            isNote: !!data.isNote,
+            createdAt: data.createdAt,
+            time: formatTime(data.createdAt),
+          };
+        });
+        setNotifications(rows);
       },
       (err) => {
         console.warn("Notifications listener error:", err);
-        setNotifications(starterNotifications);
-        setUsingStarter(true);
+        // Don't fall back to starters here — that would mask real backend
+        // errors and re-introduce the resurrection bug. Show an empty list.
+        setNotifications([]);
       }
     );
     return unsub;
