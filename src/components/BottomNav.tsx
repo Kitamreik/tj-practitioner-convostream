@@ -90,6 +90,16 @@ const BottomNav: React.FC = () => {
     return subscribeBoolPref(userUid, "notifications.muteBroadcasts", setBroadcastsMuted);
   }, [userUid]);
 
+  // Webmaster-only: subscribe to the latest scheduled/manual integrations
+  // health check so we can render a red dot on the More button (and inside
+  // the sheet on the Integrations row) when any provider is failing.
+  const isWebmaster = profile?.role === "webmaster";
+  const integrationsHealth = useIntegrationsHealth(isWebmaster);
+  const integrationsFailing = !!integrationsHealth?.anyFailing;
+  const lastCheckedLabel = integrationsHealth?.checkedAtMs
+    ? new Date(integrationsHealth.checkedAtMs).toLocaleString()
+    : "Not yet run";
+
   const getBadge = (item: NavItem) => {
     if (item.badgeKey === "conversations") return unread;
     if (item.badgeKey === "notifications") return notifs;
