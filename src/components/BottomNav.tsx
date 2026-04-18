@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { MessageCircle, Users, Bell, BarChart3, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
@@ -130,11 +131,24 @@ const BottomNav: React.FC = () => {
                 </span>
               )}
               {item.badgeKey === "notifications" && broadcastsMuted && badge === 0 && (
-                <span
-                  className="absolute -right-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-warning ring-2 ring-background"
-                  aria-label="Team broadcasts muted"
-                  title="Team broadcasts muted"
-                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        // Stop the parent nav button from also firing — we
+                        // navigate with a hash so the target scrolls into view.
+                        e.stopPropagation();
+                        navigate("/notifications#mute-broadcasts-toggle");
+                      }}
+                      className="absolute -right-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-warning ring-2 ring-background"
+                      aria-label="Team broadcasts muted — tap to manage"
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    Team broadcasts muted — tap to manage
+                  </TooltipContent>
+                </Tooltip>
               )}
             </div>
             <span>{item.label}</span>

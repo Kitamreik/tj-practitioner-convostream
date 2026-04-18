@@ -915,6 +915,13 @@ async function findOrCreateConversation(opts: {
   customerEmail?: string;
   customerPhone?: string;
   lastMessage: string;
+  /**
+   * For Slack: the customer's original message ts. Stamped onto the
+   * conversation doc when it's first created so subsequent agent replies
+   * thread under the original message via Slack's `thread_ts` instead of
+   * starting a brand new top-level thread.
+   */
+  slackThreadTs?: string;
 }): Promise<FirebaseFirestore.DocumentReference> {
   const existing = await db
     .collection("conversations")
@@ -944,6 +951,10 @@ async function findOrCreateConversation(opts: {
     externalSource: opts.externalSource,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    // Only stamp slackThreadTs on creation. We never overwrite an existing
+    // value on later inbound messages — the very first customer ts is the
+    // canonical thread anchor.
+    ...(opts.slackThreadTs ? { slackThreadTs: opts.slackThreadTs } : {}),
   });
 }
 
@@ -1048,6 +1059,10 @@ export const slackEvents = onRequest(
           channel: "slack",
           customerName: displayName,
           lastMessage: event.text.slice(0, 500),
+          // Pass the customer's original ts so a brand-new conversation gets
+          // it stamped as slackThreadTs on creation. For existing convos the
+          // helper ignores it (we never want to overwrite the anchor).
+          slackThreadTs: typeof event.ts === "string" ? event.ts : undefined,
         });
         await convoRef.collection("messages").add({
           sender: "customer",

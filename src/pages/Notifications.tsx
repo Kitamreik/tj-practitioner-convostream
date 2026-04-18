@@ -97,6 +97,18 @@ const Notifications: React.FC = () => {
   const { user, profile } = useAuth();
   const actorName = profile?.displayName || profile?.email || "Unknown";
 
+  // Scroll to a target anchor when arriving via /notifications#mute-broadcasts-toggle
+  // (the mute indicator dot in the side/bottom nav links here).
+  useEffect(() => {
+    const hash = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
+    if (!hash) return;
+    // Defer until after the first paint so the target exists in the DOM.
+    const t = setTimeout(() => {
+      document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+    return () => clearTimeout(t);
+  }, []);
+
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [usingStarter, setUsingStarter] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -375,9 +387,14 @@ const Notifications: React.FC = () => {
           </div>
         </div>
 
-        {/* Per-user mute switch for team-wide broadcasts. */}
+        {/* Per-user mute switch for team-wide broadcasts.
+            id="mute-broadcasts-toggle" — linked from the bell-icon dot in the
+            sidebar/bottom nav so users can jump straight here. */}
         {user && (
-          <div className="mb-4 rounded-xl border border-border bg-card/50 p-3 md:p-4 flex items-center justify-between gap-3">
+          <div
+            id="mute-broadcasts-toggle"
+            className="mb-4 rounded-xl border border-border bg-card/50 p-3 md:p-4 flex items-center justify-between gap-3 scroll-mt-20"
+          >
             <div className="flex items-start gap-2.5 min-w-0">
               <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                 {muteBroadcasts ? <BellOff className="h-4 w-4" /> : <Megaphone className="h-4 w-4" />}

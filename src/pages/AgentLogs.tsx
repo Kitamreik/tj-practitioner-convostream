@@ -29,6 +29,7 @@ import { subscribeLocalAgents } from "@/lib/localAgents";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import PullToRefresh from "@/components/PullToRefresh";
+import ConversationNotes from "@/components/ConversationNotes";
 
 /**
  * Agent Logs — read-only history of resolved conversations, grouped by the
@@ -407,6 +408,16 @@ const AgentLogs: React.FC = () => {
                             {r.customerEmail || r.customerPhone}
                           </p>
                         )}
+                        {/* Read-only recap of any notes left on the resolved
+                            conversation — keeps the closing context visible
+                            after the thread leaves the active queue. */}
+                        <div className="mt-2">
+                          <ConversationNotes
+                            conversationId={r.id}
+                            readOnly
+                            compact
+                          />
+                        </div>
                       </div>
                       {/* Reopen is allowed for staff or for the agent who owns the thread. */}
                       {(isStaff || (r.assignedAgent || "").toLowerCase() === myAgentName) && (

@@ -86,6 +86,7 @@ import { cn } from "@/lib/utils";
 import { httpsCallable } from "firebase/functions";
 import { useSearchParams, useParams, useNavigate } from "react-router-dom";
 import { functions } from "@/lib/firebase";
+import ConversationNotes from "@/components/ConversationNotes";
 
 interface Conversation {
   id: string;
@@ -1399,6 +1400,13 @@ const Conversations: React.FC = () => {
               </motion.div>
               );
             })}
+          </div>
+
+          {/* Conversation notes — shared annotations visible to every teammate.
+              Sits above the status bar so notes are part of the thread context
+              without being mistaken for messages sent to the customer. */}
+          <div className="border-t border-border bg-warning/5 px-4 py-3">
+            <ConversationNotes conversationId={selected.id} />
           </div>
 
           {/* Mid-conversation status & channel quick-change */}
