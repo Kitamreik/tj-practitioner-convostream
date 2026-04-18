@@ -72,6 +72,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { restoreItem } from "@/lib/softDelete";
 import { getBoolPref, setBoolPref } from "@/lib/userPrefs";
+import { subscribeLocalAgents } from "@/lib/localAgents";
 import { Switch } from "@/components/ui/switch";
 import NewConversationDialog from "@/components/NewConversationDialog";
 import ConversationTemplates, { type MessageTemplate } from "@/components/ConversationTemplates";
