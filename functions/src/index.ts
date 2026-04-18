@@ -1571,7 +1571,11 @@ async function runHealthChecks(opts: {
   return results;
 }
 
-/** Persist the latest run to `system/integrationsHealth` so navs can read it. */
+/**
+ * Persist the latest run to `system/integrationsHealth` so navs can read it,
+ * AND append a row to `integrationsHealthHistory/{autoId}` so the
+ * /integrations panel can show a "last 5 runs" trend without scraping logs.
+ */
 async function persistHealthSummary(
   results: Record<string, ProviderResult>,
   source: HealthRunSource,
@@ -1580,15 +1584,31 @@ async function persistHealthSummary(
   const failingProviders = Object.entries(results)
     .filter(([, r]) => !r.ok)
     .map(([id]) => id);
-  await db.doc("system/integrationsHealth").set({
+  const checkedAtMs = Date.now();
+  const summary = {
     results,
     failingProviders,
     anyFailing: failingProviders.length > 0,
     checkedAt: admin.firestore.FieldValue.serverTimestamp(),
-    checkedAtMs: Date.now(),
+    checkedAtMs,
     source,
     triggeredByUid,
-  });
+  };
+  await db.doc("system/integrationsHealth").set(summary);
+  // Append-only history row (best-effort — never fails the parent run).
+  try {
+    await db.collection("integrationsHealthHistory").add({
+      checkedAt: admin.firestore.FieldValue.serverTimestamp(),
+      checkedAtMs,
+      source,
+      triggeredByUid,
+      failingProviders,
+      anyFailing: failingProviders.length > 0,
+      providerCount: Object.keys(results).length,
+    });
+  } catch (err) {
+    logger.warn("integrationsHealthHistory append failed", err);
+  }
 }
 
 export const integrationsHealthCheck = onCall(async (request) => {
