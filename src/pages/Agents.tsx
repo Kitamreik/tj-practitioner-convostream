@@ -30,6 +30,13 @@ import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import PullToRefresh from "@/components/PullToRefresh";
 import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  addLocalAgent,
+  removeLocalAgent,
+  subscribeLocalAgents,
+  type LocalAgent,
+} from "@/lib/localAgents";
+import { Trash2 } from "lucide-react";
 
 interface AgentRow {
   uid: string;
@@ -38,6 +45,8 @@ interface AgentRow {
   role: "agent" | "admin" | "webmaster";
   escalatedAccess?: boolean;
   createdAt?: any;
+  /** True when this row is a manually-added local agent (no Firestore doc). */
+  isLocal?: boolean;
 }
 
 interface OpenConvo {
