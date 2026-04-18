@@ -80,11 +80,28 @@ service cloud.firestore {
       allow delete: if isWebmaster();
     }
 
-    // -------- conversations + messages --------
+    // -------- conversations + messages + notes --------
     match /conversations/{convoId} {
       allow read, write: if isSignedIn();
       match /messages/{msgId} {
         allow read, write: if isSignedIn();
+      }
+      // Conversation notes — shared annotations visible to the whole team.
+      // Any signed-in teammate can create/read/edit a note. Deletes are
+      // restricted to admins and webmasters so agents can't accidentally
+      // erase context the rest of the team relies on. UI mirrors this by
+      // hiding the trash button for plain agents.
+      match /notes/{noteId} {
+        allow read, create, update: if isSignedIn();
+        allow delete: if isSignedIn() && (
+          (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && (
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'webmaster'
+              || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+            )
+          )
+        );
       }
     }
 
