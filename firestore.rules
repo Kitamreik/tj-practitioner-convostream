@@ -274,5 +274,15 @@ service cloud.firestore {
         );
       allow delete: if isWebmaster();
     }
+
+    // -------- managedPasswords/{uid} — webmaster-only password vault --------
+    // The webmaster can stash the most recently set password for each user
+    // here so they can look it up later (Firebase Auth itself never exposes
+    // the hash). Strictly webmaster-only — no other role may read/write.
+    // The actual Firebase Auth password is updated by the `setUserPassword`
+    // Cloud Function which uses the admin SDK.
+    match /managedPasswords/{uid} {
+      allow read, create, update, delete: if isWebmaster();
+    }
   }
 }
