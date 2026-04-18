@@ -12,6 +12,7 @@ import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getActiveCount, subscribeRecordings } from "@/lib/fileRecordings";
 import { getBoolPref, subscribeBoolPref } from "@/lib/userPrefs";
+import { useIntegrationsHealth } from "@/hooks/useIntegrationsHealth";
 
 interface NavItem {
   label: string;
@@ -88,6 +89,16 @@ const BottomNav: React.FC = () => {
     setBroadcastsMuted(getBoolPref(userUid, "notifications.muteBroadcasts", false));
     return subscribeBoolPref(userUid, "notifications.muteBroadcasts", setBroadcastsMuted);
   }, [userUid]);
+
+  // Webmaster-only: subscribe to the latest scheduled/manual integrations
+  // health check so we can render a red dot on the More button (and inside
+  // the sheet on the Integrations row) when any provider is failing.
+  const isWebmaster = profile?.role === "webmaster";
+  const integrationsHealth = useIntegrationsHealth(isWebmaster);
+  const integrationsFailing = !!integrationsHealth?.anyFailing;
+  const lastCheckedLabel = integrationsHealth?.checkedAtMs
+    ? new Date(integrationsHealth.checkedAtMs).toLocaleString()
+    : "Not yet run";
 
   const getBadge = (item: NavItem) => {
     if (item.badgeKey === "conversations") return unread;
@@ -169,6 +180,16 @@ const BottomNav: React.FC = () => {
                   {(staffActive + recordingsActive) > 9 ? "9+" : staffActive + recordingsActive}
                 </span>
               )}
+              {/* Webmaster-only red dot when an integration failed its
+                  most recent health check. Sits opposite the count badge
+                  so both can coexist without overlap. */}
+              {integrationsFailing && (
+                <span
+                  className="absolute -left-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background animate-pulse"
+                  aria-label={`Integration issue: ${integrationsHealth?.failingProviders.join(", ")}`}
+                  title={`Integration issue — ${integrationsHealth?.failingProviders.join(", ") || "see /integrations"} (last checked ${lastCheckedLabel})`}
+                />
+              )}
             </div>
             <span>More</span>
           </button>
@@ -187,6 +208,7 @@ const BottomNav: React.FC = () => {
               .map((item) => {
                 const badge = getBadge(item);
                 const isRed = item.badgeKey === "staff" || item.badgeKey === "recordings";
+                const showHealthDot = item.path === "/integrations" && integrationsFailing;
                 return (
                   <button
                     key={item.path}
@@ -196,8 +218,21 @@ const BottomNav: React.FC = () => {
                       location.pathname === item.path ? "bg-accent" : "hover:bg-muted/50"
                     )}
                   >
-                    {item.icon}
-                    <span className="flex-1 text-left">{item.label}</span>
+                    <span className="relative inline-flex">
+                      {item.icon}
+                      {showHealthDot && (
+                        <span
+                          className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-destructive ring-2 ring-background animate-pulse"
+                          aria-label="Integration issue"
+                        />
+                      )}
+                    </span>
+                    <span className="flex-1 text-left">
+                      {item.label}
+                      {showHealthDot && (
+                        <span className="ml-1 text-[10px] text-destructive font-semibold">• issue</span>
+                      )}
+                    </span>
                     {badge > 0 && (
                       <span className={cn(
                         "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold",

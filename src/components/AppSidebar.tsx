@@ -26,6 +26,7 @@ import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getActiveCount, subscribeRecordings } from "@/lib/fileRecordings";
 import { getBoolPref, subscribeBoolPref } from "@/lib/userPrefs";
+import { useIntegrationsHealth } from "@/hooks/useIntegrationsHealth";
 
 interface NavItem {
   label: string;
@@ -127,6 +128,16 @@ const AppSidebar: React.FC = () => {
 
   const totalUnread = unreadCounts.active + unreadCounts.waiting;
 
+  // Webmaster-only: subscribe to the latest scheduled/manual health check
+  // so we can paint a red dot on the Integrations row when any provider is
+  // failing. Non-webmasters can't read the doc (rules) — hook returns null.
+  const isWebmaster = profile?.role === "webmaster";
+  const integrationsHealth = useIntegrationsHealth(isWebmaster);
+  const integrationsFailing = !!integrationsHealth?.anyFailing;
+  const lastCheckedLabel = integrationsHealth?.checkedAtMs
+    ? new Date(integrationsHealth.checkedAtMs).toLocaleString()
+    : "Not yet run";
+
   const filteredNav = navItems.filter((item) => {
     if (item.roles && !(profile && item.roles.includes(profile.role))) return false;
     if (item.webmasterOrEscalated) {
@@ -162,6 +173,7 @@ const AppSidebar: React.FC = () => {
         {filteredNav.map((item) => {
           const badge = getBadge(item);
           const showMutedDot = item.badgeKey === "notifications" && broadcastsMuted;
+          const showHealthDot = item.path === "/integrations" && integrationsFailing;
           return (
             <button
               key={item.path}
@@ -192,6 +204,27 @@ const AppSidebar: React.FC = () => {
                     </TooltipTrigger>
                     <TooltipContent side="right" className="text-xs">
                       Team broadcasts muted — tap to manage
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {showHealthDot && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-destructive ring-2 ring-sidebar animate-pulse"
+                        aria-label={`Integration issue: ${integrationsHealth?.failingProviders.join(", ")}`}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="text-xs max-w-[220px]">
+                      <div className="font-semibold mb-0.5">Integration issue</div>
+                      <div className="text-muted-foreground">
+                        {integrationsHealth?.failingProviders.length
+                          ? `Failing: ${integrationsHealth.failingProviders.join(", ")}`
+                          : "Last health check found a problem."}
+                      </div>
+                      <div className="mt-1 text-[10px] text-muted-foreground/80">
+                        Last checked: {lastCheckedLabel}
+                      </div>
                     </TooltipContent>
                   </Tooltip>
                 )}
