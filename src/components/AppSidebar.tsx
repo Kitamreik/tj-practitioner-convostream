@@ -173,6 +173,7 @@ const AppSidebar: React.FC = () => {
         {filteredNav.map((item) => {
           const badge = getBadge(item);
           const showMutedDot = item.badgeKey === "notifications" && broadcastsMuted;
+          const showHealthDot = item.path === "/integrations" && integrationsFailing;
           return (
             <button
               key={item.path}
@@ -203,6 +204,27 @@ const AppSidebar: React.FC = () => {
                     </TooltipTrigger>
                     <TooltipContent side="right" className="text-xs">
                       Team broadcasts muted — tap to manage
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {showHealthDot && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-destructive ring-2 ring-sidebar animate-pulse"
+                        aria-label={`Integration issue: ${integrationsHealth?.failingProviders.join(", ")}`}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="text-xs max-w-[220px]">
+                      <div className="font-semibold mb-0.5">Integration issue</div>
+                      <div className="text-muted-foreground">
+                        {integrationsHealth?.failingProviders.length
+                          ? `Failing: ${integrationsHealth.failingProviders.join(", ")}`
+                          : "Last health check found a problem."}
+                      </div>
+                      <div className="mt-1 text-[10px] text-muted-foreground/80">
+                        Last checked: {lastCheckedLabel}
+                      </div>
                     </TooltipContent>
                   </Tooltip>
                 )}
