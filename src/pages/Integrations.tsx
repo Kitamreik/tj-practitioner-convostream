@@ -153,6 +153,40 @@ const Integrations: React.FC = () => {
     }
   };
 
+  // QA-only: invokes the same body the every-5-days scheduler runs, so we can
+  // validate the unattended path (no Gmail token, source: "scheduled",
+  // persisted summary doc) without waiting for the timer.
+  const triggerScheduledNow = async () => {
+    setScheduledRunning(true);
+    try {
+      const fn = httpsCallable<
+        Record<string, never>,
+        { ok: boolean; results: Record<string, HealthResult>; failing: string[]; checkedAt: number }
+      >(functions, "triggerScheduledHealthCheckNow");
+      const res = await fn({});
+      // Surface results in the same panel so QA sees what the scheduler saw.
+      setHealthResults(res.data.results);
+      setHealthCheckedAt(res.data.checkedAt);
+      const failing = res.data.failing.length;
+      toast({
+        title: failing === 0 ? "Scheduled run: all healthy" : `Scheduled run: ${failing} issue${failing === 1 ? "" : "s"}`,
+        description:
+          failing === 0
+            ? "Persisted to system/integrationsHealth as source:'scheduled'."
+            : `Failing: ${res.data.failing.join(", ")}`,
+        variant: failing === 0 ? "default" : "destructive",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Could not trigger scheduled run",
+        description: e?.message || "Function call failed.",
+        variant: "destructive",
+      });
+    } finally {
+      setScheduledRunning(false);
+    }
+  };
+
   const activeIntg = integrations.find((i) => i.id === configOpen);
 
   // Load saved configs
