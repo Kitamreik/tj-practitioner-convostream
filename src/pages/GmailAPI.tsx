@@ -906,9 +906,26 @@ const GmailAPI: React.FC = () => {
                     <Button variant="ghost" size="sm" className="gap-1.5 -ml-2" onClick={() => setSelectedMessage(null)}>
                       <ArrowLeft className="h-4 w-4" /> Back to Inbox
                     </Button>
-                    <Button onClick={() => openReply(selectedMessage)} size="sm" className="gap-1.5">
-                      <Reply className="h-4 w-4" /> Reply
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => handlePushToConvoHub(selectedMessage)}
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        disabled={pushingId === selectedMessage.id || pushedToConvo.has(selectedMessage.id)}
+                        aria-label="Push to ConvoHub"
+                      >
+                        <SendIcon className="h-4 w-4" />
+                        {pushedToConvo.has(selectedMessage.id)
+                          ? "In ConvoHub"
+                          : pushingId === selectedMessage.id
+                          ? "Pushing…"
+                          : "Push to ConvoHub"}
+                      </Button>
+                      <Button onClick={() => openReply(selectedMessage)} size="sm" className="gap-1.5">
+                        <Reply className="h-4 w-4" /> Reply
+                      </Button>
+                    </div>
                   </div>
                   <h2 className="text-lg font-semibold text-foreground">{selectedMessage.subject}</h2>
                   <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-muted-foreground">
