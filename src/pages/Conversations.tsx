@@ -363,6 +363,10 @@ const Conversations: React.FC = () => {
   };
 
 
+  // Single-listener map of conversation → note count, used to render the
+  // "N notes" badge on each row in the list and on /agent-logs row headers.
+  const noteCounts = useConversationNoteCounts();
+
   // Single conversation export handlers
   const selected = conversations.find((c) => c.id === selectedId);
 
