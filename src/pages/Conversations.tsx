@@ -1012,9 +1012,36 @@ const Conversations: React.FC = () => {
                     )}
                     {(noteCounts[convo.id] ?? 0) > 0 && (
                       <span
-                        className="inline-flex h-5 items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-1.5 text-[10px] font-medium text-warning"
-                        title={`${noteCounts[convo.id]} shared note${noteCounts[convo.id] === 1 ? "" : "s"}`}
-                        aria-label={`${noteCounts[convo.id]} notes`}
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedId(convo.id);
+                          // Defer until the thread overlay mounts, then scroll
+                          // the notes section into view so the user lands
+                          // directly on the shared context instead of the top
+                          // of the message list.
+                          setTimeout(() => {
+                            document
+                              .getElementById("conversation-notes-section")
+                              ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                          }, 320);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedId(convo.id);
+                            setTimeout(() => {
+                              document
+                                .getElementById("conversation-notes-section")
+                                ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                            }, 320);
+                          }
+                        }}
+                        className="inline-flex h-5 cursor-pointer items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-1.5 text-[10px] font-medium text-warning transition-colors hover:bg-warning/20 focus:outline-none focus:ring-2 focus:ring-warning/40"
+                        title={`${noteCounts[convo.id]} shared note${noteCounts[convo.id] === 1 ? "" : "s"} — click to open`}
+                        aria-label={`Open conversation and jump to ${noteCounts[convo.id]} notes`}
                       >
                         <StickyNote className="h-2.5 w-2.5" />
                         {noteCounts[convo.id]}
