@@ -50,6 +50,12 @@ interface ResolvedConvo {
   assignedAgent?: string;
   archived?: boolean;
   timestamp?: any;
+  // When the conversation first appeared, used as the "opened at" anchor
+  // for time-to-resolve when the dedicated `createdAt` field is missing.
+  createdAt?: any;
+  // Stamped by Conversations.tsx when status flips to "resolved".
+  resolvedAt?: any;
+  resolvedBy?: string | null;
 }
 
 const channelIcon: Record<ResolvedConvo["channel"], React.ReactNode> = {
@@ -167,10 +173,69 @@ const AgentLogs: React.FC = () => {
     return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
   }, [visible]);
 
+  // Per-agent resolution metrics:
+  //  - avgResolveMs: mean of (resolvedAt - createdAt|timestamp) across rows
+  //    that have a resolvedAt. Conversations without resolvedAt are skipped
+  //    so we don't penalize legacy data with bogus zero/huge durations.
+  //  - resolvedThisWeek: count of rows resolved between Mon 00:00 and now
+  //    in the user's local timezone (matches how teams report weekly perf).
+  const weekStart = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    // Date.getDay(): Sunday=0, Monday=1, ..., Saturday=6 → shift to Monday-anchored
+    const dow = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - dow);
+    return d.getTime();
+  }, []);
+
+  const metricsByAgent = useMemo(() => {
+    const out = new Map<string, { avgResolveMs: number | null; resolvedThisWeek: number }>();
+    for (const [agentName, rows] of groups) {
+      let sum = 0;
+      let count = 0;
+      let weekly = 0;
+      for (const r of rows) {
+        const resolvedDate: Date | null = r.resolvedAt?.toDate ? r.resolvedAt.toDate() : null;
+        if (!resolvedDate) continue;
+        // Anchor: prefer createdAt (when conversation first appeared), fall
+        // back to `timestamp` which is updated on every new message — so it's
+        // a lower bound but better than nothing for legacy rows.
+        const startTs = r.createdAt?.toDate ? r.createdAt.toDate() : r.timestamp?.toDate ? r.timestamp.toDate() : null;
+        if (startTs && resolvedDate.getTime() >= startTs.getTime()) {
+          sum += resolvedDate.getTime() - startTs.getTime();
+          count++;
+        }
+        if (resolvedDate.getTime() >= weekStart) weekly++;
+      }
+      out.set(agentName, {
+        avgResolveMs: count > 0 ? Math.round(sum / count) : null,
+        resolvedThisWeek: weekly,
+      });
+    }
+    return out;
+  }, [groups, weekStart]);
+
+  const formatDuration = (ms: number): string => {
+    const sec = Math.round(ms / 1000);
+    if (sec < 60) return `${sec}s`;
+    const min = Math.round(sec / 60);
+    if (min < 60) return `${min}m`;
+    const hr = min / 60;
+    if (hr < 24) return `${hr.toFixed(hr < 10 ? 1 : 0)}h`;
+    const days = hr / 24;
+    return `${days.toFixed(days < 10 ? 1 : 0)}d`;
+  };
+
   const handleReopen = async (convo: ResolvedConvo) => {
     setReopeningId(convo.id);
     try {
-      await updateDoc(doc(db, "conversations", convo.id), { status: "active" });
+      // Clear resolvedAt/resolvedBy so a future re-resolve gets a fresh
+      // duration measurement and metrics aren't double-counted.
+      await updateDoc(doc(db, "conversations", convo.id), {
+        status: "active",
+        resolvedAt: null,
+        resolvedBy: null,
+      });
       toast({
         title: "Reopened",
         description: `${convo.customerName} moved back to Conversations.`,
@@ -275,9 +340,34 @@ const AgentLogs: React.FC = () => {
                     </div>
                     <span className="text-sm font-medium text-foreground truncate">{agentName}</span>
                   </div>
-                  <Badge variant="outline" className="text-[10px]">
-                    {rows.length} resolved
-                  </Badge>
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {(() => {
+                      const m = metricsByAgent.get(agentName);
+                      const avg = m?.avgResolveMs;
+                      const week = m?.resolvedThisWeek ?? 0;
+                      return (
+                        <>
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px]"
+                            title="Resolved between Monday 00:00 and now (your local timezone)"
+                          >
+                            {week} this week
+                          </Badge>
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px]"
+                            title="Average time from first message (or earliest record) to resolution"
+                          >
+                            {avg != null ? `avg ${formatDuration(avg)}` : "avg —"}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px]">
+                            {rows.length} resolved
+                          </Badge>
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
                 <ul className="divide-y divide-border">
                   {rows.map((r) => (

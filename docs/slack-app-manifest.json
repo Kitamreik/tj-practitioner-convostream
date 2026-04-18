@@ -1,0 +1,47 @@
+{
+  "_comment": "ConvoHub custom Slack app manifest. After deploying the slackEvents Cloud Function, replace REQUEST_URL_PLACEHOLDER below with the deployed URL (e.g. https://us-central1-convo-hub-71514.cloudfunctions.net/slackEvents) and paste this whole JSON into https://api.slack.com/apps → 'Create New App' → 'From an app manifest'.",
+  "display_information": {
+    "name": "ConvoHub",
+    "description": "Pulls inbound Slack messages into the ConvoHub agent dashboard.",
+    "background_color": "#1e1b18"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "ConvoHub",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "app_mentions:read",
+        "channels:history",
+        "chat:write",
+        "groups:history",
+        "im:history",
+        "im:read",
+        "im:write",
+        "mpim:history",
+        "users:read"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "request_url": "REQUEST_URL_PLACEHOLDER",
+      "bot_events": [
+        "app_mention",
+        "message.channels",
+        "message.groups",
+        "message.im",
+        "message.mpim"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": false
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

@@ -666,7 +666,21 @@ const Conversations: React.FC = () => {
     );
     if (!usingFallback) {
       try {
-        await updateDoc(doc(db, "conversations", selectedId), { status: newStatus });
+        // Stamp resolvedAt/resolvedBy when closing so /agent-logs metrics
+        // (avg time-to-resolve, resolved-this-week) have a real timestamp
+        // to compute against. Clear both fields on reopen so a future
+        // re-resolve gets a fresh duration measurement.
+        const patch: Record<string, unknown> = { status: newStatus };
+        if (newStatus === "resolved") {
+          patch.resolvedAt = serverTimestamp();
+          patch.resolvedBy =
+            profile?.displayName || profile?.email || selected.assignedAgent || null;
+        } else {
+          // Use sentinel-style nulls so listeners see the field disappear from UI calcs.
+          patch.resolvedAt = null;
+          patch.resolvedBy = null;
+        }
+        await updateDoc(doc(db, "conversations", selectedId), patch);
       } catch (e) {
         console.error(e);
       }
@@ -691,13 +705,22 @@ const Conversations: React.FC = () => {
   }, [selected, showArchived]);
 
   const handleChangeStatus = async (newStatus: "active" | "waiting" | "resolved") => {
-    if (!selectedId) return;
+    if (!selectedId || !selected) return;
     setConversations((prev) =>
       prev.map((c) => (c.id === selectedId ? { ...c, status: newStatus } : c))
     );
     if (!usingFallback) {
       try {
-        await updateDoc(doc(db, "conversations", selectedId), { status: newStatus });
+        const patch: Record<string, unknown> = { status: newStatus };
+        if (newStatus === "resolved") {
+          patch.resolvedAt = serverTimestamp();
+          patch.resolvedBy =
+            profile?.displayName || profile?.email || selected.assignedAgent || null;
+        } else if (selected.status === "resolved") {
+          patch.resolvedAt = null;
+          patch.resolvedBy = null;
+        }
+        await updateDoc(doc(db, "conversations", selectedId), patch);
       } catch (e) {
         console.error(e);
       }

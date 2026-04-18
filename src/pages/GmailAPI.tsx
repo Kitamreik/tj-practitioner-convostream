@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Wifi,
   MailCheck,
+  Send as SendIcon,
 } from "lucide-react";
 import DOMPurify from "dompurify";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,8 @@ import {
   safeValidate,
   singleLine,
 } from "@/lib/validation";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/lib/firebase";
 
 const DISCOVERY_DOC = "https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest";
 // Need send + readonly + modify for compose/reply. Compose scope is preferable to full mail.
@@ -191,6 +194,10 @@ const GmailAPI: React.FC = () => {
   const [sendingTest, setSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [replyContext, setReplyContext] = useState<{ messageIdHeader: string; threadId: string; references: string } | null>(null);
+  // Track which Gmail message ids have been pushed to ConvoHub so we can swap
+  // the button label without forcing a full re-fetch.
+  const [pushedToConvo, setPushedToConvo] = useState<Set<string>>(new Set());
+  const [pushingId, setPushingId] = useState<string | null>(null);
 
   // Load Google scripts once
   useEffect(() => {
@@ -569,6 +576,52 @@ const GmailAPI: React.FC = () => {
     }
   }, [authorized, fetchMessages]);
 
+  // Push a Gmail message into ConvoHub as a Firestore conversation. The
+  // Cloud Function dedups on Gmail message id so repeat clicks are no-ops.
+  const handlePushToConvoHub = useCallback(
+    async (msg: GmailMessage) => {
+      setPushingId(msg.id);
+      try {
+        const fromEmail = (msg.from.match(/<([^>]+)>/) || [])[1] || msg.from;
+        const fn = httpsCallable<
+          {
+            messageId: string;
+            threadId: string;
+            from: string;
+            fromEmail: string;
+            subject: string;
+            snippet: string;
+          },
+          { ok: boolean; conversationId: string; alreadyImported: boolean }
+        >(functions, "pushGmailMessageToConvoHub");
+        const res = await fn({
+          messageId: msg.id,
+          threadId: msg.threadId,
+          from: msg.from,
+          fromEmail,
+          subject: msg.subject,
+          snippet: msg.snippet,
+        });
+        setPushedToConvo((s) => new Set(s).add(msg.id));
+        toast({
+          title: res.data.alreadyImported ? "Already in ConvoHub" : "Pushed to ConvoHub",
+          description: res.data.alreadyImported
+            ? "This Gmail thread is already imported."
+            : "It now shows up under Conversations.",
+        });
+      } catch (e: any) {
+        toast({
+          title: "Push failed",
+          description: e?.message || "Could not push to ConvoHub.",
+          variant: "destructive",
+        });
+      } finally {
+        setPushingId(null);
+      }
+    },
+    []
+  );
+
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
       <div className="mb-6 md:mb-8 flex items-center justify-between gap-3">
@@ -853,9 +906,26 @@ const GmailAPI: React.FC = () => {
                     <Button variant="ghost" size="sm" className="gap-1.5 -ml-2" onClick={() => setSelectedMessage(null)}>
                       <ArrowLeft className="h-4 w-4" /> Back to Inbox
                     </Button>
-                    <Button onClick={() => openReply(selectedMessage)} size="sm" className="gap-1.5">
-                      <Reply className="h-4 w-4" /> Reply
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => handlePushToConvoHub(selectedMessage)}
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        disabled={pushingId === selectedMessage.id || pushedToConvo.has(selectedMessage.id)}
+                        aria-label="Push to ConvoHub"
+                      >
+                        <SendIcon className="h-4 w-4" />
+                        {pushedToConvo.has(selectedMessage.id)
+                          ? "In ConvoHub"
+                          : pushingId === selectedMessage.id
+                          ? "Pushing…"
+                          : "Push to ConvoHub"}
+                      </Button>
+                      <Button onClick={() => openReply(selectedMessage)} size="sm" className="gap-1.5">
+                        <Reply className="h-4 w-4" /> Reply
+                      </Button>
+                    </div>
                   </div>
                   <h2 className="text-lg font-semibold text-foreground">{selectedMessage.subject}</h2>
                   <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-muted-foreground">

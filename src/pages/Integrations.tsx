@@ -214,8 +214,15 @@ const Integrations: React.FC = () => {
     }
   };
 
-  // ----- Google Voice webhook simulator -----
-  const webhookUrl = `${window.location.origin}/api/google-voice/webhook`;
+  // ----- Real Cloud Function webhook URLs -----
+  // These point at the deployed firebase-functions endpoints. Once you run
+  // `firebase deploy --only functions:slackEvents,functions:twilioInbound`,
+  // copy these URLs into Slack's Event Subscriptions request_url and
+  // Twilio's Voice/SMS webhook config in the Twilio Console.
+  const fnBase = "https://us-central1-convo-hub-71514.cloudfunctions.net";
+  const twilioWebhookUrl = `${fnBase}/twilioInbound`;
+  const slackWebhookUrl = `${fnBase}/slackEvents`;
+  const webhookUrl = twilioWebhookUrl;
 
   const copyWebhookUrl = () => {
     navigator.clipboard.writeText(webhookUrl);
@@ -299,40 +306,49 @@ const Integrations: React.FC = () => {
         })}
       </div>
 
-      {/* Google Voice Webhook Contract */}
+      {/* Real ingestion webhooks */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="rounded-xl border border-border bg-card p-6 mb-8">
         <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2 mb-2">
           <Webhook className="h-5 w-5 text-primary" />
-          Google Voice Webhook Contract
+          Inbound Webhooks (Live)
         </h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Forward Google Voice events (calls + SMS) into Firestore so they appear live in the Analytics dashboard. Use Zapier, IFTTT, Apps Script, or your own server to POST events to:
+          Once you deploy the Cloud Functions (<code className="bg-muted px-1 rounded">firebase deploy --only functions</code>), point each provider at the URL below. Inbound messages land directly in <strong>Conversations</strong>, dedup'd by sender.
         </p>
 
-        <div className="rounded-lg border border-border bg-muted/40 p-3 mb-4 flex items-center justify-between gap-2">
-          <code className="text-xs font-mono text-foreground break-all">{webhookUrl}</code>
-          <Button variant="ghost" size="sm" onClick={copyWebhookUrl} aria-label="Copy URL">
-            <Copy className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+        <div className="space-y-3 mb-4">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Twilio (SMS + Voice)</p>
+            <div className="rounded-lg border border-border bg-muted/40 p-3 flex items-center justify-between gap-2">
+              <code className="text-xs font-mono text-foreground break-all">{twilioWebhookUrl}</code>
+              <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(twilioWebhookUrl); toast({ title: "Twilio URL copied" }); }} aria-label="Copy URL">
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Twilio Console → Phone Numbers → your number → Messaging "A message comes in" + Voice "A call comes in" → Webhook (POST). Requires <code className="bg-muted px-1 rounded">TWILIO_AUTH_TOKEN</code> env var on the function. Port your Google Voice number to Twilio to use it as a real number.
+            </p>
+          </div>
 
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Expected JSON payload</p>
-        <pre className="rounded-lg bg-muted/60 p-4 text-xs overflow-x-auto font-mono mb-4">
-{`{
-  "type": "call_inbound" | "call_outbound" | "sms_inbound" | "sms_outbound",
-  "contact": "+15551234567",
-  "durationSec": 184,        // calls only
-  "preview": "Message text", // SMS only
-  "secret": "<webhookSecret from settings>"
-}`}
-        </pre>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Slack (Custom App)</p>
+            <div className="rounded-lg border border-border bg-muted/40 p-3 flex items-center justify-between gap-2">
+              <code className="text-xs font-mono text-foreground break-all">{slackWebhookUrl}</code>
+              <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(slackWebhookUrl); toast({ title: "Slack URL copied" }); }} aria-label="Copy URL">
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Create a custom Slack app at api.slack.com/apps using the manifest at <code className="bg-muted px-1 rounded">docs/slack-app-manifest.json</code>. Replace <code className="bg-muted px-1 rounded">REQUEST_URL_PLACEHOLDER</code> with the URL above. Requires <code className="bg-muted px-1 rounded">SLACK_SIGNING_SECRET</code> + <code className="bg-muted px-1 rounded">SLACK_BOT_TOKEN</code> env vars.
+            </p>
+          </div>
 
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-foreground mb-4">
-          <p className="font-medium mb-1">⚠️ Until a webhook receiver is deployed</p>
-          <p className="text-muted-foreground">
-            You can write events directly into the <code className="bg-muted px-1 rounded">googleVoiceActivity</code> Firestore collection from any
-            authenticated client (Apps Script, Cloud Function, etc.) using the same shape above. The Analytics page listens to this collection in real time.
-          </p>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Gmail</p>
+            <p className="text-[11px] text-muted-foreground">
+              Gmail uses your existing OAuth session — open <a href="/gmail-api" className="underline">Gmail API</a>, authorize, then click <strong>Push to ConvoHub</strong> on any inbound message to import it as a conversation.
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -344,9 +360,10 @@ const Integrations: React.FC = () => {
             <MessageSquare className="h-3.5 w-3.5" />
             {simulating === "sms" ? "Publishing…" : "Simulate inbound SMS"}
           </Button>
-          <p className="text-xs text-muted-foreground self-center">Test events appear instantly on the Analytics page.</p>
+          <p className="text-xs text-muted-foreground self-center">Mock events appear in Analytics for UI testing.</p>
         </div>
       </motion.div>
+
 
       {/* Config Dialog */}
       <Dialog open={!!configOpen} onOpenChange={(o) => !o && setConfigOpen(null)}>
