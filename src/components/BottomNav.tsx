@@ -257,7 +257,9 @@ const BottomNav: React.FC = () => {
                 <p className="truncate text-xs text-muted-foreground">{profile?.email}</p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" className="w-full justify-start gap-3" onClick={toggleTheme}>
+            {/* One-tap call/text the on-call webmaster — hidden for the
+                webmaster role (component handles gating). */}
+            <WebmasterContactButtons className="w-full" />
               {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
               {theme === "light" ? "Dark Mode" : "Light Mode"}
             </Button>
