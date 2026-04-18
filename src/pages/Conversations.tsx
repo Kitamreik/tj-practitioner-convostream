@@ -829,7 +829,7 @@ const Conversations: React.FC = () => {
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="waiting">Waiting</SelectItem>
-                <SelectItem value="resolved">Resolved</SelectItem>
+                {/* Resolved intentionally omitted — see /agent-logs. */}
               </SelectContent>
             </Select>
             <Select value={channelFilter} onValueChange={setChannelFilter}>
