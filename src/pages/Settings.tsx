@@ -489,16 +489,20 @@ const SettingsPage: React.FC = () => {
     setReassignCount(1);
   };
 
-  // Other agents available as reassignment targets (live from accounts list,
-  // excluding the source agent and any webmaster).
+  // Other agents available as reassignment targets (live from accounts list
+  // PLUS any manually-added local agents, excluding the source agent and
+  // any webmaster).
   const reassignTargets = useMemo(() => {
     if (!reassignFrom) return [] as string[];
-    const names = accounts
+    const fromAccounts = accounts
       .filter((a) => a.role === "agent" || a.role === "admin")
-      .map((a) => (a.displayName || a.email || "").trim())
-      .filter((n) => !!n && n !== reassignFrom);
+      .map((a) => (a.displayName || a.email || "").trim());
+    const fromLocal = localAgents.map((a) => a.displayName.trim());
+    const names = [...fromAccounts, ...fromLocal].filter(
+      (n) => !!n && n !== reassignFrom
+    );
     return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
-  }, [accounts, reassignFrom]);
+  }, [accounts, localAgents, reassignFrom]);
 
   const sourceRowForReassign = useMemo(
     () => (reassignFrom ? overviewByAgent.find((r) => r.agent === reassignFrom) ?? null : null),
