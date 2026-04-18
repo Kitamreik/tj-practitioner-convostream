@@ -15,6 +15,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { listLocalAgents, removeLocalAgent } from "@/lib/localAgents";
 
 export type UserRole = "agent" | "admin" | "webmaster";
 
