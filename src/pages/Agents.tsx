@@ -37,6 +37,7 @@ import {
   type LocalAgent,
 } from "@/lib/localAgents";
 import { Trash2 } from "lucide-react";
+import { logAgentCreated } from "@/lib/auditLog";
 
 interface AgentRow {
   uid: string;
