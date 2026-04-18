@@ -1271,3 +1271,91 @@ export const pushGmailMessageToConvoHub = onCall(async (request) => {
   });
   return { ok: true, conversationId: convoRef.id, alreadyImported: false };
 });
+
+// -----------------------------------------------------------------------------
+// Outbound Slack reply: callable invoked from /conversations when an agent
+// sends a reply on a Slack-channel conversation. Posts the reply back to the
+// originating Slack channel via chat.postMessage so the customer sees it in
+// Slack instead of just inside ConvoHub.
+//
+// Required env: SLACK_BOT_TOKEN (xoxb-…) — the same token used by the Events
+// webhook for users.info lookups. The bot must be a member of the target
+// channel for chat.postMessage to succeed (Slack returns "not_in_channel"
+// otherwise).
+//
+// Request: { conversationId: string, text: string, threadTs?: string,
+//            agentName?: string }
+// Resolves the Slack channel id by reading the conversation's `externalId`
+// field (format: "slack:CXXXXXXXX") so the client never has to know it.
+// -----------------------------------------------------------------------------
+export const replyToSlackChannel = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+
+  const data = (request.data ?? {}) as {
+    conversationId?: unknown;
+    text?: unknown;
+    threadTs?: unknown;
+    agentName?: unknown;
+  };
+  const conversationId = typeof data.conversationId === "string" ? data.conversationId : "";
+  const text = typeof data.text === "string" ? data.text.trim() : "";
+  const threadTs = typeof data.threadTs === "string" && data.threadTs ? data.threadTs : undefined;
+  const agentName = typeof data.agentName === "string" ? data.agentName.slice(0, 80) : "Agent";
+  if (!conversationId) throw new HttpsError("invalid-argument", "conversationId required.");
+  if (!text) throw new HttpsError("invalid-argument", "text required.");
+  if (text.length > 4000) throw new HttpsError("invalid-argument", "text too long (max 4000 chars).");
+
+  const botToken = process.env.SLACK_BOT_TOKEN;
+  if (!botToken) {
+    throw new HttpsError("failed-precondition", "SLACK_BOT_TOKEN is not configured on the server.");
+  }
+
+  // Resolve the Slack channel from the conversation document so the channel
+  // id is never trusted from the client.
+  const convoSnap = await db.doc(`conversations/${conversationId}`).get();
+  if (!convoSnap.exists) throw new HttpsError("not-found", "Conversation not found.");
+  const convo = convoSnap.data() as { externalId?: string; externalSource?: string; channel?: string };
+  if (convo.channel !== "slack" || convo.externalSource !== "slack") {
+    throw new HttpsError("failed-precondition", "Conversation is not a Slack thread.");
+  }
+  const externalId = convo.externalId || "";
+  const channelId = externalId.startsWith("slack:") ? externalId.slice("slack:".length) : "";
+  if (!channelId) throw new HttpsError("failed-precondition", "Conversation is missing a Slack channel id.");
+
+  // Strip control characters defensively before forwarding to Slack.
+  const safeText = text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ");
+  const payload: Record<string, unknown> = {
+    channel: channelId,
+    text: `*${agentName}:* ${safeText}`,
+    ...(threadTs ? { thread_ts: threadTs } : {}),
+  };
+
+  let slackJson: { ok?: boolean; ts?: string; error?: string; channel?: string };
+  try {
+    const r = await fetch("https://slack.com/api/chat.postMessage", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${botToken}`,
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify(payload),
+    });
+    slackJson = (await r.json()) as { ok?: boolean; ts?: string; error?: string; channel?: string };
+  } catch (err) {
+    logger.error("replyToSlackChannel: fetch failed", err);
+    throw new HttpsError("internal", `Slack request failed: ${(err as Error).message}`);
+  }
+
+  if (!slackJson.ok) {
+    logger.warn("replyToSlackChannel: Slack returned error", { error: slackJson.error, channelId });
+    throw new HttpsError("internal", `Slack error: ${slackJson.error || "unknown"}`);
+  }
+
+  logger.info("replyToSlackChannel: posted", {
+    by: request.auth.uid,
+    conversationId,
+    channelId,
+    ts: slackJson.ts,
+  });
+  return { ok: true, ts: slackJson.ts ?? null, channel: slackJson.channel ?? channelId };
+});
