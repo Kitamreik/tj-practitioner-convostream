@@ -665,7 +665,91 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // ---- Revoke escalated access (webmaster only) ----
+  // ---- Managed passwords (webmaster only) ---------------------------------
+  // Mirror of /managedPasswords/{uid}. Webmaster-only (rules enforce). When
+  // Firestore is unreachable we fall back to localStorage so the webmaster
+  // can still see the last-set password offline.
+  const [managedPasswords, setManagedPasswords] = useState<Record<string, string>>({});
+  const [revealedUid, setRevealedUid] = useState<string | null>(null);
+  const [pwDialogUid, setPwDialogUid] = useState<string | null>(null);
+  const [pwDraft, setPwDraft] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isWebmaster) return;
+    const unsub = onSnapshot(
+      collection(db, "managedPasswords"),
+      (snap) => {
+        const next: Record<string, string> = {};
+        snap.docs.forEach((d) => {
+          const data = d.data() as { password?: string };
+          if (typeof data.password === "string") {
+            next[d.id] = data.password;
+            // Refresh local cache so offline lookups stay current.
+            setLocalManagedPassword(d.id, data.password);
+          }
+        });
+        setManagedPasswords(next);
+      },
+      (err) => {
+        console.warn("managedPasswords listener error:", err);
+        setManagedPasswords({});
+      }
+    );
+    return unsub;
+  }, [isWebmaster]);
+
+  const getDisplayPassword = (uid: string): string | null => {
+    return managedPasswords[uid] ?? getLocalManagedPassword(uid);
+  };
+
+  const openPasswordDialog = (uid: string) => {
+    setPwDraft(getDisplayPassword(uid) ?? "");
+    setPwDialogUid(uid);
+  };
+
+  const saveManagedPassword = async (uid: string, email: string) => {
+    const trimmed = pwDraft;
+    if (trimmed.length < 6) {
+      toast({ title: "Password too short", description: "Minimum 6 characters.", variant: "destructive" });
+      return;
+    }
+    setPwSaving(true);
+    try {
+      const fn = httpsCallable<{ targetUid: string; newPassword: string }, { ok: boolean }>(
+        functions,
+        "setUserPassword"
+      );
+      await fn({ targetUid: uid, newPassword: trimmed });
+      // Optimistic local mirror in case the listener is slow.
+      setManagedPasswords((prev) => ({ ...prev, [uid]: trimmed }));
+      setLocalManagedPassword(uid, trimmed);
+      toast({ title: "Password updated", description: `${email || uid} can now sign in with the new password.` });
+      setPwDialogUid(null);
+      setPwDraft("");
+    } catch (e: any) {
+      // Even if the cloud call fails, persist locally so the webmaster
+      // doesn't lose what they just typed.
+      setLocalManagedPassword(uid, trimmed);
+      toast({ title: "Password save failed", description: e?.message ?? "Saved locally as fallback.", variant: "destructive" });
+    } finally {
+      setPwSaving(false);
+    }
+  };
+
+  const copyPassword = async (uid: string) => {
+    const pw = getDisplayPassword(uid);
+    if (!pw) {
+      toast({ title: "No password on file", description: "Set one first.", variant: "destructive" });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(pw);
+      toast({ title: "Password copied" });
+    } catch {
+      toast({ title: "Copy failed", variant: "destructive" });
+    }
+  };
   const [revokingUid, setRevokingUid] = useState<string | null>(null);
   const [revokeDialogUid, setRevokeDialogUid] = useState<string | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
