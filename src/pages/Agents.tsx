@@ -554,9 +554,16 @@ const Agents: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-muted-foreground">{u.email || "—"}</td>
                     <td className="px-6 py-4">
-                      <Badge variant={roleVariant[u.role]} className="text-xs">
-                        {roleLabel[u.role]}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant={roleVariant[u.role]} className="text-xs">
+                          {roleLabel[u.role]}
+                        </Badge>
+                        {u.isLocal && (
+                          <Badge variant="outline" className="text-[10px]" title="Manually added — not yet signed up">
+                            Local
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">{renderLoadCell(load)}</td>
                     <td className="px-6 py-4 text-xs text-muted-foreground">
