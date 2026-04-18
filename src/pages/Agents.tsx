@@ -581,7 +581,17 @@ const Agents: React.FC = () => {
                     </td>
                     {isWebmaster && (
                       <td className="px-6 py-4 text-right">
-                        {u.role !== "webmaster" && u.uid !== profile?.uid ? (
+                        {u.isLocal ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRemoveLocalAgent(u)}
+                            className="gap-1.5 h-8"
+                            aria-label={`Remove ${u.displayName}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Remove
+                          </Button>
+                        ) : u.role !== "webmaster" && u.uid !== profile?.uid ? (
                           <div className="flex items-center justify-end gap-2">
                             {u.role === "agent" ? (
                               <Button
