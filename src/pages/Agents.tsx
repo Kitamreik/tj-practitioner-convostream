@@ -393,16 +393,29 @@ const Agents: React.FC = () => {
             </p>
           </div>
           {isWebmaster && (
-            <Button
-              size="sm"
-              onClick={() => setInviteOpen(true)}
-              className="gap-1.5 flex-shrink-0"
-              aria-label="Send invite to a new agent"
-            >
-              <UserPlus className="h-4 w-4" />
-              <span className="hidden sm:inline">Send invite</span>
-              <span className="sm:hidden">Invite</span>
-            </Button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAddOpen(true)}
+                className="gap-1.5"
+                aria-label="Manually add an agent"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span className="hidden sm:inline">Add agent</span>
+                <span className="sm:hidden">Add</span>
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setInviteOpen(true)}
+                className="gap-1.5"
+                aria-label="Send invite to a new agent"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span className="hidden sm:inline">Send invite</span>
+                <span className="sm:hidden">Invite</span>
+              </Button>
+            </div>
           )}
         </div>
 
