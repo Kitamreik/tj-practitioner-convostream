@@ -128,6 +128,16 @@ const AppSidebar: React.FC = () => {
 
   const totalUnread = unreadCounts.active + unreadCounts.waiting;
 
+  // Webmaster-only: subscribe to the latest scheduled/manual health check
+  // so we can paint a red dot on the Integrations row when any provider is
+  // failing. Non-webmasters can't read the doc (rules) — hook returns null.
+  const isWebmaster = profile?.role === "webmaster";
+  const integrationsHealth = useIntegrationsHealth(isWebmaster);
+  const integrationsFailing = !!integrationsHealth?.anyFailing;
+  const lastCheckedLabel = integrationsHealth?.checkedAtMs
+    ? new Date(integrationsHealth.checkedAtMs).toLocaleString()
+    : "Not yet run";
+
   const filteredNav = navItems.filter((item) => {
     if (item.roles && !(profile && item.roles.includes(profile.role))) return false;
     if (item.webmasterOrEscalated) {
