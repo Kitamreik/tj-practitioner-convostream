@@ -37,7 +37,7 @@ import {
   type LocalAgent,
 } from "@/lib/localAgents";
 import { Trash2 } from "lucide-react";
-import { logAgentCreated } from "@/lib/auditLog";
+import { logAgentCreated, logAgentRemoved, logAgentRoleChanged } from "@/lib/auditLog";
 
 interface AgentRow {
   uid: string;
@@ -248,6 +248,14 @@ const Agents: React.FC = () => {
 
   const handleRemoveLocalAgent = (row: AgentRow) => {
     removeLocalAgent(row.uid);
+    // Audit the removal so /audit shows the full lifecycle alongside creations.
+    logAgentRemoved({
+      personId: row.uid,
+      name: row.displayName,
+      email: row.email,
+      source: "manual",
+      actor: profile?.displayName || profile?.email || "Unknown",
+    });
     toast({ title: "Agent removed", description: `${row.displayName} removed from local roster.` });
   };
 
@@ -256,6 +264,7 @@ const Agents: React.FC = () => {
       toast({ title: "No email on account", variant: "destructive" });
       return;
     }
+    const previousRole = acc.role;
     setBusyUid(acc.uid);
     try {
       if (target === "admin") {
@@ -279,6 +288,16 @@ const Agents: React.FC = () => {
           description: `${acc.email || acc.uid} is now an agent.`,
         });
       }
+      // Best-effort audit. The Cloud Function is the source of truth for the
+      // role flip; this entry just gives /audit a human-readable timeline.
+      logAgentRoleChanged({
+        personId: acc.uid,
+        name: acc.displayName || acc.email,
+        email: acc.email,
+        fromRole: previousRole,
+        toRole: target,
+        actor: profile?.displayName || profile?.email || "Unknown",
+      });
     } catch (e: any) {
       toast({
         title: target === "admin" ? "Promote failed" : "Demote failed",
