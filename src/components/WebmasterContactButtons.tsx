@@ -17,6 +17,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { subscribeCooldownMin, DEFAULT_COOLDOWN_MIN, type CooldownMinutes } from "@/lib/webmasterCooldown";
+import { notifyWebmasterOnContact } from "@/lib/notifyWebmaster";
 
 /**
  * WebmasterContactButtons — direct call/SMS shortcuts to the on-call
@@ -46,7 +48,9 @@ const WEBMASTER_NUMBER = "+17206639706"; // (720) 663-9706
 const DISPLAY_NUMBER = "(720) 663-9706";
 const LAST_CONTACT_KEY_PREFIX = "convohub.webmasterLastContact.";
 const LONG_PRESS_MS = 500;
-const COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
+// Cooldown is configurable via /settings (5/15/30/60 min). This is just the
+// initial fallback used before the Firestore subscription delivers a value.
+
 
 interface Props {
   /** "compact" = icon-only buttons (sidebar/bottom-sheet); "full" = labelled. */
@@ -96,6 +100,10 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
   // Confirm dialog for the soft cooldown. We stash which channel
   // (call/text) the user picked so we can launch it after they confirm.
   const [confirmChannel, setConfirmChannel] = useState<"call" | "text" | null>(null);
+  // Live cooldown duration (minutes) — synced from appSettings/webmasterContact.
+  const [cooldownMin, setCooldownMin] = useState<CooldownMinutes>(DEFAULT_COOLDOWN_MIN);
+  useEffect(() => subscribeCooldownMin(setCooldownMin), []);
+  const cooldownMs = cooldownMin * 60 * 1000;
 
   const lastKey = profile?.uid ? LAST_CONTACT_KEY_PREFIX + profile.uid : null;
   const userUid = profile?.uid ?? null;
