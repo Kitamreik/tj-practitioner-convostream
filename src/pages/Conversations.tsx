@@ -77,6 +77,7 @@ import { Switch } from "@/components/ui/switch";
 import NewConversationDialog from "@/components/NewConversationDialog";
 import ConversationTemplates, { type MessageTemplate } from "@/components/ConversationTemplates";
 import EditPersonDialog, { type EditablePerson } from "@/components/EditPersonDialog";
+import ExtractSearch from "@/components/ExtractSearch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -1334,9 +1335,7 @@ const Conversations: React.FC = () => {
                             Copy extract
                           </Button>
                         </div>
-                        <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-background/40 p-2 font-sans text-sm">
-                          {extractBody}
-                        </pre>
+                        <ExtractSearch text={extractBody} />
                       </div>
                     </details>
                   )}
