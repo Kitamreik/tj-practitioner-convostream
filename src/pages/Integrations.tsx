@@ -119,6 +119,47 @@ const Integrations: React.FC = () => {
   const isWebmaster = profile?.role === "webmaster";
   const canTriggerScheduled = isWebmaster || profile?.role === "admin";
 
+  // Live last-5 health-check runs (rules: webmaster-only). Used to show a
+  // small trend table below the panel without hitting Firestore manually.
+  type HistoryRow = {
+    id: string;
+    checkedAtMs: number;
+    source: "manual" | "scheduled" | string;
+    failingProviders: string[];
+    anyFailing: boolean;
+  };
+  const [healthHistory, setHealthHistory] = useState<HistoryRow[]>([]);
+  useEffect(() => {
+    if (!isWebmaster) {
+      setHealthHistory([]);
+      return;
+    }
+    const q = query(
+      collection(db, "integrationsHealthHistory"),
+      orderBy("checkedAtMs", "desc"),
+      limit(5)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setHealthHistory(
+          snap.docs.map((d) => {
+            const data = d.data() as Partial<HistoryRow>;
+            return {
+              id: d.id,
+              checkedAtMs: typeof data.checkedAtMs === "number" ? data.checkedAtMs : 0,
+              source: (data.source as string) ?? "manual",
+              failingProviders: Array.isArray(data.failingProviders) ? data.failingProviders : [],
+              anyFailing: !!data.anyFailing,
+            };
+          })
+        );
+      },
+      (err) => console.warn("integrationsHealthHistory listener:", err)
+    );
+    return unsub;
+  }, [isWebmaster]);
+
   const runHealthCheck = async () => {
     setHealthRunning(true);
     try {
