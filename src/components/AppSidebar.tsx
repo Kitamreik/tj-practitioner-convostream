@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getActiveCount, subscribeRecordings } from "@/lib/fileRecordings";
+import { getBoolPref, subscribeBoolPref } from "@/lib/userPrefs";
 
 interface NavItem {
   label: string;
@@ -115,6 +116,14 @@ const AppSidebar: React.FC = () => {
     return subscribeRecordings(() => setRecordingsActive(getActiveCount()));
   }, []);
 
+  // Mirror the bottom nav: show a small "muted" dot on the Notifications row
+  // when the user has hidden team broadcasts on /notifications.
+  const [broadcastsMuted, setBroadcastsMuted] = useState(false);
+  useEffect(() => {
+    setBroadcastsMuted(getBoolPref(userUid, "notifications.muteBroadcasts", false));
+    return subscribeBoolPref(userUid, "notifications.muteBroadcasts", setBroadcastsMuted);
+  }, [userUid]);
+
   const totalUnread = unreadCounts.active + unreadCounts.waiting;
 
   const filteredNav = navItems.filter((item) => {
@@ -151,6 +160,7 @@ const AppSidebar: React.FC = () => {
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         {filteredNav.map((item) => {
           const badge = getBadge(item);
+          const showMutedDot = item.badgeKey === "notifications" && broadcastsMuted;
           return (
             <button
               key={item.path}
@@ -162,7 +172,16 @@ const AppSidebar: React.FC = () => {
                   : "text-sidebar-foreground hover:bg-sidebar-accent/50"
               )}
             >
-              {item.icon}
+              <span className="relative inline-flex">
+                {item.icon}
+                {showMutedDot && (
+                  <span
+                    className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-warning ring-2 ring-sidebar"
+                    aria-label="Team broadcasts muted"
+                    title="Team broadcasts muted — tap to manage"
+                  />
+                )}
+              </span>
               <span className="flex-1 text-left">{item.label}</span>
               {badge > 0 && (
                 <span className={cn(
