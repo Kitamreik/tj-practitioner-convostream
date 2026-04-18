@@ -321,6 +321,17 @@ const Agents: React.FC = () => {
         targetEmail: res.data.targetEmail,
         createdAuthUser: res.data.createdAuthUser,
       });
+      // Only audit when this invite truly created a new agent account —
+      // re-issuing a link for an existing user isn't an "agent creation" event.
+      if (res.data.createdAuthUser) {
+        logAgentCreated({
+          personId: res.data.targetUid,
+          name: inviteName.trim() || res.data.targetEmail,
+          email: res.data.targetEmail,
+          source: "invite",
+          actor: profile?.displayName || profile?.email || "Unknown",
+        });
+      }
       toast({
         title: res.data.createdAuthUser ? "Invite created" : "Existing user — link generated",
         description: res.data.createdAuthUser
