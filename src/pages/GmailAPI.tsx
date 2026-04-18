@@ -194,6 +194,10 @@ const GmailAPI: React.FC = () => {
   const [sendingTest, setSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [replyContext, setReplyContext] = useState<{ messageIdHeader: string; threadId: string; references: string } | null>(null);
+  // Track which Gmail message ids have been pushed to ConvoHub so we can swap
+  // the button label without forcing a full re-fetch.
+  const [pushedToConvo, setPushedToConvo] = useState<Set<string>>(new Set());
+  const [pushingId, setPushingId] = useState<string | null>(null);
 
   // Load Google scripts once
   useEffect(() => {
