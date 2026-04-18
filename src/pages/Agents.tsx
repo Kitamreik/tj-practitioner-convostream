@@ -84,6 +84,17 @@ const Agents: React.FC = () => {
   // show their current load + an Overloaded badge without a Settings detour.
   const [openConvos, setOpenConvos] = useState<OpenConvo[]>([]);
 
+  // Manually-added agents (localStorage). These are merged with the Firestore
+  // users list so they show up in the roster + the assign-agent dropdown
+  // even before they sign up. agent1/agent2 are seeded by default.
+  const [localAgents, setLocalAgents] = useState<LocalAgent[]>([]);
+  useEffect(() => subscribeLocalAgents(setLocalAgents), []);
+
+  // ---- Manual add dialog (webmaster only) ----
+  const [addOpen, setAddOpen] = useState(false);
+  const [addEmail, setAddEmail] = useState("");
+  const [addName, setAddName] = useState("");
+
   // ---- Invite dialog (webmaster only) ----
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
