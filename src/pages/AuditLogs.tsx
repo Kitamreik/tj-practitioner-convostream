@@ -74,6 +74,8 @@ interface PeopleAuditRow {
   name: string;
   email?: string;
   phone?: string;
+  /** New rows tag the source ("manual" | "invite"); legacy rows lack it. */
+  source?: "manual" | "invite";
   actor: string;
   timestamp: any;
 }
