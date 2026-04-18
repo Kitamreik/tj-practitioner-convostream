@@ -214,8 +214,15 @@ const Integrations: React.FC = () => {
     }
   };
 
-  // ----- Google Voice webhook simulator -----
-  const webhookUrl = `${window.location.origin}/api/google-voice/webhook`;
+  // ----- Real Cloud Function webhook URLs -----
+  // These point at the deployed firebase-functions endpoints. Once you run
+  // `firebase deploy --only functions:slackEvents,functions:twilioInbound`,
+  // copy these URLs into Slack's Event Subscriptions request_url and
+  // Twilio's Voice/SMS webhook config in the Twilio Console.
+  const fnBase = "https://us-central1-convo-hub-71514.cloudfunctions.net";
+  const twilioWebhookUrl = `${fnBase}/twilioInbound`;
+  const slackWebhookUrl = `${fnBase}/slackEvents`;
+  const webhookUrl = twilioWebhookUrl;
 
   const copyWebhookUrl = () => {
     navigator.clipboard.writeText(webhookUrl);
