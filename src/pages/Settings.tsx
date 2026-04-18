@@ -93,6 +93,10 @@ import {
   setSlackWebhookUrl,
   type CooldownMinutes,
 } from "@/lib/webmasterCooldown";
+import {
+  subscribeRecentContactEvents,
+  type WebmasterContactEvent,
+} from "@/lib/webmasterContactEvents";
 
 const ESCALATION_NOTIFY_EMAIL = "kit.tjclasses@gmail.com";
 
@@ -353,6 +357,52 @@ const SettingsPage: React.FC = () => {
       setSavingSlackWebhook(false);
     }
   };
+
+  // Fire a test message to whatever URL is currently in the input. Uses the
+  // draft (not the saved value) so the webmaster can validate a freshly
+  // pasted URL without having to save it first. Mirrors the Slack ping
+  // shape used by notifyWebmasterOnContact so a successful test confirms
+  // the same channel will receive real alerts.
+  const [testingPing, setTestingPing] = useState(false);
+  const handleTestPing = async () => {
+    const url = slackWebhookDraft.trim();
+    if (!url || !url.startsWith("https://hooks.slack.com/")) {
+      toast({
+        title: "Enter a Slack webhook URL first",
+        description: "Must start with https://hooks.slack.com/",
+        variant: "destructive",
+      });
+      return;
+    }
+    setTestingPing(true);
+    try {
+      // Slack rejects browser preflight on incoming-webhooks, so we use
+      // mode:'no-cors'. The request still reaches Slack but we can't read
+      // the response — same trade-off as notifyWebmaster.pingSlack. A
+      // network-layer failure throws; otherwise we assume delivery.
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        mode: "no-cors",
+        body: JSON.stringify({
+          text: `:white_check_mark: Test ping from *${profile?.displayName || "the webmaster"}* — ConvoHub Slack alerts are wired up correctly.`,
+        }),
+      });
+      toast({
+        title: "Test ping sent",
+        description: "Check your Slack channel — the message should appear within a few seconds.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Test ping failed",
+        description: e?.message || "Could not reach Slack. Double-check the URL.",
+        variant: "destructive",
+      });
+    } finally {
+      setTestingPing(false);
+    }
+  };
+
   const handleCooldownChange = async (value: string) => {
     const n = Number(value) as CooldownMinutes;
     setSavingCooldown(true);
@@ -372,6 +422,15 @@ const SettingsPage: React.FC = () => {
       setSavingCooldown(false);
     }
   };
+
+  // ---- Recent webmaster-contact events (webmaster only) ----
+  // Drives the small history list under the cooldown section so the on-call
+  // webmaster can spot patterns at a glance.
+  const [recentContacts, setRecentContacts] = useState<WebmasterContactEvent[]>([]);
+  useEffect(() => {
+    if (!isWebmaster) return;
+    return subscribeRecentContactEvents(10, setRecentContacts);
+  }, [isWebmaster]);
 
   // ---- Pending escalation requests (webmaster only) ----
   const [pending, setPending] = useState<PendingEscalation[]>([]);
