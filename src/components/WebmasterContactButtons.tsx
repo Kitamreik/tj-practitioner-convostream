@@ -264,6 +264,30 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
     recordContact(channel);
   };
 
+  // Slack Alert — fires the fixed "review ConvoHub" message to the team
+  // channel. Standalone from Call/Text: no dialer hand-off, no contact
+  // record, no cooldown gate. Disabled when the webhook isn't set.
+  const webhookConfigured = !!slackWebhook && slackWebhook.startsWith("https://hooks.slack.com/");
+  const handleSlackAlert = async () => {
+    if (!webhookConfigured || slackSending) return;
+    setSlackSending(true);
+    try {
+      const ok = await pingWebmasterSlackAlert({
+        agentName: senderName,
+        route: location.pathname,
+      });
+      toast({
+        title: ok ? "Slack channel pinged" : "Slack alert not sent",
+        description: ok
+          ? "The webmaster channel has been notified for review."
+          : "Webhook isn't configured. Ask the webmaster to set it on Settings.",
+        variant: ok ? undefined : "destructive",
+      });
+    } finally {
+      setSlackSending(false);
+    }
+  };
+
   return (
     <div className={["flex flex-col gap-1.5", className].filter(Boolean).join(" ")}>
       {inCooldown ? (
