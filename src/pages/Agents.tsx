@@ -463,13 +463,30 @@ const Agents: React.FC = () => {
                       <p className="font-medium text-foreground truncate">
                         {u.displayName || "(unnamed)"}
                       </p>
-                      <Badge variant={roleVariant[u.role]} className="text-[10px]">
-                        {roleLabel[u.role]}
-                      </Badge>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Badge variant={roleVariant[u.role]} className="text-[10px]">
+                          {roleLabel[u.role]}
+                        </Badge>
+                        {u.isLocal && (
+                          <Badge variant="outline" className="text-[10px]">Local</Badge>
+                        )}
+                      </div>
                     </div>
                     <p className="text-xs text-muted-foreground truncate">{u.email || u.uid}</p>
                     <div className="mt-2">{renderLoadCell(load)}</div>
-                    {isWebmaster && u.role !== "webmaster" && u.uid !== profile?.uid && (
+                    {isWebmaster && u.isLocal && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRemoveLocalAgent(u)}
+                          className="gap-1.5 h-8"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" /> Remove
+                        </Button>
+                      </div>
+                    )}
+                    {isWebmaster && !u.isLocal && u.role !== "webmaster" && u.uid !== profile?.uid && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {u.role === "agent" ? (
                           <Button
