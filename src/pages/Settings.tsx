@@ -1133,6 +1133,47 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Webmaster-only: contact cooldown duration */}
+        {isWebmaster && (
+          <div id="webmaster-contact" className="rounded-xl border border-border bg-card p-6">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-2">
+              <PhoneCall className="h-5 w-5 text-primary" />
+              Webmaster contact cooldown
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              How long an agent must wait between consecutive Call/Text Webmaster
+              shortcuts before the buttons swap to the
+              <span className="font-medium text-foreground"> "Just contacted — call again?" </span>
+              confirm dialog. Tune this lower during high-volume incidents so
+              follow-ups aren't blocked.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">Cooldown window</p>
+                <p className="text-xs text-muted-foreground">
+                  Applies to every agent and admin in real time.
+                </p>
+              </div>
+              <Select
+                value={String(cooldownMin)}
+                onValueChange={handleCooldownChange}
+                disabled={savingCooldown}
+              >
+                <SelectTrigger className="w-full sm:w-44" aria-label="Webmaster contact cooldown">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {COOLDOWN_OPTIONS_MIN.map((m) => (
+                    <SelectItem key={m} value={String(m)}>
+                      {m} minutes
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
         {/* Webmaster-only: Overview — at-a-glance assigned conversations per agent */}
         {isWebmaster && (
           <div id="overview" className="rounded-xl border border-border bg-card p-6">
