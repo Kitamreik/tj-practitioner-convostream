@@ -654,6 +654,53 @@ const Agents: React.FC = () => {
         </div>
       </div>
 
+      {/* Manual add dialog (webmaster only). Persists locally so the agent
+          shows up in the assign-agent dropdown immediately, without waiting
+          for them to sign up or for a Cloud Function deploy. */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Add agent manually</DialogTitle>
+            <DialogDescription>
+              Adds an agent entry to the local roster (stored on this device).
+              The agent becomes immediately available for assignment on conversations.
+              When they later sign up with the same email, their Firestore profile
+              takes over and the local entry is hidden automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="add-name">Display name</Label>
+              <Input
+                id="add-name"
+                placeholder="Agent One"
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="add-email">Email address</Label>
+              <Input
+                id="add-email"
+                type="email"
+                placeholder="agent@example.com"
+                value={addEmail}
+                onChange={(e) => setAddEmail(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddLocalAgent} className="gap-1.5">
+              <UserPlus className="h-4 w-4" /> Add agent
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Invite dialog (webmaster only) */}
       <Dialog open={inviteOpen} onOpenChange={(v) => (v ? setInviteOpen(true) : closeInviteDialog())}>
         <DialogContent className="sm:max-w-[480px]">
