@@ -18,7 +18,10 @@ const NewConversationDialog: React.FC = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [channel, setChannel] = useState<string>("email");
+  // Default to "mobile" so entries created directly from the conversation
+  // page are tagged as in-app captures (the running-feet icon makes them
+  // easy to spot in the list).
+  const [channel, setChannel] = useState<string>("mobile");
   const [message, setMessage] = useState("");
   const [attachedDocName, setAttachedDocName] = useState<string | null>(null);
   const [attachedDocTruncated, setAttachedDocTruncated] = useState(false);
@@ -31,7 +34,7 @@ const NewConversationDialog: React.FC = () => {
     setEmail("");
     setPhone("");
     setMessage("");
-    setChannel("email");
+    setChannel("mobile");
     setAttachedDocName(null);
     setAttachedDocTruncated(false);
     setExtractText(null);
@@ -163,6 +166,7 @@ const NewConversationDialog: React.FC = () => {
             <Select value={channel} onValueChange={setChannel}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="mobile">Mobile (in-app capture)</SelectItem>
                 <SelectItem value="email">Email</SelectItem>
                 <SelectItem value="sms">SMS</SelectItem>
                 <SelectItem value="phone">Phone</SelectItem>
