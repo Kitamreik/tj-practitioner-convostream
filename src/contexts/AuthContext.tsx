@@ -15,6 +15,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { listLocalAgents, removeLocalAgent } from "@/lib/localAgents";
 
 export type UserRole = "agent" | "admin" | "webmaster";
 
@@ -55,6 +56,27 @@ async function logLoginAttempt(email: string, success: boolean, uid?: string) {
   }
 }
 
+/**
+ * When an agent who was previously added manually (and thus exists only in
+ * the webmaster's localStorage roster) signs up for real, their Firestore
+ * profile should take over. We strip the matching local entry from
+ * localStorage so the dedup-by-email logic on the Agents page doesn't have
+ * to keep masking it forever — the row truly disappears from the local list.
+ */
+function cleanupLocalAgentForEmail(email: string | null | undefined): void {
+  if (!email) return;
+  const target = email.trim().toLowerCase();
+  if (!target) return;
+  try {
+    const matches = listLocalAgents().filter(
+      (a) => a.email.trim().toLowerCase() === target
+    );
+    matches.forEach((m) => removeLocalAgent(m.id));
+  } catch (e) {
+    console.warn("cleanupLocalAgentForEmail failed:", e);
+  }
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -75,8 +97,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           doc(db, "users", firebaseUser.uid),
           async (snap) => {
             if (snap.exists()) {
-              setProfile(snap.data() as UserProfile);
+              const data = snap.data() as UserProfile;
+              setProfile(data);
               setLoading(false);
+              // If this real Firestore agent has a leftover local-roster
+              // placeholder with the same email, drop it now.
+              cleanupLocalAgentForEmail(data.email);
               return;
             }
             // Self-heal: legacy accounts that exist in Firebase Auth but were
@@ -101,6 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 createdAt: serverTimestamp(),
               });
               setProfile(fallback);
+              cleanupLocalAgentForEmail(fallback.email);
             } catch (e) {
               console.error("Self-heal failed to create users/{uid} doc:", e);
               setProfile(null);
@@ -151,6 +178,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     await setDoc(doc(db, "users", cred.user.uid), profileData);
     setProfile(profileData);
+    // Clean up any matching local-roster placeholder so the same agent doesn't
+    // appear twice (once as a real Firestore user, once as a local entry).
+    cleanupLocalAgentForEmail(email);
   };
 
   const signOut = async () => {

@@ -18,6 +18,7 @@ import Analytics from "./pages/Analytics";
 import GmailAPI from "./pages/GmailAPI";
 import SettingsPage from "./pages/Settings";
 import Archive from "./pages/Archive";
+import AgentLogs from "./pages/AgentLogs";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -77,6 +78,7 @@ const App = () => (
                 <Route path="/gmail" element={<ProtectedRoute escalated><GmailAPI /></ProtectedRoute>} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/archive" element={<Archive />} />
+                <Route path="/agent-logs" element={<AgentLogs />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -318,13 +318,12 @@ const Conversations: React.FC = () => {
   const { id: routeId } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  // Live list of agent display names — pulled from the `users` collection so
-  // renames in Settings → Agents reflect immediately on the assign-agent menu.
-  // Also merges in manually-added local agents (localStorage) so webmaster
-  // additions show up without a sign-up step. Falls back to a hardcoded list
-  // when Firestore is unreachable.
-  const FALLBACK_AGENTS = ["Alice Johnson", "Bob Smith", "Carol Davis", "Dan Lee"];
-  const [firestoreAgents, setFirestoreAgents] = useState<string[]>(FALLBACK_AGENTS);
+  // Live list of agent display names — must match exactly what the Agents page
+  // shows. Sources: (1) Firestore `users` with role agent/admin and (2) the
+  // manually-added local roster (localStorage). No more hardcoded fallback —
+  // if Firestore is unreachable we still surface local agents so demo data
+  // works, but we never invent fake names that don't exist on /agents.
+  const [firestoreAgents, setFirestoreAgents] = useState<string[]>([]);
   const [localAgentNames, setLocalAgentNames] = useState<string[]>([]);
   useEffect(() => {
     const unsub = onSnapshot(
@@ -335,9 +334,9 @@ const Conversations: React.FC = () => {
           .filter((u) => u && (u.role === "agent" || u.role === "admin") && (u.displayName || u.email))
           .map((u) => (u.displayName || u.email) as string)
           .filter((v, i, arr) => arr.indexOf(v) === i);
-        setFirestoreAgents(names.length > 0 ? names : FALLBACK_AGENTS);
+        setFirestoreAgents(names);
       },
-      () => setFirestoreAgents(FALLBACK_AGENTS)
+      () => setFirestoreAgents([])
     );
     return unsub;
   }, []);
@@ -609,6 +608,10 @@ const Conversations: React.FC = () => {
   const filtered = conversations.filter((c) => {
     const archivedMatch = showArchived ? !!c.archived : !c.archived;
     if (!archivedMatch) return false;
+    // Resolved conversations live on the dedicated /agent-logs page, not here.
+    // We still allow them through when the user is viewing the archive (since
+    // archived items can be resolved too) so that view stays a complete record.
+    if (!showArchived && c.status === "resolved") return false;
     if (mineOnly && (c.assignedAgent || "").toLowerCase() !== myAgentName) return false;
     const lowerSearch = search.toLowerCase();
     const matchesBasic =
@@ -670,9 +673,22 @@ const Conversations: React.FC = () => {
     }
     toast({
       title: newStatus === "resolved" ? "Resolved" : "Reopened",
-      description: newStatus === "resolved" ? "Conversation marked as resolved." : "Conversation reopened to active.",
+      description:
+        newStatus === "resolved"
+          ? "Moved to Agent Logs. View it from the Agent Logs tab."
+          : "Conversation reopened to active.",
     });
   };
+
+  // Auto-clear selection when the currently selected conversation is resolved
+  // (it's no longer in the visible list, so showing it in the right pane is
+  // confusing — the user should see the empty state instead).
+  useEffect(() => {
+    if (!selected) return;
+    if (!showArchived && selected.status === "resolved") {
+      setSelectedId(null);
+    }
+  }, [selected, showArchived]);
 
   const handleChangeStatus = async (newStatus: "active" | "waiting" | "resolved") => {
     if (!selectedId) return;
@@ -826,7 +842,7 @@ const Conversations: React.FC = () => {
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="waiting">Waiting</SelectItem>
-                <SelectItem value="resolved">Resolved</SelectItem>
+                {/* Resolved intentionally omitted — see /agent-logs. */}
               </SelectContent>
             </Select>
             <Select value={channelFilter} onValueChange={setChannelFilter}>

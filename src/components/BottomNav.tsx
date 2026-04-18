@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/co
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
-import { Plug, Shield, Mail, Settings as SettingsIcon, LogOut, Moon, Sun, Archive as ArchiveIcon } from "lucide-react";
+import { Plug, Shield, Mail, Settings as SettingsIcon, LogOut, Moon, Sun, Archive as ArchiveIcon, ScrollText } from "lucide-react";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -25,6 +25,7 @@ const alertsItem: NavItem = { label: "Alerts", icon: <Bell className="h-5 w-5" /
 const statsItem: NavItem = { label: "Stats", icon: <BarChart3 className="h-5 w-5" />, path: "/analytics", webmasterOrEscalated: true };
 
 const moreItems: NavItem[] = [
+  { label: "Agent Logs", icon: <ScrollText className="h-5 w-5" />, path: "/agent-logs" },
   { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations", webmasterOrEscalated: true },
   { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit", roles: ["webmaster"] },
   { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail", webmasterOrEscalated: true },
