@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Check, AlertCircle, MessageSquare, Phone, Trash2, Plus, Pencil, X } from "lucide-react";
+import { Bell, BellOff, Check, AlertCircle, MessageSquare, Phone, Trash2, Plus, Pencil, X, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import PullToRefresh from "@/components/PullToRefresh";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { sanitizeText, singleLine, safeValidate } from "@/lib/validation";
 import { logNoteAudit } from "@/lib/auditLog";
+import { getBoolPref, setBoolPref } from "@/lib/userPrefs";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   collection,
@@ -41,6 +43,8 @@ interface Notification {
   time: string;
   read: boolean;
   isNote?: boolean;
+  /** True for team-wide fan-out items (Staff Updates, File Recordings). */
+  broadcast?: boolean;
   createdAt?: any;
 }
 
