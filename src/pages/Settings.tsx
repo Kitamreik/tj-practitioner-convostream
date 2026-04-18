@@ -64,7 +64,6 @@ import { subscribeLocalAgents, type LocalAgent } from "@/lib/localAgents";
 import {
   setLocalManagedPassword,
   getLocalManagedPassword,
-  clearLocalManagedPassword,
 } from "@/lib/managedPasswords";
 import {
   collection,
