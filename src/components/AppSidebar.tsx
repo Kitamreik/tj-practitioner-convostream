@@ -175,11 +175,24 @@ const AppSidebar: React.FC = () => {
               <span className="relative inline-flex">
                 {item.icon}
                 {showMutedDot && (
-                  <span
-                    className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-warning ring-2 ring-sidebar"
-                    aria-label="Team broadcasts muted"
-                    title="Team broadcasts muted — tap to manage"
-                  />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          // Stop the parent row from also firing — navigate
+                          // with a hash so the toggle scrolls into view.
+                          e.stopPropagation();
+                          navigate("/notifications#mute-broadcasts-toggle");
+                        }}
+                        className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-warning ring-2 ring-sidebar"
+                        aria-label="Team broadcasts muted — tap to manage"
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="text-xs">
+                      Team broadcasts muted — tap to manage
+                    </TooltipContent>
+                  </Tooltip>
                 )}
               </span>
               <span className="flex-1 text-left">{item.label}</span>
