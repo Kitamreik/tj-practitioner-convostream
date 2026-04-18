@@ -50,6 +50,12 @@ interface ResolvedConvo {
   assignedAgent?: string;
   archived?: boolean;
   timestamp?: any;
+  // When the conversation first appeared, used as the "opened at" anchor
+  // for time-to-resolve when the dedicated `createdAt` field is missing.
+  createdAt?: any;
+  // Stamped by Conversations.tsx when status flips to "resolved".
+  resolvedAt?: any;
+  resolvedBy?: string | null;
 }
 
 const channelIcon: Record<ResolvedConvo["channel"], React.ReactNode> = {
@@ -170,7 +176,13 @@ const AgentLogs: React.FC = () => {
   const handleReopen = async (convo: ResolvedConvo) => {
     setReopeningId(convo.id);
     try {
-      await updateDoc(doc(db, "conversations", convo.id), { status: "active" });
+      // Clear resolvedAt/resolvedBy so a future re-resolve gets a fresh
+      // duration measurement and metrics aren't double-counted.
+      await updateDoc(doc(db, "conversations", convo.id), {
+        status: "active",
+        resolvedAt: null,
+        resolvedBy: null,
+      });
       toast({
         title: "Reopened",
         description: `${convo.customerName} moved back to Conversations.`,
