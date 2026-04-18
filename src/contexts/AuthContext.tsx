@@ -152,6 +152,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     await setDoc(doc(db, "users", cred.user.uid), profileData);
     setProfile(profileData);
+    // Clean up any matching local-roster placeholder so the same agent doesn't
+    // appear twice (once as a real Firestore user, once as a local entry).
+    cleanupLocalAgentForEmail(email);
   };
 
   const signOut = async () => {
