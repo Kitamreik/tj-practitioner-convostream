@@ -363,9 +363,9 @@ const Agents: React.FC = () => {
 
   const counts = useMemo(() => {
     const c = { agent: 0, admin: 0, webmaster: 0 };
-    for (const u of users) c[u.role]++;
+    for (const u of merged) c[u.role]++;
     return c;
-  }, [users]);
+  }, [merged]);
 
   const renderLoadCell = (load: number) => {
     if (load === 0) return <span className="text-xs text-muted-foreground">Idle</span>;
