@@ -108,6 +108,7 @@ interface ConversationMessage {
   text: string;
   timestamp: any;
   channel: "sms" | "phone" | "email" | "slack";
+  sourceDocName?: string;
 }
 
 const channelIcons = {
@@ -1266,7 +1267,22 @@ const Conversations: React.FC = () => {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            {messages.map((msg) => (
+            {messages.map((msg) => {
+              // If the message was seeded from an uploaded document, split off
+              // the "[Imported from <name>]" banner + body into a collapsible
+              // section so agents see a short preview by default instead of a
+              // wall of text.
+              const importedMatch =
+                msg.sender === "customer" && typeof msg.text === "string"
+                  ? msg.text.match(/^\[Imported from ([^\]]+)\]\s*\n+([\s\S]*)$/)
+                  : null;
+              const docName = msg.sourceDocName || importedMatch?.[1] || null;
+              const extractBody = importedMatch?.[2]?.trim() || null;
+              const previewBody = extractBody
+                ? extractBody.split(/\n+/)[0].slice(0, 160) +
+                  (extractBody.length > 160 ? "…" : "")
+                : null;
+              return (
               <motion.div
                 key={msg.id}
                 initial={{ opacity: 0, y: 8 }}
@@ -1274,7 +1290,25 @@ const Conversations: React.FC = () => {
                 className={`flex ${msg.sender === "agent" ? "justify-end" : "justify-start"}`}
               >
                 <div className={`max-w-md rounded-2xl px-4 py-3 ${msg.sender === "agent" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
-                  <p className="text-sm">{msg.text}</p>
+                  {extractBody && docName ? (
+                    <details className="group">
+                      <summary className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground list-none [&::-webkit-details-marker]:hidden">
+                        <FileText className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">Imported from {docName}</span>
+                        <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open:rotate-90" />
+                      </summary>
+                      {previewBody && (
+                        <p className="mt-2 text-sm italic text-muted-foreground line-clamp-2 group-open:hidden">
+                          {previewBody}
+                        </p>
+                      )}
+                      <pre className="mt-2 hidden whitespace-pre-wrap break-words font-sans text-sm group-open:block">
+                        {extractBody}
+                      </pre>
+                    </details>
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
+                  )}
                   <div className="mt-1 flex items-center gap-2">
                     <span className={`text-[10px] ${msg.sender === "agent" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{formatMessageTime(msg.timestamp)}</span>
                     <Badge variant="outline" className={`h-4 gap-0.5 px-1 text-[9px] border-0 ${msg.sender === "agent" ? "bg-primary-foreground/20 text-primary-foreground" : ""}`}>
@@ -1284,7 +1318,8 @@ const Conversations: React.FC = () => {
                   </div>
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Mid-conversation status & channel quick-change */}

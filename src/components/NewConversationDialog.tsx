@@ -168,7 +168,7 @@ const NewConversationDialog: React.FC = () => {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".txt,.md,.csv,.json,.log,.html,.htm,.xml,.pdf,text/plain,text/csv,text/html,application/json,application/pdf"
+                accept=".txt,.md,.csv,.json,.log,.html,.htm,.xml,.pdf,.docx,text/plain,text/csv,text/html,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 className="hidden"
                 onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
               />
@@ -216,8 +216,8 @@ const NewConversationDialog: React.FC = () => {
               </div>
             )}
             <p className="text-[11px] text-muted-foreground">
-              Supported uploads: .txt, .md, .csv, .json, .html, .pdf (max 2MB). Only extracted
-              text is saved — the file itself is not uploaded.
+              Supported uploads: .txt, .md, .csv, .json, .html, .pdf, .docx (max 2MB). Only
+              extracted text is saved — the file itself is not uploaded.
             </p>
           </div>
           <Button type="submit" className="w-full" disabled={loading || extracting}>

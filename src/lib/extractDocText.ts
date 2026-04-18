@@ -18,7 +18,7 @@ export interface ExtractedDoc {
 
 export class ExtractDocError extends Error {}
 
-function detectKind(file: File): "text" | "pdf" | "unsupported" {
+function detectKind(file: File): "text" | "pdf" | "docx" | "unsupported" {
   const name = file.name.toLowerCase();
   const type = file.type;
   if (
@@ -37,7 +37,62 @@ function detectKind(file: File): "text" | "pdf" | "unsupported" {
     return "text";
   }
   if (type === "application/pdf" || name.endsWith(".pdf")) return "pdf";
+  if (
+    name.endsWith(".docx") ||
+    type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  )
+    return "docx";
   return "unsupported";
+}
+
+/**
+ * In-browser DOCX extraction. A .docx is a ZIP whose `word/document.xml`
+ * holds the body. We unzip with fflate, then strip everything except the
+ * text inside `<w:t>` runs, with `<w:p>` paragraph breaks preserved.
+ */
+async function extractDocxText(bytes: Uint8Array): Promise<string> {
+  const { unzipSync, strFromU8 } = await import("fflate");
+  let unzipped: Record<string, Uint8Array>;
+  try {
+    unzipped = unzipSync(bytes, {
+      filter: (f) => f.name === "word/document.xml",
+    });
+  } catch {
+    throw new ExtractDocError("This .docx file appears corrupted or password-protected.");
+  }
+  const xmlBytes = unzipped["word/document.xml"];
+  if (!xmlBytes) throw new ExtractDocError("Could not locate document.xml inside the .docx.");
+  const xml = strFromU8(xmlBytes);
+  // Convert paragraph and break tags to newlines so the message keeps shape.
+  const withBreaks = xml
+    .replace(/<w:p[\s>][^>]*\/>/g, "\n")
+    .replace(/<\/w:p>/g, "\n")
+    .replace(/<w:br[\s/>][^>]*\/?>/g, "\n")
+    .replace(/<w:tab[\s/>][^>]*\/?>/g, "\t");
+  // Pull text out of <w:t> runs (preserves xml:space="preserve" content).
+  const out: string[] = [];
+  const re = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g;
+  let m: RegExpExecArray | null;
+  // We need to interleave text with paragraph breaks, so walk the
+  // `withBreaks` string and emit either text-run content or a newline.
+  const tokenRe = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|\n/g;
+  let t: RegExpExecArray | null;
+  while ((t = tokenRe.exec(withBreaks)) !== null) {
+    if (t[0] === "\n") out.push("\n");
+    else out.push(decodeXmlEntities(t[1]));
+  }
+  return out.join("").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)));
 }
 
 /**
@@ -96,7 +151,7 @@ export async function extractDocText(file: File): Promise<ExtractedDoc> {
   const kind = detectKind(file);
   if (kind === "unsupported") {
     throw new ExtractDocError(
-      `Unsupported file type. Upload .txt, .md, .csv, .json, .html, or .pdf.`
+      `Unsupported file type. Upload .txt, .md, .csv, .json, .html, .pdf, or .docx.`
     );
   }
 
@@ -104,6 +159,14 @@ export async function extractDocText(file: File): Promise<ExtractedDoc> {
   if (kind === "text") {
     const raw = await file.text();
     text = file.name.toLowerCase().match(/\.html?$/) ? stripHtml(raw) : raw.trim();
+  } else if (kind === "docx") {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    text = await extractDocxText(buf);
+    if (!text) {
+      throw new ExtractDocError(
+        "This .docx contained no readable text (it may be image-only)."
+      );
+    }
   } else {
     const buf = new Uint8Array(await file.arrayBuffer());
     text = extractPdfText(buf);
