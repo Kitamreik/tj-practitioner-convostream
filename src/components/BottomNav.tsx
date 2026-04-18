@@ -180,6 +180,16 @@ const BottomNav: React.FC = () => {
                   {(staffActive + recordingsActive) > 9 ? "9+" : staffActive + recordingsActive}
                 </span>
               )}
+              {/* Webmaster-only red dot when an integration failed its
+                  most recent health check. Sits opposite the count badge
+                  so both can coexist without overlap. */}
+              {integrationsFailing && (
+                <span
+                  className="absolute -left-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background animate-pulse"
+                  aria-label={`Integration issue: ${integrationsHealth?.failingProviders.join(", ")}`}
+                  title={`Integration issue — ${integrationsHealth?.failingProviders.join(", ") || "see /integrations"} (last checked ${lastCheckedLabel})`}
+                />
+              )}
             </div>
             <span>More</span>
           </button>
