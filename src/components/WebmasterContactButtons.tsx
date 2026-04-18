@@ -290,6 +290,37 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
 
   return (
     <div className={["flex flex-col gap-1.5", className].filter(Boolean).join(" ")}>
+      {/* Slack Alert — sits above Call/Text. Independent escalation: pings
+          the team Slack channel with the fixed review message and never
+          opens the dialer/composer. Always visible (even during cooldown)
+          since it's a distinct channel. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!webhookConfigured || slackSending}
+            onClick={handleSlackAlert}
+            className="w-full justify-center gap-2 border-primary/40 text-primary hover:bg-primary/10"
+            aria-label="Send Slack alert asking the webmaster to review ConvoHub"
+          >
+            <Bell className="h-4 w-4" />
+            {compact ? null : <span>{slackSending ? "Sending…" : "Slack Alert"}</span>}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs max-w-[260px]">
+          {webhookConfigured ? (
+            <>
+              Pings the team Slack channel asking the webmaster to review ConvoHub.
+              <div className="mt-1 text-muted-foreground">No call or text is sent.</div>
+            </>
+          ) : (
+            <>Slack webhook isn't set. Ask the webmaster to configure it on Settings.</>
+          )}
+        </TooltipContent>
+      </Tooltip>
+
       {inCooldown ? (
         // Cooldown view: one button + confirm dialog. Mirrors the layout
         // height of the two-button row so the sidebar/sheet doesn't jump.
