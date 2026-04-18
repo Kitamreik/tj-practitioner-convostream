@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck, PhoneIncoming, PhoneOutgoing, MessageCircle, Filter, X, Activity } from "lucide-react";
+import { BarChart3, Users, MessageSquare, Clock, TrendingUp, UserCheck, PhoneIncoming, PhoneOutgoing, MessageCircle, Filter, X, Activity, Settings } from "lucide-react";
+import { Link } from "react-router-dom";
 import { collection, onSnapshot, query, orderBy, limit, where, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { subscribeLocalAgents } from "@/lib/localAgents";
+import { useAuth } from "@/contexts/AuthContext";
+import { loadAllIntegrations, type IntegrationConfig } from "@/lib/integrationsStore";
 
 interface AgentWorkloadData {
   name: string;
@@ -47,12 +51,47 @@ const stats = [
 ];
 
 const Analytics: React.FC = () => {
+  const { user } = useAuth();
   const [agentWorkload, setAgentWorkload] = useState<AgentWorkloadData[]>([]);
   const [voiceActivity, setVoiceActivity] = useState<VoiceActivity[]>(fallbackVoiceActivity);
   const [voiceLive, setVoiceLive] = useState(false);
   // Last-7-days raw call activity (separate listener — needs more rows than the live feed).
   const [voiceWeek, setVoiceWeek] = useState<VoiceActivity[]>([]);
   const [numberFilter, setNumberFilter] = useState<string>("all");
+
+  // Established Google Voice account (from /integrations). When configured we
+  // show the connected email + number on the live engagement card and default
+  // the number filter to it so the "Live" badge tracks that account's traffic.
+  const [gvConfig, setGvConfig] = useState<IntegrationConfig | null>(null);
+  const [gvLoaded, setGvLoaded] = useState(false);
+  useEffect(() => {
+    if (!user) {
+      setGvLoaded(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const all = await loadAllIntegrations(user.uid);
+      if (!cancelled) {
+        setGvConfig(all["google-voice"] || null);
+        setGvLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+  const gvAccount = gvConfig?.fields?.googleAccount || "";
+  const gvNumber = gvConfig?.fields?.voiceNumber || "";
+  const gvConnected = !!gvConfig?.connected && !!gvNumber;
+
+  // Auto-scope the filter to the configured number on first load so the live
+  // metrics actually reflect the established account, not all observed numbers.
+  useEffect(() => {
+    if (gvConnected && numberFilter === "all") {
+      setNumberFilter(gvNumber);
+    }
+  }, [gvConnected, gvNumber]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live agent roster — Firestore users (agent/admin) + manually-added local
   // agents. The workload chart is restricted to this set so it always matches
