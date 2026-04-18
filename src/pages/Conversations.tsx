@@ -943,6 +943,7 @@ const Conversations: React.FC = () => {
                 <SelectItem value="sms">SMS</SelectItem>
                 <SelectItem value="phone">Phone</SelectItem>
                 <SelectItem value="slack">Slack</SelectItem>
+                <SelectItem value="mobile">Mobile</SelectItem>
               </SelectContent>
             </Select>
             {hasActiveFilters && (
