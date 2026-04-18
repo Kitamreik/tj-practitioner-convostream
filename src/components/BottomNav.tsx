@@ -25,6 +25,7 @@ const alertsItem: NavItem = { label: "Alerts", icon: <Bell className="h-5 w-5" /
 const statsItem: NavItem = { label: "Stats", icon: <BarChart3 className="h-5 w-5" />, path: "/analytics", webmasterOrEscalated: true };
 
 const moreItems: NavItem[] = [
+  { label: "Agent Logs", icon: <ScrollText className="h-5 w-5" />, path: "/agent-logs" },
   { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations", webmasterOrEscalated: true },
   { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit", roles: ["webmaster"] },
   { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail", webmasterOrEscalated: true },
