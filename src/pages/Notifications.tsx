@@ -369,15 +369,42 @@ const Notifications: React.FC = () => {
           </div>
         </div>
 
+        {/* Per-user mute switch for team-wide broadcasts. */}
+        {user && (
+          <div className="mb-4 rounded-xl border border-border bg-card/50 p-3 md:p-4 flex items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                {muteBroadcasts ? <BellOff className="h-4 w-4" /> : <Megaphone className="h-4 w-4" />}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs md:text-sm font-medium text-foreground">Mute team broadcasts</p>
+                <p className="text-[11px] md:text-xs text-muted-foreground mt-0.5">
+                  Hide Staff Updates and File Recordings here. Your own notes are not affected.
+                </p>
+                {muteBroadcasts && hiddenBroadcastCount > 0 && (
+                  <p className="text-[11px] text-primary mt-1">
+                    {hiddenBroadcastCount} broadcast{hiddenBroadcastCount === 1 ? "" : "s"} hidden
+                  </p>
+                )}
+              </div>
+            </div>
+            <Switch
+              checked={muteBroadcasts}
+              onCheckedChange={setMuteBroadcasts}
+              aria-label="Mute team broadcasts"
+            />
+          </div>
+        )}
+
         <div className="space-y-2">
           <AnimatePresence>
-            {notifications.length === 0 && (
+            {visibleNotifications.length === 0 && (
               <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2">
                 <Bell className="h-8 w-8 opacity-30" />
-                <span>No notifications</span>
+                <span>{muteBroadcasts && hiddenBroadcastCount > 0 ? "Only broadcasts — currently muted" : "No notifications"}</span>
               </div>
             )}
-            {notifications.map((n, i) => (
+            {visibleNotifications.map((n, i) => (
               <motion.div
                 key={n.id}
                 initial={{ opacity: 0, x: -10 }}
