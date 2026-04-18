@@ -531,7 +531,7 @@ const AuditLogs: React.FC = () => {
             Audit Logs
           </h1>
           <p className="text-muted-foreground mt-1 text-sm md:text-base">
-            Real-time security and activity events. Notification edits and new people are tracked as they happen.
+            Real-time security and activity events. Notification edits and new agents are tracked as they happen.
           </p>
         </div>
       </div>
