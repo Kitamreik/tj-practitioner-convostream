@@ -608,6 +608,10 @@ const Conversations: React.FC = () => {
   const filtered = conversations.filter((c) => {
     const archivedMatch = showArchived ? !!c.archived : !c.archived;
     if (!archivedMatch) return false;
+    // Resolved conversations live on the dedicated /agent-logs page, not here.
+    // We still allow them through when the user is viewing the archive (since
+    // archived items can be resolved too) so that view stays a complete record.
+    if (!showArchived && c.status === "resolved") return false;
     if (mineOnly && (c.assignedAgent || "").toLowerCase() !== myAgentName) return false;
     const lowerSearch = search.toLowerCase();
     const matchesBasic =
