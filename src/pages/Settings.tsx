@@ -26,6 +26,9 @@ import {
   LayoutDashboard,
   MessageCircle,
   ArrowRightLeft,
+  Eye,
+  EyeOff,
+  Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -58,6 +61,11 @@ import { toast } from "@/hooks/use-toast";
 import { httpsCallable } from "firebase/functions";
 import { functions, db } from "@/lib/firebase";
 import { subscribeLocalAgents, type LocalAgent } from "@/lib/localAgents";
+import {
+  setLocalManagedPassword,
+  getLocalManagedPassword,
+  clearLocalManagedPassword,
+} from "@/lib/managedPasswords";
 import {
   collection,
   query,
