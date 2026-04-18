@@ -10,9 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Paperclip, FileText, X, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { extractDocText, ExtractDocError } from "@/lib/extractDocText";
+import { useAuth } from "@/contexts/AuthContext";
 
 const NewConversationDialog: React.FC = () => {
   const { toast } = useToast();
+  const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
@@ -98,6 +100,14 @@ const NewConversationDialog: React.FC = () => {
         timestamp: serverTimestamp(),
         unread: true,
         status: "active",
+        // Track entries made directly from the conversation page so audit
+        // logs and analytics can distinguish in-app captures from inbound
+        // webhook traffic (Slack/Twilio/Gmail). The icon/key page reads
+        // `source` to render the running-feet badge for "mobile" entries.
+        source: "conversation-page",
+        createdAt: serverTimestamp(),
+        createdByUid: profile?.uid ?? null,
+        createdByName: profile?.displayName ?? profile?.email ?? null,
         ...(attachedDocName
           ? { sourceDocName: attachedDocName, sourceDocTruncated: attachedDocTruncated }
           : {}),
