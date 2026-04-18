@@ -275,6 +275,20 @@ service cloud.firestore {
       allow delete: if isWebmaster();
     }
 
+    // -------- webmasterContactEvents/{id} — append-only contact log --------
+    // Each Call/Text Webmaster shortcut tap appends one row. Reads are
+    // webmaster-only (sensitive — reveals who reached out, when, and from
+    // which page). Creates are open to any signed-in user but `agentUid`
+    // must match the caller so an attacker can't impersonate another agent.
+    // Updates/deletes are forbidden — append-only.
+    match /webmasterContactEvents/{id} {
+      allow read: if isWebmaster();
+      allow create: if isSignedIn()
+        && request.resource.data.agentUid == request.auth.uid
+        && request.resource.data.channel in ['call', 'text'];
+      allow update, delete: if false;
+    }
+
     // -------- appSettings/{docId} — team-wide tunables --------
     // Holds small config docs like `webmasterContact` (cooldown duration
     // shared across all agents). Any signed-in teammate can read so the
