@@ -22,6 +22,7 @@ const NewConversationDialog: React.FC = () => {
   const [message, setMessage] = useState("");
   const [attachedDocName, setAttachedDocName] = useState<string | null>(null);
   const [attachedDocTruncated, setAttachedDocTruncated] = useState(false);
+  const [extractText, setExtractText] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -33,32 +34,36 @@ const NewConversationDialog: React.FC = () => {
     setChannel("email");
     setAttachedDocName(null);
     setAttachedDocTruncated(false);
+    setExtractText(null);
   };
 
   /**
-   * Extract text from an uploaded document and prefill the message body so
-   * the agent can review & edit before the conversation lands in the queue.
-   * Supported: .txt/.md/.csv/.json/.html and simple .pdf (best-effort).
-   * The original file is NOT uploaded anywhere — only the extracted text is
-   * persisted with the conversation, which keeps storage cheap and avoids
-   * any binary-blob handling.
+   * Extract text from an uploaded document. We store the extract on its OWN
+   * Firestore field (`extractText`) instead of inlining it in the message
+   * body, so the bubble preview stays clean and the detail view can render
+   * a tidy collapsible "View original extract" section.
    */
   const handleFile = async (file: File | null) => {
     if (!file) return;
     setExtracting(true);
     try {
       const result = await extractDocText(file);
-      // Prepend a clear marker so agents can see the message was seeded from
-      // a document rather than typed by the customer.
-      const banner = `[Imported from ${result.sourceName}]\n\n`;
-      setMessage((prev) => (prev ? `${prev}\n\n${banner}${result.text}` : `${banner}${result.text}`));
+      setExtractText(result.text);
       setAttachedDocName(result.sourceName);
       setAttachedDocTruncated(result.truncated);
+      // Seed the message body with a short preview only if it's empty,
+      // so the agent has something to send without re-typing — but the
+      // full extract is what gets persisted to the dedicated field.
+      setMessage((prev) => {
+        if (prev.trim()) return prev;
+        const firstLine = result.text.split(/\n+/).find((l) => l.trim()) ?? "";
+        return firstLine.slice(0, 240);
+      });
       toast({
         title: "Document attached",
         description: result.truncated
           ? `${result.sourceName} extracted (truncated to 4 000 chars).`
-          : `${result.sourceName} extracted into the message.`,
+          : `${result.sourceName} extracted.`,
       });
     } catch (err) {
       const msg =
@@ -73,6 +78,7 @@ const NewConversationDialog: React.FC = () => {
   const clearAttachment = () => {
     setAttachedDocName(null);
     setAttachedDocTruncated(false);
+    setExtractText(null);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -84,9 +90,6 @@ const NewConversationDialog: React.FC = () => {
         customerName: name.trim(),
         customerEmail: email.trim(),
         customerPhone: phone.trim() || null,
-        // Trim the preview to a single line for the queue list; the full
-        // text (including the imported document body) lives in the first
-        // message doc below.
         lastMessage: message.trim().split(/\n+/)[0].slice(0, 240),
         channel,
         timestamp: serverTimestamp(),
@@ -102,7 +105,13 @@ const NewConversationDialog: React.FC = () => {
         text: message.trim(),
         timestamp: serverTimestamp(),
         channel,
-        ...(attachedDocName ? { sourceDocName: attachedDocName } : {}),
+        ...(attachedDocName && extractText
+          ? {
+              sourceDocName: attachedDocName,
+              sourceDocTruncated: attachedDocTruncated,
+              extractText,
+            }
+          : {}),
       });
       toast({
         title: "Conversation created",
