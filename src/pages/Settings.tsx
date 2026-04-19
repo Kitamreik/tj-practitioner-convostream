@@ -324,6 +324,28 @@ const SettingsPage: React.FC = () => {
   const isWebmaster = profile?.role === "webmaster";
   const hasEscalatedAccess = profile?.escalatedAccess === true;
 
+  // ---- Background Gmail ingestion toggle (webmaster only, per-uid pref) ----
+  // When ON the global useBackgroundGmailPoller polls Gmail every ~2 min and
+  // pushes new INBOX messages into Conversations. OFF pauses the poller
+  // without touching Google OAuth consent — flip back ON to resume.
+  const [bgGmailEnabled, setBgGmailEnabled] = useState<boolean>(() =>
+    getBoolPref(profile?.uid, BG_GMAIL_INGEST_PREF, false)
+  );
+  useEffect(() => {
+    setBgGmailEnabled(getBoolPref(profile?.uid, BG_GMAIL_INGEST_PREF, false));
+    return subscribeBoolPref(profile?.uid, BG_GMAIL_INGEST_PREF, setBgGmailEnabled);
+  }, [profile?.uid]);
+  const handleToggleBgGmail = (next: boolean) => {
+    setBgGmailEnabled(next);
+    setBoolPref(profile?.uid, BG_GMAIL_INGEST_PREF, next);
+    toast({
+      title: next ? "Background Gmail ingestion ON" : "Background Gmail ingestion paused",
+      description: next
+        ? "New INBOX messages will appear in Conversations within ~2 minutes."
+        : "Polling stopped. Re-enable any time — Google consent is preserved.",
+    });
+  };
+
   // ---- Webmaster contact cooldown (team-wide setting) ----
   const [cooldownMin, setCooldownMinState] = useState<CooldownMinutes>(DEFAULT_COOLDOWN_MIN);
   const [savingCooldown, setSavingCooldown] = useState(false);
@@ -1084,6 +1106,7 @@ const SettingsPage: React.FC = () => {
       ? [
           { id: "overview", label: "Overview" },
           { id: "webmaster-contact", label: "Webmaster contact" },
+          { id: "bg-gmail", label: "Background Gmail ingestion" },
           { id: "promote", label: "Promote to Webmaster" },
           { id: "pending", label: "Pending escalations" },
           { id: "agents", label: "Agents" },
