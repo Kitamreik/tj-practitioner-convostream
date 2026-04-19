@@ -2305,6 +2305,11 @@ const SettingsPage: React.FC = () => {
                   </div>
                 );
               })}
+              {accounts.length === 0 && (
+                <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  No accounts yet.
+                </div>
+              )}
               {/* Shared delete-confirmation dialog — controlled via
                   deleteDialogUid so both the desktop inline Delete button
                   and the mobile ⋯ menu open the same dialog. */}
@@ -2340,14 +2345,6 @@ const SettingsPage: React.FC = () => {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-                  </div>
-                );
-              })}
-              {accounts.length === 0 && (
-                <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                  No accounts yet.
-                </div>
-              )}
             </div>
           </div>
         )}
