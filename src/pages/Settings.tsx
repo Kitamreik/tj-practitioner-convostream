@@ -325,28 +325,27 @@ const SettingsPage: React.FC = () => {
   const [savingCooldown, setSavingCooldown] = useState(false);
   useEffect(() => subscribeCooldownMin(setCooldownMinState), []);
 
-  // ---- Webmaster Slack webhook (team-wide; pings on Call/Text shortcut) ----
-  const [slackWebhook, setSlackWebhook] = useState<string>("");
+  // ---- Slack webhook (team-wide; admin/webmaster). The URL itself never
+  //      reaches the browser anymore — we only know whether one is set via
+  //      the public `appSettings/slackAlertStatus.configured` mirror. The
+  //      input field is a write-only "paste a new URL" control.
+  const isAdmin = profile?.role === "admin";
+  const canEditWebhook = isWebmaster || isAdmin;
+  const [slackConfigured, setSlackConfigured] = useState<boolean>(false);
   const [slackWebhookDraft, setSlackWebhookDraft] = useState<string>("");
   const [savingSlackWebhook, setSavingSlackWebhook] = useState(false);
-  useEffect(
-    () =>
-      subscribeSlackWebhookUrl((url) => {
-        setSlackWebhook(url);
-        setSlackWebhookDraft(url);
-      }),
-    []
-  );
+  useEffect(() => subscribeSlackAlertConfigured(setSlackConfigured), []);
   const handleSaveSlackWebhook = async () => {
     setSavingSlackWebhook(true);
     try {
-      await setSlackWebhookUrl(slackWebhookDraft, profile?.uid);
+      const res = await setSlackWebhookUrl(slackWebhookDraft);
       toast({
-        title: slackWebhookDraft ? "Slack webhook saved" : "Slack webhook cleared",
-        description: slackWebhookDraft
-          ? "Future Call/Text shortcuts will ping this channel."
-          : "Slack pings disabled — bell notifications still fire.",
+        title: res.configured ? "Slack webhook saved" : "Slack webhook cleared",
+        description: res.configured
+          ? "Stored server-side. Ping Slack alerts are now active."
+          : "Slack alerts disabled — bell notifications still fire.",
       });
+      setSlackWebhookDraft("");
     } catch (e: any) {
       toast({
         title: "Could not save webhook",
