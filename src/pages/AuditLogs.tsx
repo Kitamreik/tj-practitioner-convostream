@@ -10,6 +10,7 @@ import {
   doc,
   writeBatch,
   getDocs,
+  where,
 } from "firebase/firestore";
 import { db, functions } from "@/lib/firebase";
 import { httpsCallable } from "firebase/functions";
@@ -32,6 +33,7 @@ import {
   Download,
   Clock,
   ArrowUpDown,
+  LifeBuoy,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
