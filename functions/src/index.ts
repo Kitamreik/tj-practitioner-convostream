@@ -1719,39 +1719,89 @@ async function runHealthChecks(opts: {
   }
 
   // ---------- Google Voice ----------
+  // Google never released a public Voice REST API. The closest thing the
+  // workspace owner controls is the Twilio number that proxies Voice
+  // (calls + SMS) to ConvoHub via the existing webhook. So a "live ping"
+  // for Voice means: (a) the Twilio creds work, AND (b) at least one
+  // IncomingPhoneNumber on the account has Voice OR SMS capability AND
+  // matches the number stored on the webmaster's integrations doc.
+  // This catches both "Twilio creds revoked" and "the configured number was
+  // released" — exactly the failures that would leave the Voice channel
+  // silently dark for users.
   try {
-    let gv: { connected?: boolean; fields?: Record<string, string> } | null = null;
+    const sid = process.env.TWILIO_ACCOUNT_SID;
+    const token = process.env.TWILIO_AUTH_TOKEN;
+    let configuredNumber: string | null = null;
     if (opts.voiceConfigUid) {
       const integSnap = await db
         .doc(`users/${opts.voiceConfigUid}/integrations/credentials`)
         .get();
-      gv =
+      const gv =
         ((integSnap.data() as Record<string, { connected?: boolean; fields?: Record<string, string> }> | undefined)?.[
           "google-voice"
         ]) || null;
+      configuredNumber = gv?.connected && gv.fields?.voiceNumber ? gv.fields.voiceNumber : null;
     }
-    if (!gv?.connected || !gv.fields?.voiceNumber) {
+    if (!configuredNumber) {
       results["google-voice"] = {
         ok: false,
-        message: "No Google Voice number configured on this account.",
+        message: "No Google Voice number configured on any webmaster account.",
+        latencyMs: 0,
+      };
+    } else if (!sid || !token) {
+      results["google-voice"] = {
+        ok: false,
+        message: "Twilio credentials missing — cannot verify Voice number is live.",
         latencyMs: 0,
       };
     } else {
-      const since = admin.firestore.Timestamp.fromMillis(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const { value: snap, ms } = await time(() =>
-        db.collection("googleVoiceActivity").where("timestamp", ">=", since).limit(1).get()
+      const auth = Buffer.from(`${sid}:${token}`).toString("base64");
+      const phoneFilter = encodeURIComponent(configuredNumber);
+      const { value: r, ms } = await time(() =>
+        fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${sid}/IncomingPhoneNumbers.json?PhoneNumber=${phoneFilter}`,
+          { headers: { Authorization: `Basic ${auth}` } }
+        )
       );
-      results["google-voice"] = snap.empty
-        ? {
+      const j = (await r.json()) as {
+        incoming_phone_numbers?: Array<{
+          phone_number?: string;
+          capabilities?: { voice?: boolean; sms?: boolean };
+          friendly_name?: string;
+        }>;
+        message?: string;
+      };
+      if (!r.ok) {
+        results["google-voice"] = {
+          ok: false,
+          message: `Twilio Voice lookup failed: ${j.message || `HTTP ${r.status}`}`,
+          latencyMs: ms,
+        };
+      } else {
+        const match = j.incoming_phone_numbers?.[0];
+        if (!match) {
+          results["google-voice"] = {
             ok: false,
-            message: `Configured for ${gv.fields.voiceNumber}, but no events in the last 7 days.`,
-            latencyMs: ms,
-          }
-        : {
-            ok: true,
-            message: `Live — recent events received for ${gv.fields.voiceNumber}.`,
+            message: `Number ${configuredNumber} is configured but not present on the Twilio account.`,
             latencyMs: ms,
           };
+        } else {
+          const caps: string[] = [];
+          if (match.capabilities?.voice) caps.push("voice");
+          if (match.capabilities?.sms) caps.push("SMS");
+          results["google-voice"] = caps.length
+            ? {
+                ok: true,
+                message: `${configuredNumber} live on Twilio (${caps.join(" + ")}).`,
+                latencyMs: ms,
+              }
+            : {
+                ok: false,
+                message: `${configuredNumber} exists on Twilio but has no Voice or SMS capability.`,
+                latencyMs: ms,
+              };
+        }
+      }
     }
   } catch (err) {
     results["google-voice"] = {
