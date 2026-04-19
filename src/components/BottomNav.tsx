@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
-import { Plug, Shield, Mail, Settings as SettingsIcon, LogOut, Moon, Sun, Archive as ArchiveIcon, ScrollText, Megaphone, FileVideo, KeyRound } from "lucide-react";
+import { Plug, Shield, Mail, Settings as SettingsIcon, LogOut, Moon, Sun, Eye, Archive as ArchiveIcon, ScrollText, Megaphone, FileVideo, KeyRound } from "lucide-react";
 import WebmasterContactButtons from "@/components/WebmasterContactButtons";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";

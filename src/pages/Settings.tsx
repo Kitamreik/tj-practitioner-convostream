@@ -137,7 +137,7 @@ interface InvestigationRow {
 
 const SettingsPage: React.FC = () => {
   const { user, profile } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, setTheme } = useTheme();
   const isMobile = useIsMobile();
 
   // Resizable nav-pane width (desktop + webmaster only). Mirrors the pattern in
