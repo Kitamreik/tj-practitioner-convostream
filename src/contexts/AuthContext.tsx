@@ -91,13 +91,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     let profileUnsub: (() => void) | null = null;
+    let outboxUnsub: (() => void) | null = null;
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       if (profileUnsub) {
         profileUnsub();
         profileUnsub = null;
       }
+      if (outboxUnsub) {
+        outboxUnsub();
+        outboxUnsub = null;
+      }
       if (firebaseUser) {
+        // Kick off the chat outbox auto-flush so any messages composed while
+        // offline (or stuck from a previous session that crashed before the
+        // network returned) get re-sent automatically.
+        import("@/lib/chatOutbox")
+          .then(({ startOutboxAutoFlush }) => {
+            outboxUnsub = startOutboxAutoFlush(firebaseUser.uid);
+          })
+          .catch((e) => console.warn("startOutboxAutoFlush import failed:", e));
+
         // Real-time subscription so role/escalatedAccess changes (e.g. webmaster
         // promoting an admin) propagate immediately without a re-login.
         profileUnsub = onSnapshot(
@@ -155,6 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     return () => {
       if (profileUnsub) profileUnsub();
+      if (outboxUnsub) outboxUnsub();
       unsub();
     };
   }, []);
