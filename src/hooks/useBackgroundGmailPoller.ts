@@ -3,9 +3,11 @@ import { httpsCallable } from "firebase/functions";
 import { useAuth } from "@/contexts/AuthContext";
 import { functions } from "@/lib/firebase";
 import { loadAllIntegrations } from "@/lib/integrationsStore";
-import { getBoolPref, subscribeBoolPref } from "@/lib/userPrefs";
+import { getBoolPref, subscribeBoolPrefRemote } from "@/lib/userPrefs";
 
-/** localStorage key (per-uid) for the opt-in toggle on /settings. */
+/** Pref key for the opt-in toggle on /settings.
+ *  Persisted at users/{uid}/prefs/ui (Firestore) so the choice follows the
+ *  webmaster across devices, with a localStorage mirror for instant reads. */
 export const BG_GMAIL_INGEST_PREF = "bgGmailIngest";
 
 /**
@@ -95,15 +97,16 @@ export function useBackgroundGmailPoller() {
   const initializedRef = useRef(false);
   const inflightRef = useRef(false);
 
-  // Opt-in toggle, persisted per-uid via userPrefs (defaults OFF). Subscribing
-  // means flipping the switch on /settings starts/stops polling immediately
-  // without a page reload.
+  // Opt-in toggle, persisted at users/{uid}/prefs/ui (Firestore) with a
+  // localStorage mirror for snappy first-paint. Subscribing means flipping
+  // the switch on /settings — even on another device — starts/stops polling
+  // here automatically.
   const [enabled, setEnabled] = useState<boolean>(() =>
     getBoolPref(user?.uid, BG_GMAIL_INGEST_PREF, false)
   );
   useEffect(() => {
     setEnabled(getBoolPref(user?.uid, BG_GMAIL_INGEST_PREF, false));
-    return subscribeBoolPref(user?.uid, BG_GMAIL_INGEST_PREF, setEnabled);
+    return subscribeBoolPrefRemote(user?.uid, BG_GMAIL_INGEST_PREF, setEnabled, false);
   }, [user?.uid]);
 
   useEffect(() => {
