@@ -177,7 +177,10 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
     }
   };
 
-  // Hide for the webmaster themselves — they're the ones being called.
+  // Hide the Call/Text shortcuts for the webmaster themselves — dialing
+  // their own number is pointless. The standalone SlackAlertButton stays
+  // visible for the webmaster on /conversations so they can still verify
+  // the alert path while signed in as themselves.
   if (!profile || profile.role === "webmaster") return null;
 
   const compact = variant === "compact";

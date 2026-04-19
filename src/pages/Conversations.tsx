@@ -289,19 +289,39 @@ const Conversations: React.FC = () => {
     try {
       const fn = httpsCallable<
         { conversationId: string; customerName: string; reason: string },
-        { ok: boolean; emailSent: boolean }
+        {
+          ok: boolean;
+          emailSent: boolean;
+          fallbackSlackSent?: boolean;
+          fallbackEmailSent?: boolean;
+          delivered?: boolean;
+        }
       >(functions, "requestConversationInvestigation");
       const res = await fn({
         conversationId: selected.id,
         customerName: selected.customerName,
         reason: elevateReason,
       });
-      toast({
-        title: res.data.emailSent ? "Webmaster notified" : "Investigation request logged",
-        description: res.data.emailSent
-          ? "Email sent to kit.tjclasses@gmail.com asking for investigation."
-          : "Request recorded. Email will go out once SMTP is configured.",
-      });
+      // Build a precise toast based on which channels actually delivered so
+      // the agent knows whether the webmaster will see this in their inbox,
+      // in Slack, or via the support@convohub.dev failsafe inbox.
+      const d = res.data;
+      let title = "Investigation request logged";
+      let description = "Request recorded — webmaster notifications could not be delivered.";
+      if (d.emailSent) {
+        title = "Webmaster notified";
+        description = "Email sent to kit.tjclasses@gmail.com asking for investigation.";
+      } else if (d.fallbackSlackSent && d.fallbackEmailSent) {
+        title = "Webmaster pinged via Slack + support inbox";
+        description = "Primary email failed; we pinged the team Slack channel AND emailed support@convohub.dev as a failsafe.";
+      } else if (d.fallbackSlackSent) {
+        title = "Webmaster pinged via Slack";
+        description = "Primary email failed; we posted the request to the team Slack channel for review.";
+      } else if (d.fallbackEmailSent) {
+        title = "Failsafe email sent";
+        description = "Primary email failed; we emailed support@convohub.dev as a backup.";
+      }
+      toast({ title, description, variant: d.delivered === false ? "destructive" : undefined });
       setElevateOpen(false);
       setElevateReason("");
     } catch (e: any) {

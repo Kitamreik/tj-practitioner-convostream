@@ -700,6 +700,59 @@ export const generateAgentSignupLink = onCall(async (request) => {
  *
  * Request: { conversationId: string, customerName?: string, reason?: string }
  */
+/**
+ * "Elevate to webmaster" investigation request.
+ *
+ * Primary: SMTP email to ESCALATION_NOTIFY_EMAIL with full context.
+ * Failsafes (only fire when primary fails — kept off the happy path so
+ * normal escalations don't double-notify):
+ *   1. Post the same context to the team Slack channel via the existing
+ *      webhook (no per-uid rate-limit — escalation is privileged).
+ *   2. SMTP send to support@convohub.dev as a permanent inbox copy.
+ *
+ * Every attempt is recorded on the investigationRequests row so the
+ * webmaster can audit which hops actually delivered.
+ */
+const ESCALATION_FALLBACK_EMAIL = "support@convohub.dev";
+
+async function postEscalationToSlack(opts: { body: string }): Promise<{ ok: boolean; error: string | null }> {
+  const url = await readSlackWebhookUrl();
+  if (!url) return { ok: false, error: "Slack webhook not configured" };
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: ":rotating_light: ConvoHub escalation",
+        blocks: [
+          { type: "section", text: { type: "mrkdwn", text: `:rotating_light: *ConvoHub escalation*\n${opts.body}` } },
+        ],
+      }),
+    });
+    if (!res.ok) return { ok: false, error: `Slack responded ${res.status}` };
+    return { ok: true, error: null };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+async function postEscalationToFailsafeEmail(opts: { subject: string; body: string }): Promise<{ ok: boolean; error: string | null }> {
+  const transport = buildTransport();
+  if (!transport) return { ok: false, error: "SMTP not configured for failsafe inbox" };
+  try {
+    await transport.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: ESCALATION_FALLBACK_EMAIL,
+      subject: opts.subject,
+      text: opts.body,
+    });
+    return { ok: true, error: null };
+  } catch (err) {
+    logger.warn("postEscalationToFailsafeEmail: SMTP send failed", err);
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
 export const requestConversationInvestigation = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const uid = request.auth.uid;
@@ -731,22 +784,53 @@ export const requestConversationInvestigation = onCall(async (request) => {
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  const { sent, error } = await sendEscalationEmail({
-    subject: `[ConvoHub] Conversation investigation requested${customerName ? ` — ${customerName}` : ""}`,
-    text:
-      `${userData.displayName ?? "(no name)"} <${userData.email ?? uid}> is asking a webmaster ` +
-      `to investigate conversation ${conversationId}` +
-      `${customerName ? ` with ${customerName}` : ""}.\n\n` +
-      `Reason: ${reason || "(none provided)"}\n\n` +
-      `Request ID: ${ref.id}`,
-  });
+  const subject = `[ConvoHub] Conversation investigation requested${customerName ? ` — ${customerName}` : ""}`;
+  const bodyText =
+    `${userData.displayName ?? "(no name)"} <${userData.email ?? uid}> is asking a webmaster ` +
+    `to investigate conversation ${conversationId}` +
+    `${customerName ? ` with ${customerName}` : ""}.\n\n` +
+    `Reason: ${reason || "(none provided)"}\n\n` +
+    `Request ID: ${ref.id}`;
+
+  // 1. Primary path
+  const primary = await sendEscalationEmail({ subject, text: bodyText });
+
+  // 2. Failsafes — only when primary failed.
+  let slackResult: { ok: boolean; error: string | null } = { ok: false, error: "skipped" };
+  let failsafeEmailResult: { ok: boolean; error: string | null } = { ok: false, error: "skipped" };
+  if (!primary.sent) {
+    const slackBody =
+      `*Requester:* ${userData.displayName ?? "(no name)"} <${userData.email ?? uid}>\n` +
+      `*Conversation:* ${conversationId}${customerName ? ` (${customerName})` : ""}\n` +
+      `*Reason:* ${reason || "_none provided_"}\n` +
+      `*Request ID:* \`${ref.id}\`\n` +
+      `_Primary email failed: ${primary.error || "unknown"} — please check in or get Kit for scanning._`;
+    [slackResult, failsafeEmailResult] = await Promise.all([
+      postEscalationToSlack({ body: slackBody }),
+      postEscalationToFailsafeEmail({ subject, body: bodyText }),
+    ]);
+  }
 
   await ref.update({
-    emailSent: sent,
-    ...(error ? { emailError: error } : {}),
+    emailSent: primary.sent,
+    ...(primary.error ? { emailError: primary.error } : {}),
+    fallbackSlackSent: slackResult.ok,
+    ...(slackResult.error ? { fallbackSlackError: slackResult.error } : {}),
+    fallbackEmailSent: failsafeEmailResult.ok,
+    ...(failsafeEmailResult.error ? { fallbackEmailError: failsafeEmailResult.error } : {}),
+    fallbackEmailRecipient: ESCALATION_FALLBACK_EMAIL,
   });
 
-  return { ok: true, requestId: ref.id, emailSent: sent, emailError: error };
+  const anyDelivered = primary.sent || slackResult.ok || failsafeEmailResult.ok;
+  return {
+    ok: true,
+    requestId: ref.id,
+    emailSent: primary.sent,
+    emailError: primary.error,
+    fallbackSlackSent: slackResult.ok,
+    fallbackEmailSent: failsafeEmailResult.ok,
+    delivered: anyDelivered,
+  };
 });
 
 /**
@@ -1276,68 +1360,124 @@ function stringifyParams(p: Record<string, unknown>): Record<string, string> {
 // dedup. This avoids Pub/Sub watch + topic setup for a single-tenant app.
 // -----------------------------------------------------------------------------
 export const pushGmailMessageToConvoHub = onCall(async (request) => {
-  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  // Wrap the entire body in a try/catch so any unexpected throw becomes a
+  // structured `HttpsError` instead of the generic "internal" the SDK
+  // surfaces by default — that opaque "internal" was the user-visible
+  // "Push to ConvoHub failed internally" toast.
+  try {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
 
-  const data = (request.data ?? {}) as {
-    messageId?: unknown;
-    threadId?: unknown;
-    from?: unknown;
-    fromEmail?: unknown;
-    subject?: unknown;
-    snippet?: unknown;
-  };
-  const messageId = typeof data.messageId === "string" ? data.messageId : "";
-  const threadId = typeof data.threadId === "string" ? data.threadId : messageId;
-  const from = typeof data.from === "string" ? data.from.slice(0, 200) : "";
-  const fromEmail = typeof data.fromEmail === "string" ? data.fromEmail.slice(0, 200) : "";
-  const subject = typeof data.subject === "string" ? data.subject.slice(0, 300) : "";
-  const snippet = typeof data.snippet === "string" ? data.snippet.slice(0, 1000) : "";
+    const data = (request.data ?? {}) as {
+      messageId?: unknown;
+      threadId?: unknown;
+      from?: unknown;
+      fromEmail?: unknown;
+      subject?: unknown;
+      snippet?: unknown;
+    };
+    const messageId = typeof data.messageId === "string" ? data.messageId : "";
+    const threadId = typeof data.threadId === "string" ? data.threadId : messageId;
+    const from = typeof data.from === "string" ? data.from.slice(0, 200) : "";
+    const fromEmail = typeof data.fromEmail === "string" ? data.fromEmail.slice(0, 200) : "";
+    const subject = typeof data.subject === "string" ? data.subject.slice(0, 300) : "";
+    const snippet = typeof data.snippet === "string" ? data.snippet.slice(0, 1000) : "";
 
-  if (!messageId || !from) {
-    throw new HttpsError("invalid-argument", "messageId and from are required.");
+    if (!messageId || !from) {
+      throw new HttpsError("invalid-argument", "messageId and from are required.");
+    }
+
+    // ---- Dedup ---------------------------------------------------------------
+    // BUG FIX: the previous dup-check queried `externalId == "gmail:${messageId}"`
+    // but `findOrCreateConversation` writes `"gmail-thread:${threadId}"`. The
+    // keys never matched, so messages were re-imported on every click and
+    // races between concurrent pushes spawned duplicate conversations.
+    //
+    // We now check both the message-level (`gmail-msg:{id}`) and thread-level
+    // (`gmail-thread:{id}`) keys. The thread-level lookup also inspects the
+    // `importedGmailMessages` map so we treat any prior import of *this*
+    // message id within an existing thread as a no-op.
+    const externalThreadId = `gmail-thread:${threadId}`;
+    const externalMessageId = `gmail-msg:${messageId}`;
+    const dupByMessage = await db
+      .collection("conversations")
+      .where("externalId", "==", externalMessageId)
+      .limit(1)
+      .get();
+    if (!dupByMessage.empty) {
+      return { ok: true, alreadyImported: true, conversationId: dupByMessage.docs[0].id };
+    }
+    const dupByThread = await db
+      .collection("conversations")
+      .where("externalId", "==", externalThreadId)
+      .limit(1)
+      .get();
+    if (!dupByThread.empty) {
+      const existing = dupByThread.docs[0];
+      const importedMap = (existing.data() as { importedGmailMessages?: Record<string, boolean> })
+        .importedGmailMessages || {};
+      if (importedMap[messageId]) {
+        return { ok: true, alreadyImported: true, conversationId: existing.id };
+      }
+    }
+
+    // ---- Create / append -----------------------------------------------------
+    let convoRef: FirebaseFirestore.DocumentReference;
+    try {
+      convoRef = await findOrCreateConversation({
+        externalId: externalThreadId,
+        externalSource: "gmail",
+        channel: "email",
+        customerName: from.replace(/<[^>]+>/, "").trim() || fromEmail || from,
+        customerEmail: fromEmail,
+        lastMessage: subject ? `${subject}: ${snippet}` : snippet || "(no preview)",
+      });
+    } catch (err) {
+      logger.error("pushGmailMessageToConvoHub: findOrCreateConversation failed", {
+        err: (err as Error).message,
+        messageId,
+        threadId,
+      });
+      throw new HttpsError(
+        "internal",
+        `Could not create or open the conversation: ${(err as Error).message}`
+      );
+    }
+
+    try {
+      await convoRef.collection("messages").add({
+        sender: "customer",
+        text: snippet || subject || "(empty Gmail message)",
+        subject,
+        channel: "email",
+        gmailMessageId: messageId,
+        gmailThreadId: threadId,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      await convoRef.update({ [`importedGmailMessages.${messageId}`]: true });
+    } catch (err) {
+      logger.error("pushGmailMessageToConvoHub: message append failed", {
+        err: (err as Error).message,
+        convoId: convoRef.id,
+        messageId,
+      });
+      throw new HttpsError(
+        "internal",
+        `Conversation created but the Gmail message could not be appended: ${(err as Error).message}`
+      );
+    }
+
+    logger.info("pushGmailMessageToConvoHub: imported", {
+      by: request.auth.uid,
+      messageId,
+      threadId,
+      convoId: convoRef.id,
+    });
+    return { ok: true, conversationId: convoRef.id, alreadyImported: false };
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    logger.error("pushGmailMessageToConvoHub: unhandled", err);
+    throw new HttpsError("internal", `Push to ConvoHub failed: ${(err as Error).message}`);
   }
-
-  // Dedup by Gmail message id so the same message can't be pushed twice.
-  const dupCheck = await db
-    .collection("conversations")
-    .where("externalId", "==", `gmail:${messageId}`)
-    .limit(1)
-    .get();
-  if (!dupCheck.empty) {
-    return { ok: true, alreadyImported: true, conversationId: dupCheck.docs[0].id };
-  }
-
-  const convoRef = await findOrCreateConversation({
-    externalId: `gmail-thread:${threadId}`,
-    externalSource: "gmail",
-    channel: "email",
-    customerName: from.replace(/<[^>]+>/, "").trim() || fromEmail || from,
-    customerEmail: fromEmail,
-    lastMessage: subject ? `${subject}: ${snippet}` : snippet,
-  });
-
-  await convoRef.collection("messages").add({
-    sender: "customer",
-    text: snippet,
-    subject,
-    channel: "email",
-    gmailMessageId: messageId,
-    gmailThreadId: threadId,
-    timestamp: admin.firestore.FieldValue.serverTimestamp(),
-  });
-
-  // Mark this specific gmail message id imported so subsequent pushes of the
-  // same message are no-ops (the thread-level externalId guards conversation
-  // dedup; this guards message-level dedup).
-  await convoRef.update({ [`importedGmailMessages.${messageId}`]: true });
-
-  logger.info("pushGmailMessageToConvoHub: imported", {
-    by: request.auth.uid,
-    messageId,
-    threadId,
-    convoId: convoRef.id,
-  });
-  return { ok: true, conversationId: convoRef.id, alreadyImported: false };
 });
 
 // -----------------------------------------------------------------------------
@@ -1579,39 +1719,89 @@ async function runHealthChecks(opts: {
   }
 
   // ---------- Google Voice ----------
+  // Google never released a public Voice REST API. The closest thing the
+  // workspace owner controls is the Twilio number that proxies Voice
+  // (calls + SMS) to ConvoHub via the existing webhook. So a "live ping"
+  // for Voice means: (a) the Twilio creds work, AND (b) at least one
+  // IncomingPhoneNumber on the account has Voice OR SMS capability AND
+  // matches the number stored on the webmaster's integrations doc.
+  // This catches both "Twilio creds revoked" and "the configured number was
+  // released" — exactly the failures that would leave the Voice channel
+  // silently dark for users.
   try {
-    let gv: { connected?: boolean; fields?: Record<string, string> } | null = null;
+    const sid = process.env.TWILIO_ACCOUNT_SID;
+    const token = process.env.TWILIO_AUTH_TOKEN;
+    let configuredNumber: string | null = null;
     if (opts.voiceConfigUid) {
       const integSnap = await db
         .doc(`users/${opts.voiceConfigUid}/integrations/credentials`)
         .get();
-      gv =
+      const gv =
         ((integSnap.data() as Record<string, { connected?: boolean; fields?: Record<string, string> }> | undefined)?.[
           "google-voice"
         ]) || null;
+      configuredNumber = gv?.connected && gv.fields?.voiceNumber ? gv.fields.voiceNumber : null;
     }
-    if (!gv?.connected || !gv.fields?.voiceNumber) {
+    if (!configuredNumber) {
       results["google-voice"] = {
         ok: false,
-        message: "No Google Voice number configured on this account.",
+        message: "No Google Voice number configured on any webmaster account.",
+        latencyMs: 0,
+      };
+    } else if (!sid || !token) {
+      results["google-voice"] = {
+        ok: false,
+        message: "Twilio credentials missing — cannot verify Voice number is live.",
         latencyMs: 0,
       };
     } else {
-      const since = admin.firestore.Timestamp.fromMillis(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const { value: snap, ms } = await time(() =>
-        db.collection("googleVoiceActivity").where("timestamp", ">=", since).limit(1).get()
+      const auth = Buffer.from(`${sid}:${token}`).toString("base64");
+      const phoneFilter = encodeURIComponent(configuredNumber);
+      const { value: r, ms } = await time(() =>
+        fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${sid}/IncomingPhoneNumbers.json?PhoneNumber=${phoneFilter}`,
+          { headers: { Authorization: `Basic ${auth}` } }
+        )
       );
-      results["google-voice"] = snap.empty
-        ? {
+      const j = (await r.json()) as {
+        incoming_phone_numbers?: Array<{
+          phone_number?: string;
+          capabilities?: { voice?: boolean; sms?: boolean };
+          friendly_name?: string;
+        }>;
+        message?: string;
+      };
+      if (!r.ok) {
+        results["google-voice"] = {
+          ok: false,
+          message: `Twilio Voice lookup failed: ${j.message || `HTTP ${r.status}`}`,
+          latencyMs: ms,
+        };
+      } else {
+        const match = j.incoming_phone_numbers?.[0];
+        if (!match) {
+          results["google-voice"] = {
             ok: false,
-            message: `Configured for ${gv.fields.voiceNumber}, but no events in the last 7 days.`,
-            latencyMs: ms,
-          }
-        : {
-            ok: true,
-            message: `Live — recent events received for ${gv.fields.voiceNumber}.`,
+            message: `Number ${configuredNumber} is configured but not present on the Twilio account.`,
             latencyMs: ms,
           };
+        } else {
+          const caps: string[] = [];
+          if (match.capabilities?.voice) caps.push("voice");
+          if (match.capabilities?.sms) caps.push("SMS");
+          results["google-voice"] = caps.length
+            ? {
+                ok: true,
+                message: `${configuredNumber} live on Twilio (${caps.join(" + ")}).`,
+                latencyMs: ms,
+              }
+            : {
+                ok: false,
+                message: `${configuredNumber} exists on Twilio but has no Voice or SMS capability.`,
+                latencyMs: ms,
+              };
+        }
+      }
     }
   } catch (err) {
     results["google-voice"] = {

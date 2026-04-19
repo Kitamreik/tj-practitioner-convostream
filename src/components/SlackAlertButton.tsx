@@ -101,7 +101,13 @@ const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
     };
   }, [nextAllowedAt]);
 
-  if (!profile || profile.role === "webmaster") return null;
+  // Webmasters used to be hidden (they're the recipient), but the Slack
+  // connection is now established and the team wants every signed-in
+  // teammate — including the webmaster — to be able to ping the channel
+  // (e.g. webmaster signed in as themselves needs to test the alert path
+  // without switching accounts). Server-side rate-limit + role check still
+  // apply, so unhiding here doesn't change the security posture.
+  if (!profile) return null;
 
   const senderName = profile.displayName || profile.email?.split("@")[0] || "a teammate";
   const compact = variant === "compact";
