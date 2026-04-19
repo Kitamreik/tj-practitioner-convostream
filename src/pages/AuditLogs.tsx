@@ -323,39 +323,66 @@ const AuditLogs: React.FC = () => {
 
   // Subscribe to grant/revoke Support events. The `setSupportAccess` Cloud
   // Function writes to `roleGrants` with action="grantSupport" or
-  // "revokeSupport", so a single `where in` query covers both. Ordered by
-  // grantedAt desc to match the other tabs' newest-first layout.
+  // "revokeSupport". We subscribe to each action separately (single-field
+  // where → no composite index required) and merge + sort client-side.
   useEffect(() => {
-    const q = query(
-      collection(db, "roleGrants"),
-      where("action", "in", ["grantSupport", "revokeSupport"]),
-      orderBy("grantedAt", "desc"),
-      limit(200)
-    );
-    const unsub = onSnapshot(
-      q,
-      (snapshot) => {
-        setSupport(
-          snapshot.docs.map((d) => {
-            const data = d.data() as any;
-            return {
-              id: d.id,
-              action: data.action ?? "grantSupport",
-              targetUid: data.targetUid ?? "",
-              targetEmail: data.targetEmail ?? null,
-              grantedByEmail: data.grantedByEmail ?? null,
-              grantedAt: data.grantedAt,
-            } as SupportAuditRow;
-          })
-        );
-        setLoadingSupport(false);
+    let grantRows: SupportAuditRow[] = [];
+    let revokeRows: SupportAuditRow[] = [];
+    let grantReady = false;
+    let revokeReady = false;
+
+    const merge = () => {
+      const all = [...grantRows, ...revokeRows].sort((a, b) => {
+        const am = (a.grantedAt as any)?.toMillis?.() ?? 0;
+        const bm = (b.grantedAt as any)?.toMillis?.() ?? 0;
+        return bm - am;
+      }).slice(0, 200);
+      setSupport(all);
+      if (grantReady && revokeReady) setLoadingSupport(false);
+    };
+
+    const mapRow = (d: any, action: string): SupportAuditRow => {
+      const data = d.data() as any;
+      return {
+        id: d.id,
+        action: data.action ?? action,
+        targetUid: data.targetUid ?? "",
+        targetEmail: data.targetEmail ?? null,
+        grantedByEmail: data.grantedByEmail ?? null,
+        grantedAt: data.grantedAt,
+      };
+    };
+
+    const unsubGrant = onSnapshot(
+      query(collection(db, "roleGrants"), where("action", "==", "grantSupport")),
+      (snap) => {
+        grantRows = snap.docs.map((d) => mapRow(d, "grantSupport"));
+        grantReady = true;
+        merge();
       },
       (error) => {
-        console.error("Failed to listen to support roleGrants:", error);
-        setLoadingSupport(false);
+        console.error("Failed to listen to grantSupport roleGrants:", error);
+        grantReady = true;
+        merge();
       }
     );
-    return unsub;
+    const unsubRevoke = onSnapshot(
+      query(collection(db, "roleGrants"), where("action", "==", "revokeSupport")),
+      (snap) => {
+        revokeRows = snap.docs.map((d) => mapRow(d, "revokeSupport"));
+        revokeReady = true;
+        merge();
+      },
+      (error) => {
+        console.error("Failed to listen to revokeSupport roleGrants:", error);
+        revokeReady = true;
+        merge();
+      }
+    );
+    return () => {
+      unsubGrant();
+      unsubRevoke();
+    };
   }, []);
 
   // ---------- Pagination slices ----------
