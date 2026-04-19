@@ -88,6 +88,16 @@ interface PeopleAuditRow {
   timestamp: any;
 }
 
+interface SupportAuditRow {
+  id: string;
+  /** "grantSupport" | "revokeSupport" */
+  action: string;
+  targetUid: string;
+  targetEmail: string | null;
+  grantedByEmail: string | null;
+  grantedAt: any;
+}
+
 const PAGE_SIZE = 10;
 
 const noteActionMeta: Record<
