@@ -289,3 +289,106 @@ export async function listOtherUsers(selfUid: string): Promise<
     })
     .filter((u) => u.uid !== selfUid);
 }
+
+// ---------------------------------------------------------------------------
+// Read receipts & typing indicators
+// ---------------------------------------------------------------------------
+//
+// Both pieces of state live as map fields on the thread doc (`readState`
+// and `typingState`) keyed by uid. This keeps everything inside the
+// existing thread snapshot — no extra listeners, no fan-out cost — and
+// the firestore.rules `update` rule for chatThreads already permits any
+// participant to write to the thread doc (we never touch participant lists).
+//
+// Typing state is "fresh" if it's within ~5s of now. We refresh while the
+// user is composing and clear it on send / blur.
+
+export const TYPING_FRESH_MS = 5_000;
+
+/**
+ * Returns the number of threads with at least one message from someone other
+ * than `selfUid` whose `lastMessageAt` is newer than this user's
+ * `readState[selfUid]`. Threads I sent the latest message in never count
+ * (matches Slack/iMessage behavior).
+ */
+export function countUnreadThreads(threads: ChatThread[], selfUid: string): number {
+  let n = 0;
+  for (const t of threads) {
+    if (t.archived) continue;
+    if (!t.lastMessageAt || !t.lastMessageSenderUid) continue;
+    if (t.lastMessageSenderUid === selfUid) continue;
+    const lastMs = t.lastMessageAt.toMillis?.() ?? 0;
+    const readMs = t.readState?.[selfUid]?.toMillis?.() ?? 0;
+    if (lastMs > readMs) n += 1;
+  }
+  return n;
+}
+
+/** True if a given thread is unread for `selfUid`. */
+export function isThreadUnread(t: ChatThread, selfUid: string): boolean {
+  if (t.archived) return false;
+  if (!t.lastMessageAt || !t.lastMessageSenderUid) return false;
+  if (t.lastMessageSenderUid === selfUid) return false;
+  const lastMs = t.lastMessageAt.toMillis?.() ?? 0;
+  const readMs = t.readState?.[selfUid]?.toMillis?.() ?? 0;
+  return lastMs > readMs;
+}
+
+/**
+ * Stamp my readState entry on the thread to "now", marking it read for me.
+ * Idempotent — safe to call repeatedly when the same thread stays open.
+ */
+export async function markThreadRead(threadId: string, selfUid: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, "chatThreads", threadId), {
+      [`readState.${selfUid}`]: serverTimestamp(),
+    });
+  } catch (err) {
+    // Non-fatal — read receipts are best-effort.
+    console.warn("markThreadRead failed:", err);
+  }
+}
+
+/**
+ * Refresh my typing flag on the thread. Safe to call on every keystroke —
+ * the caller throttles via `lastTypingPingRef` in the Chat page so we don't
+ * write more than once every ~3s.
+ */
+export async function pingTyping(threadId: string, selfUid: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, "chatThreads", threadId), {
+      [`typingState.${selfUid}`]: serverTimestamp(),
+    });
+  } catch (err) {
+    console.warn("pingTyping failed:", err);
+  }
+}
+
+/**
+ * Clear my typing flag (on send or blur). Writes a far-past timestamp so
+ * `isParticipantTyping` immediately returns false on every other client.
+ */
+export async function clearTyping(threadId: string, selfUid: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, "chatThreads", threadId), {
+      [`typingState.${selfUid}`]: Timestamp.fromMillis(0),
+    });
+  } catch (err) {
+    console.warn("clearTyping failed:", err);
+  }
+}
+
+/**
+ * True if the *other* participant has pinged a typing flag within the last
+ * TYPING_FRESH_MS. We pass `nowMs` from the consumer so a setInterval tick
+ * can re-evaluate freshness without a Firestore round-trip.
+ */
+export function isOtherTyping(t: ChatThread | null, selfUid: string, nowMs: number): boolean {
+  if (!t || !t.typingState) return false;
+  for (const [uid, ts] of Object.entries(t.typingState)) {
+    if (uid === selfUid) continue;
+    const ms = ts?.toMillis?.() ?? 0;
+    if (nowMs - ms < TYPING_FRESH_MS) return true;
+  }
+  return false;
+}
