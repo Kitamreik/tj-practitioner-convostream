@@ -61,6 +61,8 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSupportUsers, isSupportByUid, isSupportByEmail } from "@/hooks/useSupportUsers";
+import { SupportBadge } from "@/components/SupportBadge";
 
 const formatTime = (ts: any) => {
   try {
@@ -82,6 +84,17 @@ const ChatPage: React.FC = () => {
   const { user, profile } = useAuth();
   const isMobile = useIsMobile();
   const isMod = canModerateChat(profile);
+  const supportUsers = useSupportUsers();
+
+  /** True when the *other* participant of a thread has Support access. */
+  const otherIsSupport = (t: ChatThread): boolean => {
+    if (!user) return false;
+    const idx = t.participantUids.findIndex((u) => u !== user.uid);
+    if (idx < 0) return false;
+    const otherUid = t.participantUids[idx];
+    const otherEmail = t.participantEmails[idx];
+    return isSupportByUid(supportUsers, otherUid) || isSupportByEmail(supportUsers, otherEmail);
+  };
 
   // ---- thread list ----------------------------------------------------------
   const [threads, setThreads] = useState<ChatThread[]>([]);
