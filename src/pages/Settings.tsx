@@ -30,7 +30,11 @@ import {
   EyeOff,
   Copy,
   PhoneCall,
+  Mail,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { getBoolPref, setBoolPref, subscribeBoolPref } from "@/lib/userPrefs";
+import { BG_GMAIL_INGEST_PREF } from "@/hooks/useBackgroundGmailPoller";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Link } from "react-router-dom";
@@ -319,6 +323,28 @@ const SettingsPage: React.FC = () => {
 
   const isWebmaster = profile?.role === "webmaster";
   const hasEscalatedAccess = profile?.escalatedAccess === true;
+
+  // ---- Background Gmail ingestion toggle (webmaster only, per-uid pref) ----
+  // When ON the global useBackgroundGmailPoller polls Gmail every ~2 min and
+  // pushes new INBOX messages into Conversations. OFF pauses the poller
+  // without touching Google OAuth consent — flip back ON to resume.
+  const [bgGmailEnabled, setBgGmailEnabled] = useState<boolean>(() =>
+    getBoolPref(profile?.uid, BG_GMAIL_INGEST_PREF, false)
+  );
+  useEffect(() => {
+    setBgGmailEnabled(getBoolPref(profile?.uid, BG_GMAIL_INGEST_PREF, false));
+    return subscribeBoolPref(profile?.uid, BG_GMAIL_INGEST_PREF, setBgGmailEnabled);
+  }, [profile?.uid]);
+  const handleToggleBgGmail = (next: boolean) => {
+    setBgGmailEnabled(next);
+    setBoolPref(profile?.uid, BG_GMAIL_INGEST_PREF, next);
+    toast({
+      title: next ? "Background Gmail ingestion ON" : "Background Gmail ingestion paused",
+      description: next
+        ? "New INBOX messages will appear in Conversations within ~2 minutes."
+        : "Polling stopped. Re-enable any time — Google consent is preserved.",
+    });
+  };
 
   // ---- Webmaster contact cooldown (team-wide setting) ----
   const [cooldownMin, setCooldownMinState] = useState<CooldownMinutes>(DEFAULT_COOLDOWN_MIN);
@@ -1080,6 +1106,7 @@ const SettingsPage: React.FC = () => {
       ? [
           { id: "overview", label: "Overview" },
           { id: "webmaster-contact", label: "Webmaster contact" },
+          { id: "bg-gmail", label: "Background Gmail ingestion" },
           { id: "promote", label: "Promote to Webmaster" },
           { id: "pending", label: "Pending escalations" },
           { id: "agents", label: "Agents" },
@@ -1306,6 +1333,46 @@ const SettingsPage: React.FC = () => {
                 </ul>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Webmaster-only: Background Gmail ingestion opt-in. Per-uid
+            localStorage pref consumed by useBackgroundGmailPoller, which is
+            mounted globally in AppLayout. */}
+        {isWebmaster && (
+          <div id="bg-gmail" className="rounded-xl border border-border bg-card p-6">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-2">
+              <Mail className="h-5 w-5 text-primary" />
+              Background Gmail ingestion
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              When enabled, ConvoHub silently polls your Gmail INBOX every ~2 minutes and pushes new messages into the Conversations queue. Pausing here stops polling without revoking your Google OAuth consent — flip it back on any time to resume.
+            </p>
+            <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
+              <div className="space-y-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">
+                  Auto-ingest INBOX into Conversations
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Requires a one-time Google authorization on{" "}
+                  <Link to="/gmail" className="underline underline-offset-2 hover:text-foreground">
+                    Gmail API
+                  </Link>
+                  . Server-side dedup prevents duplicates.
+                </p>
+              </div>
+              <Switch
+                checked={bgGmailEnabled}
+                onCheckedChange={handleToggleBgGmail}
+                aria-label="Background Gmail ingestion"
+              />
+            </div>
+            {bgGmailEnabled && (
+              <p className="mt-3 text-[11px] text-success flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                Polling active — next sweep within 2 minutes.
+              </p>
+            )}
           </div>
         )}
 
