@@ -207,14 +207,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    // Wipe the per-user chat cache so the next account that signs in on
-    // this browser doesn't see the previous user's threads/messages while
-    // their own listener is warming up. Best-effort — never blocks logout.
+    // Wipe the per-user chat cache + outbox so the next account that signs
+    // in on this browser doesn't see (or accidentally flush) the previous
+    // user's messages. Best-effort — never blocks logout.
     try {
       const prevUid = user?.uid;
       if (prevUid) {
-        const { clearCachedChat } = await import("@/lib/chatCache");
+        const [{ clearCachedChat }, { clearOutbox }] = await Promise.all([
+          import("@/lib/chatCache"),
+          import("@/lib/chatOutbox"),
+        ]);
         clearCachedChat(prevUid);
+        clearOutbox(prevUid);
       }
     } catch {
       /* non-fatal */
