@@ -24,6 +24,7 @@ import StaffUpdates from "./pages/StaffUpdates";
 import FileRecordings from "./pages/FileRecordings";
 import IconKey from "./pages/IconKey";
 import Chat from "./pages/Chat";
+import Bootstrap from "./pages/Bootstrap";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -78,6 +79,8 @@ const App = () => (
               <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
               <Route path="/forgot-password" element={<AuthRoute><ForgotPassword /></AuthRoute>} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              {/* First-time setup. Cloud Function gates by webmaster existence. */}
+              <Route path="/bootstrap" element={<Bootstrap />} />
               <Route
                 element={
                   <ProtectedRoute>
