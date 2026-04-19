@@ -1209,21 +1209,49 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Appearance */}
+        {/* Appearance — three-way toggle: light / dark / coder. "Coder Mode"
+            is a soft-blue, low-contrast palette tuned for sensitive eyes. */}
         <div id="appearance" className="rounded-xl border border-border bg-card p-6">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-4">
-            {theme === "light" ? <Sun className="h-5 w-5 text-primary" /> : <Moon className="h-5 w-5 text-primary" />}
+            {theme === "light" ? (
+              <Sun className="h-5 w-5 text-primary" />
+            ) : theme === "dark" ? (
+              <Moon className="h-5 w-5 text-primary" />
+            ) : (
+              <Eye className="h-5 w-5 text-primary" />
+            )}
             Appearance
           </h3>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-medium text-foreground">Theme</p>
-              <p className="text-xs text-muted-foreground">Switch between light and dark mode</p>
+              <p className="text-xs text-muted-foreground">
+                Light, dark, or Coder Mode (soft-blue, low-contrast for sensitive eyes).
+              </p>
             </div>
-            <Button variant="outline" onClick={toggleTheme} className="gap-2">
-              {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-              {theme === "light" ? "Dark" : "Light"}
-            </Button>
+            <div className="inline-flex rounded-lg border border-border bg-background p-1">
+              {(["light", "dark", "coder"] as const).map((t) => {
+                const Icon = t === "light" ? Sun : t === "dark" ? Moon : Eye;
+                const active = theme === t;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTheme(t)}
+                    aria-pressed={active}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {t === "coder" ? "Coder" : t}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
