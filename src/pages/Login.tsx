@@ -132,6 +132,11 @@ const Login: React.FC = () => {
                 </a>
               </div>
             )}
+            <div>
+              <a href="/bootstrap" className="text-xs text-muted-foreground/70 hover:text-primary hover:underline">
+                First-time setup
+              </a>
+            </div>
           </div>
         </div>
       </motion.div>
