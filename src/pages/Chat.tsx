@@ -153,8 +153,14 @@ const ChatPage: React.FC = () => {
       setMessages([]);
       return;
     }
-    return subscribeThreadMessages(activeId, setMessages);
-  }, [activeId]);
+    const unsub = subscribeThreadMessages(activeId, setMessages);
+    // When this thread closes (or we switch to another), clear our
+    // typing flag so the previous recipient doesn't see a stale "typing…".
+    return () => {
+      unsub();
+      if (user) void clearTyping(activeId, user.uid);
+    };
+  }, [activeId, user]);
 
   // Auto-scroll to bottom when new messages arrive.
   const messagesEndRef = useRef<HTMLDivElement>(null);
