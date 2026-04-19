@@ -2153,6 +2153,11 @@ const SettingsPage: React.FC = () => {
                             <CheckCircle2 className="h-2.5 w-2.5" /> Escalated
                           </Badge>
                         )}
+                        {acc.supportAccess && (
+                          <Badge variant="outline" className="text-[10px] gap-1">
+                            <LifeBuoy className="h-2.5 w-2.5" /> Support
+                          </Badge>
+                        )}
                         {isSelf && <Badge variant="outline" className="text-[10px]">You</Badge>}
                       </div>
                       <p className="text-xs text-muted-foreground truncate">{acc.email || acc.uid}</p>
@@ -2202,6 +2207,65 @@ const SettingsPage: React.FC = () => {
                       })()}
                     </div>
                     <div className="flex flex-shrink-0 gap-2 flex-wrap">
+                      {/* Promote / Demote — webmaster-only role flips. Hidden
+                          for self and for existing webmasters (the latter
+                          must be demoted via promoteToWebmaster role=admin
+                          first to satisfy the demoteAgent precondition). */}
+                      {!isSelf && acc.role !== "webmaster" && (
+                        acc.role === "agent" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1"
+                            disabled={roleChangingUid === acc.uid}
+                            onClick={() => promoteAgentToAdmin(acc)}
+                          >
+                            <ArrowUp className="h-3.5 w-3.5" />
+                            {roleChangingUid === acc.uid ? "Promoting…" : "Promote to admin"}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1"
+                            disabled={roleChangingUid === acc.uid}
+                            onClick={() => demoteToAgent(acc)}
+                          >
+                            <ArrowDown className="h-3.5 w-3.5" />
+                            {roleChangingUid === acc.uid ? "Demoting…" : "Demote to agent"}
+                          </Button>
+                        )
+                      )}
+
+                      {/* Grant / Revoke Support — webmaster-only. Lets any
+                          account (typically an agent or admin) access the
+                          Support call-center home + chat moderation. */}
+                      {!isSelf && (
+                        acc.supportAccess ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1"
+                            disabled={supportChangingUid === acc.uid}
+                            onClick={() => setSupportAccessFor(acc, false)}
+                          >
+                            <LifeBuoy className="h-3.5 w-3.5" />
+                            {supportChangingUid === acc.uid ? "Updating…" : "Revoke Support"}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1"
+                            disabled={supportChangingUid === acc.uid}
+                            onClick={() => setSupportAccessFor(acc, true)}
+                          >
+                            <LifeBuoy className="h-3.5 w-3.5" />
+                            {supportChangingUid === acc.uid ? "Updating…" : "Grant Support"}
+                          </Button>
+                        )
+                      )}
+
                       {acc.escalatedAccess && acc.role !== "webmaster" && (
                         <Button
                           size="sm"
