@@ -1313,7 +1313,7 @@ const SettingsPage: React.FC = () => {
             Stored team-wide in `appSettings/webmasterContact.slackWebhookUrl`
             so every agent's browser can read it (per-user integrations creds
             are owner-only). */}
-        {isWebmaster && (
+        {canEditWebhook && (
           <div id="webmaster-slack" className="rounded-xl border border-border bg-card p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-2">
               <Send className="h-5 w-5 text-primary" />
