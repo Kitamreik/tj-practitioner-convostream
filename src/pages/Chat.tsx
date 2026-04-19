@@ -485,11 +485,20 @@ const ChatPage: React.FC = () => {
                     <p className="truncate text-sm font-semibold">
                       {otherParticipantLabel(activeThread)}
                     </p>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {otherTyping
-                        ? "typing…"
-                        : activeThread.participantEmails.find((e) => e !== profile?.email) || ""}
-                    </p>
+                    {otherTyping ? (
+                      <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <span>typing</span>
+                        <span className="flex items-end gap-0.5" aria-hidden="true">
+                          <span className="block h-1 w-1 rounded-full bg-muted-foreground animate-typing-dot" style={{ animationDelay: "0ms" }} />
+                          <span className="block h-1 w-1 rounded-full bg-muted-foreground animate-typing-dot" style={{ animationDelay: "150ms" }} />
+                          <span className="block h-1 w-1 rounded-full bg-muted-foreground animate-typing-dot" style={{ animationDelay: "300ms" }} />
+                        </span>
+                      </span>
+                    ) : (
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        {activeThread.participantEmails.find((e) => e !== profile?.email) || ""}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {isMod && (
