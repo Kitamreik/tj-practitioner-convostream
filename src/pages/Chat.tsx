@@ -529,18 +529,28 @@ const ChatPage: React.FC = () => {
 
               <ScrollArea className="flex-1 px-3 py-4">
                 <div className="space-y-3">
-                  {messages.map((m) => {
+                  {messages.map((m, idx) => {
                     const own = m.senderUid === user?.uid;
                     const isEditing = editingId === m.id;
                     const isDeleted = !!m.deleted;
+                    const showDivider = idx === newMessagesDividerIndex;
                     return (
-                      <div
-                        key={m.id}
-                        className={cn(
-                          "group flex flex-col gap-1",
-                          own ? "items-end" : "items-start"
+                      <React.Fragment key={m.id}>
+                        {showDivider && (
+                          <div className="flex items-center gap-2 py-1 animate-fade-in" aria-label="New messages">
+                            <div className="h-px flex-1 bg-destructive/30" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-destructive/80">
+                              New messages
+                            </span>
+                            <div className="h-px flex-1 bg-destructive/30" />
+                          </div>
                         )}
-                      >
+                        <div
+                          className={cn(
+                            "group flex flex-col gap-1",
+                            own ? "items-end" : "items-start"
+                          )}
+                        >
                         {!own && (
                           <span className="px-1 text-[11px] text-muted-foreground">
                             {m.senderName}
