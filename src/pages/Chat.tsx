@@ -405,7 +405,12 @@ const ChatPage: React.FC = () => {
                             {u.displayName.charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">{u.displayName}</p>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className="truncate text-sm font-medium">{u.displayName}</p>
+                              {(isSupportByUid(supportUsers, u.uid) || isSupportByEmail(supportUsers, u.email)) && (
+                                <SupportBadge />
+                              )}
+                            </div>
                             <p className="truncate text-xs text-muted-foreground">
                               {u.email} · {u.role}
                             </p>
@@ -449,9 +454,12 @@ const ChatPage: React.FC = () => {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <p className={cn("truncate text-sm", unread ? "font-semibold text-foreground" : "font-medium")}>
-                          {label}
-                        </p>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <p className={cn("truncate text-sm", unread ? "font-semibold text-foreground" : "font-medium")}>
+                            {label}
+                          </p>
+                          {otherIsSupport(t) && <SupportBadge />}
+                        </div>
                         <span className="flex-shrink-0 text-[10px] text-muted-foreground">
                           {t.lastMessageAt ? formatTime(t.lastMessageAt) : ""}
                         </span>
@@ -495,9 +503,12 @@ const ChatPage: React.FC = () => {
                     {otherParticipantLabel(activeThread).charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">
-                      {otherParticipantLabel(activeThread)}
-                    </p>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <p className="truncate text-sm font-semibold">
+                        {otherParticipantLabel(activeThread)}
+                      </p>
+                      {otherIsSupport(activeThread) && <SupportBadge />}
+                    </div>
                     {otherTyping ? (
                       <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                         <span>typing</span>
