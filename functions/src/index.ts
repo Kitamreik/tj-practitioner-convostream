@@ -2183,3 +2183,102 @@ export const pingWebmasterSlack = onCall(async (request) => {
   logger.info("pingWebmasterSlack: sent", { uid, route });
   return { ok: true, sentAt: now, nextAllowedAt };
 });
+
+// =============================================================================
+// Provision Support — clone caller's integrations + UI prefs into another uid
+// =============================================================================
+//
+// Webmaster-only. Used by the "Provision Support" card on /settings to seed
+// the support@convohub.dev account with the same Slack/Gmail credentials and
+// background-ingestion preferences as the calling webmaster, so the Support
+// operator can hit the ground running without re-entering anything.
+//
+// We do this server-side because Firestore rules block cross-user writes —
+// only the admin SDK can write into another user's `users/{uid}/...` subtree.
+//
+// Request:  { targetEmail?: string }   (defaults to support@convohub.dev)
+// Response: { ok, targetUid, clonedIntegrations, clonedPrefs }
+export const cloneIntegrationsToSupport = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerUid = request.auth.uid;
+  const callerSnap = await db.doc(`users/${callerUid}`).get();
+  const callerData = callerSnap.data() as { role?: string; email?: string } | undefined;
+  if (callerData?.role !== "webmaster") {
+    throw new HttpsError("permission-denied", "Webmasters only.");
+  }
+
+  const data = (request.data ?? {}) as { targetEmail?: unknown };
+  const targetEmail =
+    typeof data.targetEmail === "string" && data.targetEmail.trim()
+      ? data.targetEmail.trim().toLowerCase()
+      : "support@convohub.dev";
+
+  const targetQuery = await db.collection("users").where("email", "==", targetEmail).limit(1).get();
+  if (targetQuery.empty) {
+    throw new HttpsError(
+      "not-found",
+      `No user with email ${targetEmail}. Have them sign up first, then retry.`
+    );
+  }
+  const targetDoc = targetQuery.docs[0];
+  const targetUid = targetDoc.id;
+  if (targetUid === callerUid) {
+    throw new HttpsError("failed-precondition", "Cannot clone into your own account.");
+  }
+
+  // ---- Clone integrations credentials doc -----------------------------------
+  // Path: users/{uid}/integrations/credentials  (single doc, fields per integration)
+  let clonedIntegrations = false;
+  try {
+    const srcSnap = await db.doc(`users/${callerUid}/integrations/credentials`).get();
+    if (srcSnap.exists) {
+      const payload = srcSnap.data() ?? {};
+      await db.doc(`users/${targetUid}/integrations/credentials`).set(
+        { ...payload, _clonedFromUid: callerUid, _clonedAt: admin.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+      clonedIntegrations = true;
+    }
+  } catch (err) {
+    logger.error("cloneIntegrationsToSupport: integrations clone failed", err);
+  }
+
+  // ---- Clone UI prefs doc (e.g. bgGmailIngest) ------------------------------
+  // Path: users/{uid}/prefs/ui
+  let clonedPrefs = false;
+  try {
+    const srcSnap = await db.doc(`users/${callerUid}/prefs/ui`).get();
+    if (srcSnap.exists) {
+      const payload = srcSnap.data() ?? {};
+      await db.doc(`users/${targetUid}/prefs/ui`).set(
+        { ...payload, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+      clonedPrefs = true;
+    }
+  } catch (err) {
+    logger.error("cloneIntegrationsToSupport: prefs clone failed", err);
+  }
+
+  // Audit trail.
+  await db.collection("roleGrants").add({
+    targetUid,
+    targetEmail,
+    action: "cloneIntegrationsToSupport",
+    clonedIntegrations,
+    clonedPrefs,
+    grantedByUid: callerUid,
+    grantedByEmail: callerData?.email ?? null,
+    grantedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  logger.info("cloneIntegrationsToSupport: done", {
+    targetUid,
+    targetEmail,
+    clonedIntegrations,
+    clonedPrefs,
+    by: callerUid,
+  });
+
+  return { ok: true, targetUid, targetEmail, clonedIntegrations, clonedPrefs };
+});
