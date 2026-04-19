@@ -10,6 +10,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AppLayout from "./components/AppLayout";
 import Conversations from "./pages/Conversations";
+import Home from "./pages/Home";
 import Agents from "./pages/Agents";
 import Notifications from "./pages/Notifications";
 import Integrations from "./pages/Integrations";
@@ -69,7 +70,8 @@ const App = () => (
                   </ProtectedRoute>
                 }
               >
-                <Route path="/" element={<Conversations />} />
+                <Route path="/" element={<SupportHomeOrConversations />} />
+                <Route path="/conversations" element={<Conversations />} />
                 <Route path="/conversations/:id" element={<Conversations />} />
                 <Route path="/agents" element={<Agents />} />
                 {/* Legacy redirect: /people → /agents */}
