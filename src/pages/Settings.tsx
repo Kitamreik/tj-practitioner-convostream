@@ -274,11 +274,12 @@ const SettingsPage: React.FC = () => {
   // Subscribe to the user's most recent escalation request so they see status updates.
   useEffect(() => {
     if (!user) return;
+    // Single-field where → no composite index required. We sort + slice to
+    // newest client-side. The user only ever has a handful of escalation
+    // requests, so the cost of fetching them all is trivial.
     const q = query(
       collection(db, "escalationRequests"),
-      where("requesterUid", "==", user.uid),
-      orderBy("createdAt", "desc"),
-      limit(1)
+      where("requesterUid", "==", user.uid)
     );
     const unsub = onSnapshot(
       q,
@@ -287,14 +288,24 @@ const SettingsPage: React.FC = () => {
           setLatestRequest(null);
           return;
         }
-        const d = snap.docs[0].data() as any;
+        const sorted = snap.docs
+          .map((d) => d.data() as any)
+          .sort((a, b) => {
+            const am = a.createdAt?.toMillis?.() ?? 0;
+            const bm = b.createdAt?.toMillis?.() ?? 0;
+            return bm - am;
+          });
+        const d = sorted[0];
         setLatestRequest({
           status: d.status || "pending",
           emailSent: !!d.emailSent,
           createdAt: d.createdAt,
         });
       },
-      () => setLatestRequest(null)
+      (err) => {
+        console.warn("Latest escalation request listener error:", err);
+        setLatestRequest(null);
+      }
     );
     return unsub;
   }, [user]);
@@ -310,21 +321,27 @@ const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     if (!user) return;
+    // Single-field where → no composite index required. Filter+sort client-side.
     const q = query(
       collection(db, "roleGrants"),
-      where("targetUid", "==", user.uid),
-      where("action", "==", "revokeEscalatedAccess"),
-      orderBy("grantedAt", "desc"),
-      limit(1)
+      where("targetUid", "==", user.uid)
     );
     const unsub = onSnapshot(
       q,
       (snap) => {
-        if (snap.empty) {
+        const revokes = snap.docs
+          .map((d) => d.data() as any)
+          .filter((d) => d.action === "revokeEscalatedAccess")
+          .sort((a, b) => {
+            const am = a.grantedAt?.toMillis?.() ?? 0;
+            const bm = b.grantedAt?.toMillis?.() ?? 0;
+            return bm - am;
+          });
+        if (revokes.length === 0) {
           setLatestRevoke(null);
           return;
         }
-        const d = snap.docs[0].data() as any;
+        const d = revokes[0];
         setLatestRevoke({
           reason: d.reason || "",
           grantedAt: d.grantedAt,
@@ -472,27 +489,33 @@ const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     if (!isWebmaster) return;
+    // Single-field where → no composite index required. Sort client-side.
     const q = query(
       collection(db, "escalationRequests"),
-      where("status", "==", "pending"),
-      orderBy("createdAt", "desc")
+      where("status", "==", "pending")
     );
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const rows: PendingEscalation[] = snap.docs.map((d) => {
-          const data = d.data() as any;
-          return {
-            id: d.id,
-            requesterUid: data.requesterUid,
-            requesterEmail: data.requesterEmail ?? null,
-            requesterName: data.requesterName ?? null,
-            requesterRole: data.requesterRole ?? "admin",
-            reason: data.reason ?? "",
-            emailSent: !!data.emailSent,
-            createdAt: data.createdAt,
-          };
-        });
+        const rows: PendingEscalation[] = snap.docs
+          .map((d) => {
+            const data = d.data() as any;
+            return {
+              id: d.id,
+              requesterUid: data.requesterUid,
+              requesterEmail: data.requesterEmail ?? null,
+              requesterName: data.requesterName ?? null,
+              requesterRole: data.requesterRole ?? "admin",
+              reason: data.reason ?? "",
+              emailSent: !!data.emailSent,
+              createdAt: data.createdAt,
+            };
+          })
+          .sort((a, b) => {
+            const am = a.createdAt?.toMillis?.() ?? 0;
+            const bm = b.createdAt?.toMillis?.() ?? 0;
+            return bm - am;
+          });
         setPending(rows);
       },
       (err) => {
@@ -1056,26 +1079,32 @@ const SettingsPage: React.FC = () => {
   const [renameEvents, setRenameEvents] = useState<RenameEvent[]>([]);
   useEffect(() => {
     if (!isWebmaster) return;
+    // Single-field where → no composite index required. Sort + cap client-side.
     const q = query(
       collection(db, "roleGrants"),
-      where("action", "==", "renameAgent"),
-      orderBy("grantedAt", "desc"),
-      limit(100)
+      where("action", "==", "renameAgent")
     );
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const rows: RenameEvent[] = snap.docs.map((d) => {
-          const data = d.data() as any;
-          return {
-            id: d.id,
-            targetUid: data.targetUid ?? "",
-            previousDisplayName: data.previousDisplayName ?? "",
-            newDisplayName: data.newDisplayName ?? "",
-            grantedByEmail: data.grantedByEmail ?? null,
-            grantedAt: data.grantedAt,
-          };
-        });
+        const rows: RenameEvent[] = snap.docs
+          .map((d) => {
+            const data = d.data() as any;
+            return {
+              id: d.id,
+              targetUid: data.targetUid ?? "",
+              previousDisplayName: data.previousDisplayName ?? "",
+              newDisplayName: data.newDisplayName ?? "",
+              grantedByEmail: data.grantedByEmail ?? null,
+              grantedAt: data.grantedAt,
+            };
+          })
+          .sort((a, b) => {
+            const am = a.grantedAt?.toMillis?.() ?? 0;
+            const bm = b.grantedAt?.toMillis?.() ?? 0;
+            return bm - am;
+          })
+          .slice(0, 100);
         setRenameEvents(rows);
       },
       (err) => {
