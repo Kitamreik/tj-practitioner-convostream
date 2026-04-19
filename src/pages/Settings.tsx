@@ -2036,35 +2036,31 @@ const SettingsPage: React.FC = () => {
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{acc.email || acc.uid}</p>
                       </div>
-                      <div className="flex flex-shrink-0 flex-wrap gap-2">
-                        <Button size="sm" variant="outline" className="gap-1" onClick={() => openRename(acc)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                          Rename
-                        </Button>
-                        {isAdminTier ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1"
-                            disabled={busy}
-                            onClick={() => demoteToAgent(acc)}
-                          >
-                            <ArrowDown className="h-3.5 w-3.5" />
-                            {busy ? "…" : "Demote to agent"}
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1"
-                            disabled={busy}
-                            onClick={() => promoteAgentToAdmin(acc)}
-                          >
-                            <ArrowUp className="h-3.5 w-3.5" />
-                            {busy ? "…" : "Promote to admin"}
-                          </Button>
-                        )}
-                      </div>
+                      <AccountActionsMenu
+                        actions={[
+                          {
+                            key: "rename",
+                            label: "Rename",
+                            icon: <Pencil className="h-3.5 w-3.5" />,
+                            onClick: () => openRename(acc),
+                          },
+                          isAdminTier
+                            ? {
+                                key: "demote",
+                                label: busy ? "…" : "Demote to agent",
+                                icon: <ArrowDown className="h-3.5 w-3.5" />,
+                                disabled: busy,
+                                onClick: () => demoteToAgent(acc),
+                              }
+                            : {
+                                key: "promote",
+                                label: busy ? "…" : "Promote to admin",
+                                icon: <ArrowUp className="h-3.5 w-3.5" />,
+                                disabled: busy,
+                                onClick: () => promoteAgentToAdmin(acc),
+                              },
+                        ]}
+                      />
                     </div>
                     {isOpen && history.length > 0 && (
                       <ul className="mt-3 space-y-1.5 border-t border-border pt-3">
