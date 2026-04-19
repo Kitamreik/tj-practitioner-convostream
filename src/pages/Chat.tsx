@@ -168,6 +168,28 @@ const ChatPage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, activeId]);
 
+  // Snapshot of my readState[selfUid] at the moment this thread was opened —
+  // used to draw the "New messages" divider above the first message that
+  // arrived after my previous visit. Captured BEFORE we call markThreadRead,
+  // so the divider stays put while the thread is open even though the
+  // server-side readState gets bumped to "now" almost immediately.
+  const [openedAtReadMs, setOpenedAtReadMs] = useState<number>(0);
+  const lastSnapshottedThreadIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user || !activeId || !activeThread) return;
+    if (lastSnapshottedThreadIdRef.current === activeId) return;
+    lastSnapshottedThreadIdRef.current = activeId;
+    setOpenedAtReadMs(activeThread.readState?.[user.uid]?.toMillis?.() ?? 0);
+  }, [user, activeId, activeThread]);
+
+  // Reset the snapshot key when the active thread changes so a re-open of
+  // the same thread later in the session re-snapshots the new readState.
+  useEffect(() => {
+    return () => {
+      lastSnapshottedThreadIdRef.current = null;
+    };
+  }, [activeId]);
+
   // Mark active thread as read whenever it opens or a new message lands.
   // Stamps `readState[selfUid]=now` on the thread doc so the unread count
   // in the sidebar/bottom-nav drops immediately for this user only.
@@ -175,6 +197,20 @@ const ChatPage: React.FC = () => {
     if (!user || !activeId) return;
     void markThreadRead(activeId, user.uid);
   }, [user, activeId, messages.length]);
+
+  // Index of the first message (from someone else) newer than my previous
+  // read timestamp. Used to position the "New messages" divider. -1 = no
+  // unread boundary to render (fresh thread or all messages already seen).
+  const newMessagesDividerIndex = useMemo(() => {
+    if (!user || !openedAtReadMs) return -1;
+    for (let i = 0; i < messages.length; i++) {
+      const m = messages[i];
+      if (m.senderUid === user.uid) continue;
+      const c = m.createdAt?.toMillis?.() ?? 0;
+      if (c && c > openedAtReadMs) return i;
+    }
+    return -1;
+  }, [messages, openedAtReadMs, user]);
 
   // Typing indicator freshness ticker — re-renders the header every 2s so
   // the "typing…" label decays without a Firestore round-trip when the
