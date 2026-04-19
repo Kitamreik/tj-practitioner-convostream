@@ -168,6 +168,28 @@ const ChatPage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, activeId]);
 
+  // Snapshot of my readState[selfUid] at the moment this thread was opened —
+  // used to draw the "New messages" divider above the first message that
+  // arrived after my previous visit. Captured BEFORE we call markThreadRead,
+  // so the divider stays put while the thread is open even though the
+  // server-side readState gets bumped to "now" almost immediately.
+  const [openedAtReadMs, setOpenedAtReadMs] = useState<number>(0);
+  const lastSnapshottedThreadIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user || !activeId || !activeThread) return;
+    if (lastSnapshottedThreadIdRef.current === activeId) return;
+    lastSnapshottedThreadIdRef.current = activeId;
+    setOpenedAtReadMs(activeThread.readState?.[user.uid]?.toMillis?.() ?? 0);
+  }, [user, activeId, activeThread]);
+
+  // Reset the snapshot key when the active thread changes so a re-open of
+  // the same thread later in the session re-snapshots the new readState.
+  useEffect(() => {
+    return () => {
+      lastSnapshottedThreadIdRef.current = null;
+    };
+  }, [activeId]);
+
   // Mark active thread as read whenever it opens or a new message lands.
   // Stamps `readState[selfUid]=now` on the thread doc so the unread count
   // in the sidebar/bottom-nav drops immediately for this user only.
@@ -175,6 +197,20 @@ const ChatPage: React.FC = () => {
     if (!user || !activeId) return;
     void markThreadRead(activeId, user.uid);
   }, [user, activeId, messages.length]);
+
+  // Index of the first message (from someone else) newer than my previous
+  // read timestamp. Used to position the "New messages" divider. -1 = no
+  // unread boundary to render (fresh thread or all messages already seen).
+  const newMessagesDividerIndex = useMemo(() => {
+    if (!user || !openedAtReadMs) return -1;
+    for (let i = 0; i < messages.length; i++) {
+      const m = messages[i];
+      if (m.senderUid === user.uid) continue;
+      const c = m.createdAt?.toMillis?.() ?? 0;
+      if (c && c > openedAtReadMs) return i;
+    }
+    return -1;
+  }, [messages, openedAtReadMs, user]);
 
   // Typing indicator freshness ticker — re-renders the header every 2s so
   // the "typing…" label decays without a Firestore round-trip when the
@@ -449,11 +485,20 @@ const ChatPage: React.FC = () => {
                     <p className="truncate text-sm font-semibold">
                       {otherParticipantLabel(activeThread)}
                     </p>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {otherTyping
-                        ? "typing…"
-                        : activeThread.participantEmails.find((e) => e !== profile?.email) || ""}
-                    </p>
+                    {otherTyping ? (
+                      <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <span>typing</span>
+                        <span className="flex items-end gap-0.5" aria-hidden="true">
+                          <span className="block h-1 w-1 rounded-full bg-muted-foreground animate-typing-dot" style={{ animationDelay: "0ms" }} />
+                          <span className="block h-1 w-1 rounded-full bg-muted-foreground animate-typing-dot" style={{ animationDelay: "150ms" }} />
+                          <span className="block h-1 w-1 rounded-full bg-muted-foreground animate-typing-dot" style={{ animationDelay: "300ms" }} />
+                        </span>
+                      </span>
+                    ) : (
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        {activeThread.participantEmails.find((e) => e !== profile?.email) || ""}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {isMod && (
@@ -484,18 +529,28 @@ const ChatPage: React.FC = () => {
 
               <ScrollArea className="flex-1 px-3 py-4">
                 <div className="space-y-3">
-                  {messages.map((m) => {
+                  {messages.map((m, idx) => {
                     const own = m.senderUid === user?.uid;
                     const isEditing = editingId === m.id;
                     const isDeleted = !!m.deleted;
+                    const showDivider = idx === newMessagesDividerIndex;
                     return (
-                      <div
-                        key={m.id}
-                        className={cn(
-                          "group flex flex-col gap-1",
-                          own ? "items-end" : "items-start"
+                      <React.Fragment key={m.id}>
+                        {showDivider && (
+                          <div className="flex items-center gap-2 py-1 animate-fade-in" aria-label="New messages">
+                            <div className="h-px flex-1 bg-destructive/30" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-destructive/80">
+                              New messages
+                            </span>
+                            <div className="h-px flex-1 bg-destructive/30" />
+                          </div>
                         )}
-                      >
+                        <div
+                          className={cn(
+                            "group flex flex-col gap-1",
+                            own ? "items-end" : "items-start"
+                          )}
+                        >
                         {!own && (
                           <span className="px-1 text-[11px] text-muted-foreground">
                             {m.senderName}
@@ -582,7 +637,8 @@ const ChatPage: React.FC = () => {
                             </DropdownMenu>
                           )}
                         </div>
-                      </div>
+                        </div>
+                      </React.Fragment>
                     );
                   })}
                   <div ref={messagesEndRef} />
