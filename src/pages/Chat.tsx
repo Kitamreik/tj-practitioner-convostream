@@ -221,23 +221,6 @@ const ChatPage: React.FC = () => {
       setSending(false);
     }
   };
-    if (!user || !profile || !activeId || !draft.trim()) return;
-    setSending(true);
-    try {
-      await sendChatMessage({
-        threadId: activeId,
-        senderUid: user.uid,
-        senderName: profile.displayName,
-        senderEmail: profile.email,
-        body: draft,
-      });
-      setDraft("");
-    } catch (e: any) {
-      toast({ title: "Couldn't send", description: e?.message, variant: "destructive" });
-    } finally {
-      setSending(false);
-    }
-  };
 
   // ---- per-bubble edit / delete --------------------------------------------
   const [editingId, setEditingId] = useState<string | null>(null);
