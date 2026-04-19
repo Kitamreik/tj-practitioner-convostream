@@ -274,11 +274,12 @@ const SettingsPage: React.FC = () => {
   // Subscribe to the user's most recent escalation request so they see status updates.
   useEffect(() => {
     if (!user) return;
+    // Single-field where → no composite index required. We sort + slice to
+    // newest client-side. The user only ever has a handful of escalation
+    // requests, so the cost of fetching them all is trivial.
     const q = query(
       collection(db, "escalationRequests"),
-      where("requesterUid", "==", user.uid),
-      orderBy("createdAt", "desc"),
-      limit(1)
+      where("requesterUid", "==", user.uid)
     );
     const unsub = onSnapshot(
       q,
@@ -287,14 +288,24 @@ const SettingsPage: React.FC = () => {
           setLatestRequest(null);
           return;
         }
-        const d = snap.docs[0].data() as any;
+        const sorted = snap.docs
+          .map((d) => d.data() as any)
+          .sort((a, b) => {
+            const am = a.createdAt?.toMillis?.() ?? 0;
+            const bm = b.createdAt?.toMillis?.() ?? 0;
+            return bm - am;
+          });
+        const d = sorted[0];
         setLatestRequest({
           status: d.status || "pending",
           emailSent: !!d.emailSent,
           createdAt: d.createdAt,
         });
       },
-      () => setLatestRequest(null)
+      (err) => {
+        console.warn("Latest escalation request listener error:", err);
+        setLatestRequest(null);
+      }
     );
     return unsub;
   }, [user]);
@@ -310,21 +321,27 @@ const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     if (!user) return;
+    // Single-field where → no composite index required. Filter+sort client-side.
     const q = query(
       collection(db, "roleGrants"),
-      where("targetUid", "==", user.uid),
-      where("action", "==", "revokeEscalatedAccess"),
-      orderBy("grantedAt", "desc"),
-      limit(1)
+      where("targetUid", "==", user.uid)
     );
     const unsub = onSnapshot(
       q,
       (snap) => {
-        if (snap.empty) {
+        const revokes = snap.docs
+          .map((d) => d.data() as any)
+          .filter((d) => d.action === "revokeEscalatedAccess")
+          .sort((a, b) => {
+            const am = a.grantedAt?.toMillis?.() ?? 0;
+            const bm = b.grantedAt?.toMillis?.() ?? 0;
+            return bm - am;
+          });
+        if (revokes.length === 0) {
           setLatestRevoke(null);
           return;
         }
-        const d = snap.docs[0].data() as any;
+        const d = revokes[0];
         setLatestRevoke({
           reason: d.reason || "",
           grantedAt: d.grantedAt,
