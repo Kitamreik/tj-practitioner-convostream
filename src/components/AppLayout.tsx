@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
+import { useBackgroundGmailPoller } from "@/hooks/useBackgroundGmailPoller";
 
 const titleMap: Record<string, string> = {
   "/": "Conversations",
@@ -29,6 +30,10 @@ const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const title = titleMap[location.pathname] || "ConvoHub";
+
+  // Background Gmail → ConvoHub ingestion. No-op for non-webmasters and for
+  // webmasters who haven't yet completed the one-time consent on /gmail-api.
+  useBackgroundGmailPoller();
 
   // Auto-push the agent to one of their open assigned conversations on sign-in.
   // Runs at most once per browser session per uid, and ONLY when the user
