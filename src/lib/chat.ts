@@ -248,7 +248,21 @@ export async function sendChatMessage(args: {
 }): Promise<void> {
   const trimmed = args.body.trim();
   if (!trimmed) return;
-  // 1) append the message
+
+  // 0) Optimistic write to localStorage so the bubble is visible immediately
+  //    and survives a hard reload while Firestore is still in flight (or
+  //    while the user is offline). The merge logic in subscribeThreadMessages
+  //    de-dupes against the server echo.
+  appendOptimisticMessage(args.senderUid, args.threadId, {
+    senderUid: args.senderUid,
+    senderName: args.senderName,
+    senderEmail: args.senderEmail,
+    body: trimmed,
+    editedAt: null,
+    deleted: false,
+  });
+
+  // 1) append the message to Firestore
   await addDoc(collection(db, "chatThreads", args.threadId, "messages"), {
     senderUid: args.senderUid,
     senderName: args.senderName,
