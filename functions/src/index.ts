@@ -1276,68 +1276,124 @@ function stringifyParams(p: Record<string, unknown>): Record<string, string> {
 // dedup. This avoids Pub/Sub watch + topic setup for a single-tenant app.
 // -----------------------------------------------------------------------------
 export const pushGmailMessageToConvoHub = onCall(async (request) => {
-  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  // Wrap the entire body in a try/catch so any unexpected throw becomes a
+  // structured `HttpsError` instead of the generic "internal" the SDK
+  // surfaces by default — that opaque "internal" was the user-visible
+  // "Push to ConvoHub failed internally" toast.
+  try {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
 
-  const data = (request.data ?? {}) as {
-    messageId?: unknown;
-    threadId?: unknown;
-    from?: unknown;
-    fromEmail?: unknown;
-    subject?: unknown;
-    snippet?: unknown;
-  };
-  const messageId = typeof data.messageId === "string" ? data.messageId : "";
-  const threadId = typeof data.threadId === "string" ? data.threadId : messageId;
-  const from = typeof data.from === "string" ? data.from.slice(0, 200) : "";
-  const fromEmail = typeof data.fromEmail === "string" ? data.fromEmail.slice(0, 200) : "";
-  const subject = typeof data.subject === "string" ? data.subject.slice(0, 300) : "";
-  const snippet = typeof data.snippet === "string" ? data.snippet.slice(0, 1000) : "";
+    const data = (request.data ?? {}) as {
+      messageId?: unknown;
+      threadId?: unknown;
+      from?: unknown;
+      fromEmail?: unknown;
+      subject?: unknown;
+      snippet?: unknown;
+    };
+    const messageId = typeof data.messageId === "string" ? data.messageId : "";
+    const threadId = typeof data.threadId === "string" ? data.threadId : messageId;
+    const from = typeof data.from === "string" ? data.from.slice(0, 200) : "";
+    const fromEmail = typeof data.fromEmail === "string" ? data.fromEmail.slice(0, 200) : "";
+    const subject = typeof data.subject === "string" ? data.subject.slice(0, 300) : "";
+    const snippet = typeof data.snippet === "string" ? data.snippet.slice(0, 1000) : "";
 
-  if (!messageId || !from) {
-    throw new HttpsError("invalid-argument", "messageId and from are required.");
+    if (!messageId || !from) {
+      throw new HttpsError("invalid-argument", "messageId and from are required.");
+    }
+
+    // ---- Dedup ---------------------------------------------------------------
+    // BUG FIX: the previous dup-check queried `externalId == "gmail:${messageId}"`
+    // but `findOrCreateConversation` writes `"gmail-thread:${threadId}"`. The
+    // keys never matched, so messages were re-imported on every click and
+    // races between concurrent pushes spawned duplicate conversations.
+    //
+    // We now check both the message-level (`gmail-msg:{id}`) and thread-level
+    // (`gmail-thread:{id}`) keys. The thread-level lookup also inspects the
+    // `importedGmailMessages` map so we treat any prior import of *this*
+    // message id within an existing thread as a no-op.
+    const externalThreadId = `gmail-thread:${threadId}`;
+    const externalMessageId = `gmail-msg:${messageId}`;
+    const dupByMessage = await db
+      .collection("conversations")
+      .where("externalId", "==", externalMessageId)
+      .limit(1)
+      .get();
+    if (!dupByMessage.empty) {
+      return { ok: true, alreadyImported: true, conversationId: dupByMessage.docs[0].id };
+    }
+    const dupByThread = await db
+      .collection("conversations")
+      .where("externalId", "==", externalThreadId)
+      .limit(1)
+      .get();
+    if (!dupByThread.empty) {
+      const existing = dupByThread.docs[0];
+      const importedMap = (existing.data() as { importedGmailMessages?: Record<string, boolean> })
+        .importedGmailMessages || {};
+      if (importedMap[messageId]) {
+        return { ok: true, alreadyImported: true, conversationId: existing.id };
+      }
+    }
+
+    // ---- Create / append -----------------------------------------------------
+    let convoRef: FirebaseFirestore.DocumentReference;
+    try {
+      convoRef = await findOrCreateConversation({
+        externalId: externalThreadId,
+        externalSource: "gmail",
+        channel: "email",
+        customerName: from.replace(/<[^>]+>/, "").trim() || fromEmail || from,
+        customerEmail: fromEmail,
+        lastMessage: subject ? `${subject}: ${snippet}` : snippet || "(no preview)",
+      });
+    } catch (err) {
+      logger.error("pushGmailMessageToConvoHub: findOrCreateConversation failed", {
+        err: (err as Error).message,
+        messageId,
+        threadId,
+      });
+      throw new HttpsError(
+        "internal",
+        `Could not create or open the conversation: ${(err as Error).message}`
+      );
+    }
+
+    try {
+      await convoRef.collection("messages").add({
+        sender: "customer",
+        text: snippet || subject || "(empty Gmail message)",
+        subject,
+        channel: "email",
+        gmailMessageId: messageId,
+        gmailThreadId: threadId,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      await convoRef.update({ [`importedGmailMessages.${messageId}`]: true });
+    } catch (err) {
+      logger.error("pushGmailMessageToConvoHub: message append failed", {
+        err: (err as Error).message,
+        convoId: convoRef.id,
+        messageId,
+      });
+      throw new HttpsError(
+        "internal",
+        `Conversation created but the Gmail message could not be appended: ${(err as Error).message}`
+      );
+    }
+
+    logger.info("pushGmailMessageToConvoHub: imported", {
+      by: request.auth.uid,
+      messageId,
+      threadId,
+      convoId: convoRef.id,
+    });
+    return { ok: true, conversationId: convoRef.id, alreadyImported: false };
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    logger.error("pushGmailMessageToConvoHub: unhandled", err);
+    throw new HttpsError("internal", `Push to ConvoHub failed: ${(err as Error).message}`);
   }
-
-  // Dedup by Gmail message id so the same message can't be pushed twice.
-  const dupCheck = await db
-    .collection("conversations")
-    .where("externalId", "==", `gmail:${messageId}`)
-    .limit(1)
-    .get();
-  if (!dupCheck.empty) {
-    return { ok: true, alreadyImported: true, conversationId: dupCheck.docs[0].id };
-  }
-
-  const convoRef = await findOrCreateConversation({
-    externalId: `gmail-thread:${threadId}`,
-    externalSource: "gmail",
-    channel: "email",
-    customerName: from.replace(/<[^>]+>/, "").trim() || fromEmail || from,
-    customerEmail: fromEmail,
-    lastMessage: subject ? `${subject}: ${snippet}` : snippet,
-  });
-
-  await convoRef.collection("messages").add({
-    sender: "customer",
-    text: snippet,
-    subject,
-    channel: "email",
-    gmailMessageId: messageId,
-    gmailThreadId: threadId,
-    timestamp: admin.firestore.FieldValue.serverTimestamp(),
-  });
-
-  // Mark this specific gmail message id imported so subsequent pushes of the
-  // same message are no-ops (the thread-level externalId guards conversation
-  // dedup; this guards message-level dedup).
-  await convoRef.update({ [`importedGmailMessages.${messageId}`]: true });
-
-  logger.info("pushGmailMessageToConvoHub: imported", {
-    by: request.auth.uid,
-    messageId,
-    threadId,
-    convoId: convoRef.id,
-  });
-  return { ok: true, conversationId: convoRef.id, alreadyImported: false };
 });
 
 // -----------------------------------------------------------------------------
