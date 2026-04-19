@@ -55,6 +55,15 @@ export interface ChatThread {
   lastMessageAt?: Timestamp | null;
   lastMessageSenderUid?: string;
   archived?: boolean;
+  /**
+   * Per-participant read & typing state, keyed by uid:
+   *   readState: { [uid]: Timestamp }     // when this user last opened the thread
+   *   typingState: { [uid]: Timestamp }   // refreshed every few seconds while typing
+   * Both kept on the thread doc itself so they ride the existing onSnapshot
+   * subscription — no extra reads needed in the list view to compute unread.
+   */
+  readState?: Record<string, Timestamp>;
+  typingState?: Record<string, Timestamp>;
 }
 
 export interface ChatMessage {
