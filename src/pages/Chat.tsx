@@ -5,13 +5,19 @@ import {
   canModerateChat,
   ChatMessage,
   ChatThread,
+  clearTyping,
   editChatMessage,
+  isOtherTyping,
+  isThreadUnread,
   listOtherUsers,
+  markThreadRead,
   openOrCreateDmThread,
+  pingTyping,
   sendChatMessage,
   softDeleteChatMessage,
   subscribeMyThreads,
   subscribeThreadMessages,
+  TYPING_FRESH_MS,
 } from "@/lib/chat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -147,8 +153,14 @@ const ChatPage: React.FC = () => {
       setMessages([]);
       return;
     }
-    return subscribeThreadMessages(activeId, setMessages);
-  }, [activeId]);
+    const unsub = subscribeThreadMessages(activeId, setMessages);
+    // When this thread closes (or we switch to another), clear our
+    // typing flag so the previous recipient doesn't see a stale "typing…".
+    return () => {
+      unsub();
+      if (user) void clearTyping(activeId, user.uid);
+    };
+  }, [activeId, user]);
 
   // Auto-scroll to bottom when new messages arrive.
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -156,9 +168,43 @@ const ChatPage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, activeId]);
 
+  // Mark active thread as read whenever it opens or a new message lands.
+  // Stamps `readState[selfUid]=now` on the thread doc so the unread count
+  // in the sidebar/bottom-nav drops immediately for this user only.
+  useEffect(() => {
+    if (!user || !activeId) return;
+    void markThreadRead(activeId, user.uid);
+  }, [user, activeId, messages.length]);
+
+  // Typing indicator freshness ticker — re-renders the header every 2s so
+  // the "typing…" label decays without a Firestore round-trip when the
+  // other user stops typing.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!activeId) return;
+    const t = setInterval(() => setNowMs(Date.now()), 2_000);
+    return () => clearInterval(t);
+  }, [activeId]);
+  const otherTyping = isOtherTyping(activeThread, user?.uid ?? "", nowMs);
+
   // ---- composer ------------------------------------------------------------
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  // Throttle typing pings: at most one Firestore write per ~3s while the
+  // user is actively composing. Each ping refreshes our `typingState[uid]`
+  // timestamp on the thread; consumers use TYPING_FRESH_MS (5s) freshness.
+  const lastTypingPingRef = useRef(0);
+  const TYPING_PING_INTERVAL_MS = Math.max(3_000, TYPING_FRESH_MS - 2_000);
+  const handleDraftChange = (next: string) => {
+    setDraft(next);
+    if (!user || !activeId) return;
+    if (!next.trim()) return; // empty draft = not typing
+    const now = Date.now();
+    if (now - lastTypingPingRef.current >= TYPING_PING_INTERVAL_MS) {
+      lastTypingPingRef.current = now;
+      void pingTyping(activeId, user.uid);
+    }
+  };
   const handleSend = async () => {
     if (!user || !profile || !activeId || !draft.trim()) return;
     setSending(true);
@@ -171,6 +217,10 @@ const ChatPage: React.FC = () => {
         body: draft,
       });
       setDraft("");
+      // Clear our typing flag immediately so the recipient's "typing…"
+      // label disappears without waiting for the freshness window.
+      lastTypingPingRef.current = 0;
+      void clearTyping(activeId, user.uid);
     } catch (e: any) {
       toast({ title: "Couldn't send", description: e?.message, variant: "destructive" });
     } finally {
@@ -307,6 +357,7 @@ const ChatPage: React.FC = () => {
               {threads.map((t) => {
                 const label = otherParticipantLabel(t);
                 const active = t.id === activeId;
+                const unread = !!user && isThreadUnread(t, user.uid) && !active;
                 return (
                   <button
                     key={t.id}
@@ -316,17 +367,25 @@ const ChatPage: React.FC = () => {
                       active ? "bg-accent" : "hover:bg-accent/50"
                     )}
                   >
-                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                    <div className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                       {label.charAt(0).toUpperCase()}
+                      {unread && (
+                        <span
+                          className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-card"
+                          aria-label="Unread messages"
+                        />
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="truncate text-sm font-medium">{label}</p>
+                        <p className={cn("truncate text-sm", unread ? "font-semibold text-foreground" : "font-medium")}>
+                          {label}
+                        </p>
                         <span className="flex-shrink-0 text-[10px] text-muted-foreground">
                           {t.lastMessageAt ? formatTime(t.lastMessageAt) : ""}
                         </span>
                       </div>
-                      <p className="truncate text-xs text-muted-foreground">
+                      <p className={cn("truncate text-xs", unread ? "text-foreground" : "text-muted-foreground")}>
                         {t.lastMessagePreview || "No messages yet"}
                       </p>
                     </div>
@@ -369,7 +428,9 @@ const ChatPage: React.FC = () => {
                       {otherParticipantLabel(activeThread)}
                     </p>
                     <p className="truncate text-[11px] text-muted-foreground">
-                      {activeThread.participantEmails.find((e) => e !== profile?.email) || ""}
+                      {otherTyping
+                        ? "typing…"
+                        : activeThread.participantEmails.find((e) => e !== profile?.email) || ""}
                     </p>
                   </div>
                 </div>
@@ -503,7 +564,16 @@ const ChatPage: React.FC = () => {
                   <Textarea
                     placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
                     value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
+                    onChange={(e) => handleDraftChange(e.target.value)}
+                    onBlur={() => {
+                      // Drop the typing flag immediately when the composer
+                      // loses focus so the recipient doesn't see a stale
+                      // "typing…" label after I tab away.
+                      if (user && activeId) {
+                        lastTypingPingRef.current = 0;
+                        void clearTyping(activeId, user.uid);
+                      }
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();

@@ -31,6 +31,7 @@ import { db } from "@/lib/firebase";
 import { getActiveCount, subscribeRecordings } from "@/lib/fileRecordings";
 import { getBoolPref, subscribeBoolPref } from "@/lib/userPrefs";
 import { useIntegrationsHealth } from "@/hooks/useIntegrationsHealth";
+import { useChatUnreadCount } from "@/hooks/useChatUnreadCount";
 
 interface NavItem {
   label: string;
@@ -49,7 +50,7 @@ const navItems: NavItem[] = [
   { label: "Staff Updates", icon: <Megaphone className="h-5 w-5" />, path: "/staff-updates", badgeKey: "staff" },
   { label: "Notifications", icon: <Bell className="h-5 w-5" />, path: "/notifications", badgeKey: "notifications" },
   { label: "Conversations", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" },
-  { label: "Team Chat", icon: <MessagesSquare className="h-5 w-5" />, path: "/chat" },
+  { label: "Team Chat", icon: <MessagesSquare className="h-5 w-5" />, path: "/chat", badgeKey: "chat" },
   { label: "Agent Logs", icon: <ScrollText className="h-5 w-5" />, path: "/agent-logs" },
   { label: "File Recordings", icon: <FileVideo className="h-5 w-5" />, path: "/file-recordings", badgeKey: "recordings" },
   { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations", webmasterOrEscalated: true },
@@ -68,6 +69,7 @@ const AppSidebar: React.FC = () => {
   const [notificationCount, setNotificationCount] = useState(0);
   const [staffActive, setStaffActive] = useState(0);
   const [recordingsActive, setRecordingsActive] = useState<number>(() => getActiveCount());
+  const chatUnread = useChatUnreadCount();
 
   // Listen for unread conversations
   useEffect(() => {
@@ -158,6 +160,7 @@ const AppSidebar: React.FC = () => {
     if (item.badgeKey === "notifications" && notificationCount > 0) return notificationCount;
     if (item.badgeKey === "staff" && staffActive > 0) return staffActive;
     if (item.badgeKey === "recordings" && recordingsActive > 0) return recordingsActive;
+    if (item.badgeKey === "chat" && chatUnread > 0) return chatUnread;
     return 0;
   };
 
