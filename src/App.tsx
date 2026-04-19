@@ -10,6 +10,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AppLayout from "./components/AppLayout";
 import Conversations from "./pages/Conversations";
+import Home from "./pages/Home";
 import Agents from "./pages/Agents";
 import Notifications from "./pages/Notifications";
 import Integrations from "./pages/Integrations";
@@ -50,6 +51,18 @@ const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>;
 };
 
+/**
+ * The `/` route renders the new Support call-center home ONLY for the
+ * support@convohub.dev account; everyone else continues to land on the
+ * full Conversations inbox so existing workflows are untouched.
+ */
+const SUPPORT_EMAIL = "support@convohub.dev";
+const SupportHomeOrConversations: React.FC = () => {
+  const { profile } = useAuth();
+  const isSupport = (profile?.email || "").trim().toLowerCase() === SUPPORT_EMAIL;
+  return isSupport ? <Home /> : <Conversations />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
@@ -69,7 +82,8 @@ const App = () => (
                   </ProtectedRoute>
                 }
               >
-                <Route path="/" element={<Conversations />} />
+                <Route path="/" element={<SupportHomeOrConversations />} />
+                <Route path="/conversations" element={<Conversations />} />
                 <Route path="/conversations/:id" element={<Conversations />} />
                 <Route path="/agents" element={<Agents />} />
                 {/* Legacy redirect: /people → /agents */}

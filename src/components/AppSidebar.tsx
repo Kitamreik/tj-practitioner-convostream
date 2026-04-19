@@ -41,20 +41,17 @@ interface NavItem {
   badgeKey?: string;
 }
 
+// Trimmed nav: Icon Key, Analytics, and Agents removed per product direction
+// (the routes themselves still exist so deep links don't 404 — only the
+// sidebar entry points are gone). Webmaster-only utility links remain.
 const navItems: NavItem[] = [
-  // Reordered per webmaster request: surface Icon Key, Staff Updates, and
-  // Notifications above the Conversations inbox so quick-reference items are
-  // one click away on every load.
-  { label: "Icon Key", icon: <KeyRound className="h-5 w-5" />, path: "/icon-key" },
   { label: "Staff Updates", icon: <Megaphone className="h-5 w-5" />, path: "/staff-updates", badgeKey: "staff" },
   { label: "Notifications", icon: <Bell className="h-5 w-5" />, path: "/notifications", badgeKey: "notifications" },
   { label: "Conversations", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" },
-  { label: "Agents", icon: <Users className="h-5 w-5" />, path: "/agents" },
   { label: "Agent Logs", icon: <ScrollText className="h-5 w-5" />, path: "/agent-logs" },
   { label: "File Recordings", icon: <FileVideo className="h-5 w-5" />, path: "/file-recordings", badgeKey: "recordings" },
   { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations", webmasterOrEscalated: true },
   { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit", roles: ["webmaster"] },
-  { label: "Analytics", icon: <BarChart3 className="h-5 w-5" />, path: "/analytics", webmasterOrEscalated: true },
   { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail", webmasterOrEscalated: true },
   { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" },
   { label: "Settings", icon: <Settings className="h-5 w-5" />, path: "/settings" },

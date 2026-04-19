@@ -25,22 +25,19 @@ interface NavItem {
 }
 
 const chatsItem: NavItem = { label: "Chats", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" };
-const peopleItem: NavItem = { label: "Agents", icon: <Users className="h-5 w-5" />, path: "/agents" };
 const alertsItem: NavItem = { label: "Alerts", icon: <Bell className="h-5 w-5" />, path: "/notifications", badgeKey: "notifications" };
-const statsItem: NavItem = { label: "Stats", icon: <BarChart3 className="h-5 w-5" />, path: "/analytics", webmasterOrEscalated: true };
+const archiveItem: NavItem = { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" };
+const settingsItem: NavItem = { label: "Settings", icon: <SettingsIcon className="h-5 w-5" />, path: "/settings" };
 
+// Trimmed: Icon Key, Analytics, and Agents removed from the More sheet
+// per product direction. Webmaster-gated utility entries remain.
 const moreItems: NavItem[] = [
-  // Reordered: quick-reference + announcements first so they sit above the
-  // utility links inside the More sheet (mirrors the desktop sidebar order).
-  { label: "Icon Key", icon: <KeyRound className="h-5 w-5" />, path: "/icon-key" },
   { label: "Staff Updates", icon: <Megaphone className="h-5 w-5" />, path: "/staff-updates", badgeKey: "staff" },
   { label: "Agent Logs", icon: <ScrollText className="h-5 w-5" />, path: "/agent-logs" },
   { label: "File Recordings", icon: <FileVideo className="h-5 w-5" />, path: "/file-recordings", badgeKey: "recordings" },
   { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations", webmasterOrEscalated: true },
   { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit", roles: ["webmaster"] },
   { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail", webmasterOrEscalated: true },
-  { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" },
-  { label: "Settings", icon: <SettingsIcon className="h-5 w-5" />, path: "/settings" },
 ];
 
 const BottomNav: React.FC = () => {
@@ -118,10 +115,10 @@ const BottomNav: React.FC = () => {
   };
 
   const escalated = profile?.role === "webmaster" || profile?.escalatedAccess === true;
-  // Non-escalated admins lose the Stats slot; surface Archive instead so the bar stays useful.
-  const primaryItems: NavItem[] = escalated
-    ? [chatsItem, peopleItem, alertsItem, statsItem]
-    : [chatsItem, peopleItem, alertsItem, { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" }];
+  // Bottom bar after the trim: Chats, Alerts, Archive, Settings — same for
+  // every role. Webmaster-gated entries live inside the More sheet, which
+  // consumes `escalated` further down to filter optional rows.
+  const primaryItems: NavItem[] = [chatsItem, alertsItem, archiveItem, settingsItem];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch border-t border-border bg-background pb-[env(safe-area-inset-bottom)] md:hidden">
