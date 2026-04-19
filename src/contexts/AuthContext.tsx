@@ -26,6 +26,8 @@ interface UserProfile {
   createdAt: Date;
   /** Set by webmasters; grants an admin temporary access to advanced pages. */
   escalatedAccess?: boolean;
+  /** Set by webmasters; unlocks the Support call-center home and chat-mod powers. */
+  supportAccess?: boolean;
 }
 
 interface AuthContextType {

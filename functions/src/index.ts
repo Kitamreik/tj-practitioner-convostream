@@ -568,6 +568,61 @@ export const demoteAgent = onCall(async (request) => {
 });
 
 /**
+ * Webmaster-only: grant or revoke "Support" access on any user's profile.
+ * Sets/clears `users/{uid}.supportAccess` (boolean). When true, the account
+ * sees the Support call-center home at `/` and can moderate Team Chat —
+ * mirroring what the legacy `support@convohub.dev` email used to unlock.
+ *
+ * Uses the `_serverRoleWrite` sentinel so `enforceUserRoleOnWrite` accepts
+ * the privileged write. Recorded in `roleGrants` with action="grantSupport"
+ * or "revokeSupport".
+ *
+ * Request: { targetUid: string, grant: boolean }
+ */
+export const setSupportAccess = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerUid = request.auth.uid;
+  const callerSnap = await db.doc(`users/${callerUid}`).get();
+  if ((callerSnap.data() as { role?: string } | undefined)?.role !== "webmaster") {
+    throw new HttpsError("permission-denied", "Webmasters only.");
+  }
+
+  const data = (request.data ?? {}) as { targetUid?: unknown; grant?: unknown };
+  const targetUid = typeof data.targetUid === "string" ? data.targetUid : "";
+  const grant = data.grant === true;
+  if (!targetUid) throw new HttpsError("invalid-argument", "targetUid required.");
+
+  const targetRef = db.doc(`users/${targetUid}`);
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) throw new HttpsError("not-found", "User not found.");
+  const targetData = targetSnap.data() as { email?: string; role?: string; supportAccess?: boolean };
+  const previous = !!targetData.supportAccess;
+
+  if (previous === grant) {
+    return { ok: true, unchanged: true, supportAccess: grant };
+  }
+
+  await targetRef.update({
+    supportAccess: grant ? true : admin.firestore.FieldValue.delete(),
+    _serverRoleWrite: true,
+  });
+
+  await db.collection("roleGrants").add({
+    targetUid,
+    targetEmail: targetData.email ?? null,
+    previousRole: targetData.role ?? "agent",
+    newRole: targetData.role ?? "agent",
+    grantedByUid: callerUid,
+    grantedByEmail: callerSnap.data()?.email ?? null,
+    grantedAt: admin.firestore.FieldValue.serverTimestamp(),
+    action: grant ? "grantSupport" : "revokeSupport",
+  });
+
+  logger.info("setSupportAccess: updated", { targetUid, grant, by: callerUid });
+  return { ok: true, supportAccess: grant };
+});
+
+/**
  * Webmaster-only: generate a Firebase Auth signup link for a target email
  * so a webmaster can invite a new agent without them self-registering.
  *

@@ -91,10 +91,12 @@ export function dmThreadId(uidA: string, uidB: string): string {
 export function canModerateChat(profile: {
   role?: string | null;
   email?: string | null;
+  supportAccess?: boolean | null;
 } | null | undefined): boolean {
   if (!profile) return false;
   if (profile.role === "admin" || profile.role === "webmaster") return true;
   if ((profile.email || "").trim().toLowerCase() === SUPPORT_EMAIL) return true;
+  if (profile.supportAccess === true) return true;
   return false;
 }
 

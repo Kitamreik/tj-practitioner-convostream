@@ -50,6 +50,14 @@ service cloud.firestore {
             && resource.data.get('escalatedAccess', false) == request.resource.data.escalatedAccess);
     }
 
+    // Same idea for the `supportAccess` field — only webmasters can grant/revoke
+    // the Support call-center interface and chat-moderator powers.
+    function supportAccessUnchanged() {
+      return !('supportAccess' in request.resource.data)
+        || (resource != null
+            && resource.data.get('supportAccess', false) == request.resource.data.supportAccess);
+    }
+
     // -------- users/{uid} --------
     // Users can read & write their own profile, but cannot set or change
     // `role` or `escalatedAccess`. Webmasters can read any profile and are
@@ -71,9 +79,9 @@ service cloud.firestore {
         )
         && !('escalatedAccess' in request.resource.data);
 
-      // Update: self can update profile fields but cannot mutate `role`
-      // or `escalatedAccess`. Webmasters can update anything.
-      allow update: if (isSelf(uid) && roleUnchanged() && escalatedAccessUnchanged())
+      // Update: self can update profile fields but cannot mutate `role`,
+      // `escalatedAccess`, or `supportAccess`. Webmasters can update anything.
+      allow update: if (isSelf(uid) && roleUnchanged() && escalatedAccessUnchanged() && supportAccessUnchanged())
         || isWebmaster();
 
       // Delete: webmaster only.
@@ -363,6 +371,7 @@ service cloud.firestore {
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
           || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'webmaster'
           || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'support@convohub.dev'
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('supportAccess', false) == true
         );
     }
 
