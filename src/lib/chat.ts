@@ -252,8 +252,8 @@ export async function sendChatMessage(args: {
   // 0) Optimistic write to localStorage so the bubble is visible immediately
   //    and survives a hard reload while Firestore is still in flight (or
   //    while the user is offline). The merge logic in subscribeThreadMessages
-  //    de-dupes against the server echo.
-  appendOptimisticMessage(args.senderUid, args.threadId, {
+  //    de-dupes against the server echo via the shared clientId.
+  const optimistic = appendOptimisticMessage(args.senderUid, args.threadId, {
     senderUid: args.senderUid,
     senderName: args.senderName,
     senderEmail: args.senderEmail,
@@ -262,23 +262,23 @@ export async function sendChatMessage(args: {
     deleted: false,
   });
 
-  // 1) append the message to Firestore
-  await addDoc(collection(db, "chatThreads", args.threadId, "messages"), {
+  // 1) Enqueue in the persisted outbox so a failed/offline send auto-retries
+  //    on the next reconnect. The outbox owns the actual addDoc + thread
+  //    preview update — sendChatMessage never touches Firestore directly,
+  //    which keeps the offline path and online path identical.
+  const { enqueueOutbox, flushOutbox } = await import("@/lib/chatOutbox");
+  enqueueOutbox({
+    clientId: optimistic.clientId,
+    threadId: args.threadId,
     senderUid: args.senderUid,
     senderName: args.senderName,
     senderEmail: args.senderEmail,
     body: trimmed,
-    createdAt: serverTimestamp(),
-    editedAt: null,
-    deleted: false,
   });
-  // 2) bump thread preview so the list re-orders without an extra read.
-  await updateDoc(doc(db, "chatThreads", args.threadId), {
-    lastMessagePreview: trimmed.slice(0, 140),
-    lastMessageAt: serverTimestamp(),
-    lastMessageSenderUid: args.senderUid,
-    updatedAt: serverTimestamp(),
-  });
+
+  // 2) Try to flush right away. If we're offline this will no-op and the
+  //    message will sit in the outbox until startOutboxAutoFlush re-fires.
+  void flushOutbox(args.senderUid);
 }
 
 /**
