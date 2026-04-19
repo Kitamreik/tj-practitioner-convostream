@@ -269,6 +269,10 @@ const AuditLogs: React.FC = () => {
   const [loadingPeople, setLoadingPeople] = useState(true);
   const [peoplePage, setPeoplePage] = useState(1);
 
+  const [support, setSupport] = useState<SupportAuditRow[]>([]);
+  const [loadingSupport, setLoadingSupport] = useState(true);
+  const [supportPage, setSupportPage] = useState(1);
+
   useEffect(() => {
     const q = query(collection(db, "login_attempts"), orderBy("timestamp", "desc"), limit(200));
     const unsub = onSnapshot(
@@ -317,10 +321,48 @@ const AuditLogs: React.FC = () => {
     return unsub;
   }, []);
 
+  // Subscribe to grant/revoke Support events. The `setSupportAccess` Cloud
+  // Function writes to `roleGrants` with action="grantSupport" or
+  // "revokeSupport", so a single `where in` query covers both. Ordered by
+  // grantedAt desc to match the other tabs' newest-first layout.
+  useEffect(() => {
+    const q = query(
+      collection(db, "roleGrants"),
+      where("action", "in", ["grantSupport", "revokeSupport"]),
+      orderBy("grantedAt", "desc"),
+      limit(200)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        setSupport(
+          snapshot.docs.map((d) => {
+            const data = d.data() as any;
+            return {
+              id: d.id,
+              action: data.action ?? "grantSupport",
+              targetUid: data.targetUid ?? "",
+              targetEmail: data.targetEmail ?? null,
+              grantedByEmail: data.grantedByEmail ?? null,
+              grantedAt: data.grantedAt,
+            } as SupportAuditRow;
+          })
+        );
+        setLoadingSupport(false);
+      },
+      (error) => {
+        console.error("Failed to listen to support roleGrants:", error);
+        setLoadingSupport(false);
+      }
+    );
+    return unsub;
+  }, []);
+
   // ---------- Pagination slices ----------
   const loginPageCount = Math.max(1, Math.ceil(loginAttempts.length / PAGE_SIZE));
   const notePageCount = Math.max(1, Math.ceil(notes.length / PAGE_SIZE));
   const peoplePageCount = Math.max(1, Math.ceil(people.length / PAGE_SIZE));
+  const supportPageCount = Math.max(1, Math.ceil(support.length / PAGE_SIZE));
 
   // Clamp current page when underlying list shrinks (e.g. row deleted on last page).
   useEffect(() => {
