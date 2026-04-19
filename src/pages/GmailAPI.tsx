@@ -19,6 +19,7 @@ import {
   Wifi,
   MailCheck,
   Send as SendIcon,
+  ExternalLink,
 } from "lucide-react";
 import DOMPurify from "dompurify";
 import { Button } from "@/components/ui/button";
