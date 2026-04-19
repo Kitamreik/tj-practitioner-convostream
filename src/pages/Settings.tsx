@@ -1014,6 +1014,34 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  // ---- Grant / revoke Support access (webmaster only) ----
+  // Flips `users/{uid}.supportAccess` via the `setSupportAccess` callable.
+  // Granted users land on the Support call-center home at `/` next time they
+  // load the app and gain chat-moderator powers.
+  const [supportChangingUid, setSupportChangingUid] = useState<string | null>(null);
+  const setSupportAccessFor = async (acc: AccountRow, grant: boolean) => {
+    setSupportChangingUid(acc.uid);
+    try {
+      const fn = httpsCallable<{ targetUid: string; grant: boolean }, { ok: boolean; supportAccess: boolean }>(
+        functions,
+        "setSupportAccess"
+      );
+      await fn({ targetUid: acc.uid, grant });
+      toast({
+        title: grant ? "Support access granted" : "Support access revoked",
+        description: `${acc.email || acc.uid} ${grant ? "now sees the Support home and can moderate chat." : "no longer has Support access."}`,
+      });
+    } catch (e: any) {
+      toast({
+        title: grant ? "Grant failed" : "Revoke failed",
+        description: e?.message || "Unable to update Support access.",
+        variant: "destructive",
+      });
+    } finally {
+      setSupportChangingUid(null);
+    }
+  };
+
   // ---- Rename history (webmaster only) ----
   // Subscribe to recent renameAgent entries from `roleGrants` and group by targetUid
   // so each agent row can show its most recent renames inline.
