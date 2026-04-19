@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { MessageCircle, Users, Bell, BarChart3, Menu } from "lucide-react";
+import { MessageCircle, Users, Bell, BarChart3, Menu, MessagesSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -25,6 +25,7 @@ interface NavItem {
 }
 
 const chatsItem: NavItem = { label: "Chats", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" };
+const teamChatItem: NavItem = { label: "Team", icon: <MessagesSquare className="h-5 w-5" />, path: "/chat" };
 const alertsItem: NavItem = { label: "Alerts", icon: <Bell className="h-5 w-5" />, path: "/notifications", badgeKey: "notifications" };
 const archiveItem: NavItem = { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" };
 const settingsItem: NavItem = { label: "Settings", icon: <SettingsIcon className="h-5 w-5" />, path: "/settings" };
@@ -118,7 +119,7 @@ const BottomNav: React.FC = () => {
   // Bottom bar after the trim: Chats, Alerts, Archive, Settings — same for
   // every role. Webmaster-gated entries live inside the More sheet, which
   // consumes `escalated` further down to filter optional rows.
-  const primaryItems: NavItem[] = [chatsItem, alertsItem, archiveItem, settingsItem];
+  const primaryItems: NavItem[] = [chatsItem, teamChatItem, alertsItem, archiveItem, settingsItem];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch border-t border-border bg-background pb-[env(safe-area-inset-bottom)] md:hidden">
