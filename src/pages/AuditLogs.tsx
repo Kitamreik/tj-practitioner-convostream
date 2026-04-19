@@ -10,6 +10,7 @@ import {
   doc,
   writeBatch,
   getDocs,
+  where,
 } from "firebase/firestore";
 import { db, functions } from "@/lib/firebase";
 import { httpsCallable } from "firebase/functions";
@@ -32,6 +33,7 @@ import {
   Download,
   Clock,
   ArrowUpDown,
+  LifeBuoy,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -84,6 +86,16 @@ interface PeopleAuditRow {
   toRole?: "agent" | "admin" | "webmaster";
   actor: string;
   timestamp: any;
+}
+
+interface SupportAuditRow {
+  id: string;
+  /** "grantSupport" | "revokeSupport" */
+  action: string;
+  targetUid: string;
+  targetEmail: string | null;
+  grantedByEmail: string | null;
+  grantedAt: any;
 }
 
 const PAGE_SIZE = 10;
@@ -257,6 +269,10 @@ const AuditLogs: React.FC = () => {
   const [loadingPeople, setLoadingPeople] = useState(true);
   const [peoplePage, setPeoplePage] = useState(1);
 
+  const [support, setSupport] = useState<SupportAuditRow[]>([]);
+  const [loadingSupport, setLoadingSupport] = useState(true);
+  const [supportPage, setSupportPage] = useState(1);
+
   useEffect(() => {
     const q = query(collection(db, "login_attempts"), orderBy("timestamp", "desc"), limit(200));
     const unsub = onSnapshot(
@@ -305,10 +321,48 @@ const AuditLogs: React.FC = () => {
     return unsub;
   }, []);
 
+  // Subscribe to grant/revoke Support events. The `setSupportAccess` Cloud
+  // Function writes to `roleGrants` with action="grantSupport" or
+  // "revokeSupport", so a single `where in` query covers both. Ordered by
+  // grantedAt desc to match the other tabs' newest-first layout.
+  useEffect(() => {
+    const q = query(
+      collection(db, "roleGrants"),
+      where("action", "in", ["grantSupport", "revokeSupport"]),
+      orderBy("grantedAt", "desc"),
+      limit(200)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        setSupport(
+          snapshot.docs.map((d) => {
+            const data = d.data() as any;
+            return {
+              id: d.id,
+              action: data.action ?? "grantSupport",
+              targetUid: data.targetUid ?? "",
+              targetEmail: data.targetEmail ?? null,
+              grantedByEmail: data.grantedByEmail ?? null,
+              grantedAt: data.grantedAt,
+            } as SupportAuditRow;
+          })
+        );
+        setLoadingSupport(false);
+      },
+      (error) => {
+        console.error("Failed to listen to support roleGrants:", error);
+        setLoadingSupport(false);
+      }
+    );
+    return unsub;
+  }, []);
+
   // ---------- Pagination slices ----------
   const loginPageCount = Math.max(1, Math.ceil(loginAttempts.length / PAGE_SIZE));
   const notePageCount = Math.max(1, Math.ceil(notes.length / PAGE_SIZE));
   const peoplePageCount = Math.max(1, Math.ceil(people.length / PAGE_SIZE));
+  const supportPageCount = Math.max(1, Math.ceil(support.length / PAGE_SIZE));
 
   // Clamp current page when underlying list shrinks (e.g. row deleted on last page).
   useEffect(() => {
@@ -320,6 +374,9 @@ const AuditLogs: React.FC = () => {
   useEffect(() => {
     if (peoplePage > peoplePageCount) setPeoplePage(peoplePageCount);
   }, [peoplePage, peoplePageCount]);
+  useEffect(() => {
+    if (supportPage > supportPageCount) setSupportPage(supportPageCount);
+  }, [supportPage, supportPageCount]);
 
   const visibleLogins = useMemo(
     () => loginAttempts.slice((loginPage - 1) * PAGE_SIZE, loginPage * PAGE_SIZE),
@@ -332,6 +389,10 @@ const AuditLogs: React.FC = () => {
   const visiblePeople = useMemo(
     () => people.slice((peoplePage - 1) * PAGE_SIZE, peoplePage * PAGE_SIZE),
     [people, peoplePage]
+  );
+  const visibleSupport = useMemo(
+    () => support.slice((supportPage - 1) * PAGE_SIZE, supportPage * PAGE_SIZE),
+    [support, supportPage]
   );
 
   // ---------- Delete handlers ----------
@@ -543,7 +604,7 @@ const AuditLogs: React.FC = () => {
       </div>
 
       <Tabs defaultValue="logins" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="logins" className="gap-2">
             <LogIn className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Login Attempts</span>
@@ -558,6 +619,11 @@ const AuditLogs: React.FC = () => {
             <UserPlus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Agent Activity</span>
             <span className="sm:hidden">Agents</span>
+          </TabsTrigger>
+          <TabsTrigger value="support" className="gap-2">
+            <LifeBuoy className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Support Access</span>
+            <span className="sm:hidden">Support</span>
           </TabsTrigger>
         </TabsList>
 
@@ -907,6 +973,100 @@ const AuditLogs: React.FC = () => {
               pageCount={peoplePageCount}
               onChange={setPeoplePage}
               totalLabel={`${people.length} entries`}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="support">
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+            <p className="text-xs text-muted-foreground">
+              Webmaster grants and revocations of Support access. Support users can moderate Team
+              Chat and land on the Support call-center home. Entries originate from{" "}
+              <code className="rounded bg-muted px-1 py-0.5">setSupportAccess</code> and are
+              server-written, so they cannot be edited or cleared from the client.
+            </p>
+            <ExportCsvButton
+              label="support access"
+              count={support.length}
+              onExport={() =>
+                downloadCsv(
+                  "support-access",
+                  ["Action", "Target Email", "Target UID", "Granted By", "Timestamp"],
+                  support.map((s) => [
+                    s.action === "grantSupport" ? "Granted" : "Revoked",
+                    s.targetEmail ?? "",
+                    s.targetUid,
+                    s.grantedByEmail ?? "",
+                    s.grantedAt?.toDate?.()?.toISOString() ?? "",
+                  ])
+                )
+              }
+            />
+          </div>
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px]">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Action</th>
+                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Target</th>
+                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">By</th>
+                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingSupport ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">Loading...</td>
+                    </tr>
+                  ) : visibleSupport.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">
+                        No Support access changes yet. Grant or revoke Support from Settings → Accounts to see entries here.
+                      </td>
+                    </tr>
+                  ) : (
+                    visibleSupport.map((s, i) => {
+                      const granted = s.action === "grantSupport";
+                      return (
+                        <motion.tr
+                          key={s.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: i * 0.02 }}
+                          className="border-b border-border last:border-0"
+                        >
+                          <td className="px-4 md:px-6 py-3">
+                            <Badge variant={granted ? "default" : "destructive"} className="gap-1 text-xs">
+                              <LifeBuoy className="h-3 w-3" />
+                              {granted ? "Granted" : "Revoked"}
+                            </Badge>
+                          </td>
+                          <td className="px-4 md:px-6 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                                {(s.targetEmail || "?").charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate">{s.targetEmail || "—"}</p>
+                                <p className="text-[10px] text-muted-foreground font-mono truncate">{s.targetUid}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 md:px-6 py-3 text-sm text-muted-foreground">{s.grantedByEmail || "—"}</td>
+                          <td className="px-4 md:px-6 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatTs(s.grantedAt)}</td>
+                        </motion.tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={supportPage}
+              pageCount={supportPageCount}
+              onChange={setSupportPage}
+              totalLabel={`${support.length} entries`}
             />
           </div>
         </TabsContent>

@@ -42,6 +42,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import PullToRefresh from "@/components/PullToRefresh";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSupportUsers, isSupportByName, isSupportByEmail } from "@/hooks/useSupportUsers";
+import { SupportBadge } from "@/components/SupportBadge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -347,6 +349,7 @@ const Conversations: React.FC = () => {
   };
   const replyInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
+  const supportUsers = useSupportUsers();
 
   // Note: the previous resizable thread-list pane was removed in favor of an
   // overlay layout — selecting a conversation now hides the list and shows
@@ -1116,6 +1119,9 @@ const Conversations: React.FC = () => {
                     {convo.assignedAgent && (
                       <span className="inline-flex h-5 items-center gap-1 rounded-full bg-primary/5 px-1.5 text-[10px] text-primary">
                         <UserCheck className="h-2.5 w-2.5" />{convo.assignedAgent.split(" ")[0]}
+                        {(isSupportByName(supportUsers, convo.assignedAgent) || isSupportByEmail(supportUsers, convo.assignedAgent)) && (
+                          <SupportBadge iconOnly className="ml-0.5" />
+                        )}
                       </span>
                     )}
                     {(noteCounts[convo.id] ?? 0) > 0 && (
