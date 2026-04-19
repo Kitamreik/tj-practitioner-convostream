@@ -1336,7 +1336,47 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Webmaster-only: Slack DM webhook for the Call/Text shortcut.
+        {/* Webmaster-only: Background Gmail ingestion opt-in. Per-uid
+            localStorage pref consumed by useBackgroundGmailPoller, which is
+            mounted globally in AppLayout. */}
+        {isWebmaster && (
+          <div id="bg-gmail" className="rounded-xl border border-border bg-card p-6">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-2">
+              <Mail className="h-5 w-5 text-primary" />
+              Background Gmail ingestion
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              When enabled, ConvoHub silently polls your Gmail INBOX every ~2 minutes and pushes new messages into the Conversations queue. Pausing here stops polling without revoking your Google OAuth consent — flip it back on any time to resume.
+            </p>
+            <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
+              <div className="space-y-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">
+                  Auto-ingest INBOX into Conversations
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Requires a one-time Google authorization on{" "}
+                  <Link to="/gmail" className="underline underline-offset-2 hover:text-foreground">
+                    Gmail API
+                  </Link>
+                  . Server-side dedup prevents duplicates.
+                </p>
+              </div>
+              <Switch
+                checked={bgGmailEnabled}
+                onCheckedChange={handleToggleBgGmail}
+                aria-label="Background Gmail ingestion"
+              />
+            </div>
+            {bgGmailEnabled && (
+              <p className="mt-3 text-[11px] text-success flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                Polling active — next sweep within 2 minutes.
+              </p>
+            )}
+          </div>
+        )}
+
+
             Stored team-wide in `appSettings/webmasterContact.slackWebhookUrl`
             so every agent's browser can read it (per-user integrations creds
             are owner-only). */}
