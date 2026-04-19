@@ -98,6 +98,174 @@ export const promoteToWebmaster = onCall(async (request) => {
 });
 
 /**
+ * One-shot bootstrap for first-time setup: provisions support@convohub.dev as
+ * the initial webmaster + Support user when no webmaster exists yet.
+ *
+ * This is the ONLY role-mutation callable that does not require an
+ * authenticated webmaster caller — by definition there is no webmaster to
+ * authenticate as on a fresh install. To prevent it from being abused after
+ * setup, it refuses to run as soon as any `users/*` document has
+ * `role === "webmaster"`.
+ *
+ * Behavior:
+ *   - If the Firebase Auth user does not exist, it is created with the
+ *     caller-supplied `initialPassword` (min 8 chars). If it already exists,
+ *     `initialPassword` is ignored.
+ *   - The `users/{uid}` profile is upserted with role=webmaster,
+ *     supportAccess=true, escalatedAccess=true, and the `_serverRoleWrite`
+ *     sentinel so the `enforceUserRoleOnWrite` trigger accepts the write.
+ *   - An audit entry is written to `roleGrants` with
+ *     action="bootstrapSupportAccount".
+ *   - The plaintext `initialPassword` (when supplied) is mirrored into
+ *     `managedPasswords/{uid}` for parity with `setUserPassword`.
+ *
+ * Request: { initialPassword?: string }   (only used if Auth user is created)
+ * Response: { ok: true, uid, email, created: boolean }
+ */
+const SUPPORT_EMAIL = "support@convohub.dev";
+const SUPPORT_DISPLAY_NAME = "Support";
+
+export const bootstrapSupportAccount = onCall(async (request) => {
+  // Hard gate: refuse if any webmaster already exists.
+  const existingWebmasters = await db
+    .collection("users")
+    .where("role", "==", "webmaster")
+    .limit(1)
+    .get();
+  if (!existingWebmasters.empty) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Bootstrap is disabled: a webmaster already exists. Use promoteToWebmaster instead."
+    );
+  }
+
+  const data = (request.data ?? {}) as { initialPassword?: unknown };
+  const initialPassword =
+    typeof data.initialPassword === "string" ? data.initialPassword : "";
+
+  // Look up or create the Firebase Auth user for support@convohub.dev.
+  let authUser: admin.auth.UserRecord;
+  let created = false;
+  try {
+    authUser = await admin.auth().getUserByEmail(SUPPORT_EMAIL);
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code !== "auth/user-not-found") {
+      logger.error("bootstrapSupportAccount: auth lookup failed", err);
+      throw new HttpsError("internal", `Auth lookup failed: ${(err as Error).message}`);
+    }
+    if (initialPassword.length < 8) {
+      throw new HttpsError(
+        "invalid-argument",
+        "initialPassword (min 8 chars) is required to create the support account."
+      );
+    }
+    if (initialPassword.length > 128) {
+      throw new HttpsError("invalid-argument", "initialPassword must be 128 characters or fewer.");
+    }
+    try {
+      authUser = await admin.auth().createUser({
+        email: SUPPORT_EMAIL,
+        password: initialPassword,
+        displayName: SUPPORT_DISPLAY_NAME,
+        emailVerified: false,
+      });
+      created = true;
+    } catch (createErr: unknown) {
+      logger.error("bootstrapSupportAccount: auth create failed", createErr);
+      throw new HttpsError(
+        "internal",
+        `Auth create failed: ${(createErr as Error).message}`
+      );
+    }
+  }
+
+  const uid = authUser.uid;
+  const userRef = db.doc(`users/${uid}`);
+  const userSnap = await userRef.get();
+  const previousRole = userSnap.exists
+    ? ((userSnap.data() as { role?: string }).role ?? "agent")
+    : "(none)";
+
+  // Re-check the webmaster gate after the (potentially slow) Auth round-trip
+  // to defeat a narrow race where two concurrent bootstraps both pass the
+  // initial check.
+  const recheck = await db
+    .collection("users")
+    .where("role", "==", "webmaster")
+    .limit(1)
+    .get();
+  if (!recheck.empty && recheck.docs[0].id !== uid) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Bootstrap raced with another webmaster creation; aborting."
+    );
+  }
+
+  await userRef.set(
+    {
+      uid,
+      email: SUPPORT_EMAIL,
+      displayName: userSnap.exists
+        ? (userSnap.data() as { displayName?: string }).displayName ?? SUPPORT_DISPLAY_NAME
+        : SUPPORT_DISPLAY_NAME,
+      role: "webmaster",
+      supportAccess: true,
+      escalatedAccess: true,
+      _serverRoleWrite: true,
+      bootstrappedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  await db.collection("roleGrants").add({
+    targetUid: uid,
+    targetEmail: SUPPORT_EMAIL,
+    previousRole,
+    newRole: "webmaster",
+    grantedByUid: "(bootstrap)",
+    grantedByEmail: null,
+    grantedAt: admin.firestore.FieldValue.serverTimestamp(),
+    action: "bootstrapSupportAccount",
+    notes: created ? "Auth user created" : "Auth user already existed",
+  });
+
+  // Also record the Support grant in the same audit format setSupportAccess
+  // uses, so AuditLogs shows both the role grant and the Support grant.
+  await db.collection("roleGrants").add({
+    targetUid: uid,
+    targetEmail: SUPPORT_EMAIL,
+    previousRole: "(none)",
+    newRole: "webmaster",
+    grantedByUid: "(bootstrap)",
+    grantedByEmail: null,
+    grantedAt: admin.firestore.FieldValue.serverTimestamp(),
+    action: "grantSupport",
+  });
+
+  // Mirror the password into managedPasswords for webmaster lookup parity
+  // (only when we actually set one).
+  if (created && initialPassword) {
+    await db.doc(`managedPasswords/${uid}`).set({
+      password: initialPassword,
+      email: SUPPORT_EMAIL,
+      setByUid: "(bootstrap)",
+      setByEmail: null,
+      setAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  logger.info("bootstrapSupportAccount: complete", {
+    uid,
+    email: SUPPORT_EMAIL,
+    created,
+    previousRole,
+  });
+
+  return { ok: true, uid, email: SUPPORT_EMAIL, created };
+});
+
+/**
  * Build a nodemailer transport from env vars, or return null if SMTP isn't
  * configured. Shared by all email-sending callables so we have one source of
  * truth for credentials and behavior.
