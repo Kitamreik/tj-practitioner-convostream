@@ -374,6 +374,9 @@ const AuditLogs: React.FC = () => {
   useEffect(() => {
     if (peoplePage > peoplePageCount) setPeoplePage(peoplePageCount);
   }, [peoplePage, peoplePageCount]);
+  useEffect(() => {
+    if (supportPage > supportPageCount) setSupportPage(supportPageCount);
+  }, [supportPage, supportPageCount]);
 
   const visibleLogins = useMemo(
     () => loginAttempts.slice((loginPage - 1) * PAGE_SIZE, loginPage * PAGE_SIZE),
@@ -386,6 +389,10 @@ const AuditLogs: React.FC = () => {
   const visiblePeople = useMemo(
     () => people.slice((peoplePage - 1) * PAGE_SIZE, peoplePage * PAGE_SIZE),
     [people, peoplePage]
+  );
+  const visibleSupport = useMemo(
+    () => support.slice((supportPage - 1) * PAGE_SIZE, supportPage * PAGE_SIZE),
+    [support, supportPage]
   );
 
   // ---------- Delete handlers ----------
