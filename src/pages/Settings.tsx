@@ -489,27 +489,33 @@ const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     if (!isWebmaster) return;
+    // Single-field where → no composite index required. Sort client-side.
     const q = query(
       collection(db, "escalationRequests"),
-      where("status", "==", "pending"),
-      orderBy("createdAt", "desc")
+      where("status", "==", "pending")
     );
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const rows: PendingEscalation[] = snap.docs.map((d) => {
-          const data = d.data() as any;
-          return {
-            id: d.id,
-            requesterUid: data.requesterUid,
-            requesterEmail: data.requesterEmail ?? null,
-            requesterName: data.requesterName ?? null,
-            requesterRole: data.requesterRole ?? "admin",
-            reason: data.reason ?? "",
-            emailSent: !!data.emailSent,
-            createdAt: data.createdAt,
-          };
-        });
+        const rows: PendingEscalation[] = snap.docs
+          .map((d) => {
+            const data = d.data() as any;
+            return {
+              id: d.id,
+              requesterUid: data.requesterUid,
+              requesterEmail: data.requesterEmail ?? null,
+              requesterName: data.requesterName ?? null,
+              requesterRole: data.requesterRole ?? "admin",
+              reason: data.reason ?? "",
+              emailSent: !!data.emailSent,
+              createdAt: data.createdAt,
+            };
+          })
+          .sort((a, b) => {
+            const am = a.createdAt?.toMillis?.() ?? 0;
+            const bm = b.createdAt?.toMillis?.() ?? 0;
+            return bm - am;
+          });
         setPending(rows);
       },
       (err) => {
@@ -1073,26 +1079,32 @@ const SettingsPage: React.FC = () => {
   const [renameEvents, setRenameEvents] = useState<RenameEvent[]>([]);
   useEffect(() => {
     if (!isWebmaster) return;
+    // Single-field where → no composite index required. Sort + cap client-side.
     const q = query(
       collection(db, "roleGrants"),
-      where("action", "==", "renameAgent"),
-      orderBy("grantedAt", "desc"),
-      limit(100)
+      where("action", "==", "renameAgent")
     );
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const rows: RenameEvent[] = snap.docs.map((d) => {
-          const data = d.data() as any;
-          return {
-            id: d.id,
-            targetUid: data.targetUid ?? "",
-            previousDisplayName: data.previousDisplayName ?? "",
-            newDisplayName: data.newDisplayName ?? "",
-            grantedByEmail: data.grantedByEmail ?? null,
-            grantedAt: data.grantedAt,
-          };
-        });
+        const rows: RenameEvent[] = snap.docs
+          .map((d) => {
+            const data = d.data() as any;
+            return {
+              id: d.id,
+              targetUid: data.targetUid ?? "",
+              previousDisplayName: data.previousDisplayName ?? "",
+              newDisplayName: data.newDisplayName ?? "",
+              grantedByEmail: data.grantedByEmail ?? null,
+              grantedAt: data.grantedAt,
+            };
+          })
+          .sort((a, b) => {
+            const am = a.grantedAt?.toMillis?.() ?? 0;
+            const bm = b.grantedAt?.toMillis?.() ?? 0;
+            return bm - am;
+          })
+          .slice(0, 100);
         setRenameEvents(rows);
       },
       (err) => {
