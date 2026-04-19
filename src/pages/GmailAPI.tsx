@@ -253,6 +253,11 @@ const GmailAPI: React.FC = () => {
   // Auto-initialize the client as soon as creds + scripts are ready.
   // This is the bug-fix for "Authorize button doesn't render after creds entered":
   // previously the user had to click an explicit Initialize button. Now we do it for them.
+  // Detect whether we're inside an iframe (e.g. the Lovable in-app preview).
+  // Google Identity Services rejects most cross-origin iframes for security
+  // reasons, so the only reliable fix is to open the page in a top-level tab.
+  const inIframe = typeof window !== "undefined" && window.self !== window.top;
+
   useEffect(() => {
     if (!ready) return;
     if (!clientId || !apiKey) return;
@@ -270,13 +275,25 @@ const GmailAPI: React.FC = () => {
         setClientReady(true);
         setError(null);
       } catch (err: any) {
-        if (!cancelled) setError(err?.message || "Failed to initialize Gmail client");
+        if (cancelled) return;
+        const raw = err?.message || err?.details || String(err) || "Unknown error";
+        // GIS / gapi failures inside the Lovable preview iframe almost
+        // always come from cross-origin / COOP restrictions. Surface a
+        // clearer message + an Open-in-new-tab affordance instead of
+        // the generic "Failed to initialize Gmail client".
+        if (inIframe) {
+          setError(
+            "Google Identity Services can't run inside the Lovable preview iframe (cross-origin restriction). Open this page in its own tab to authorize Gmail."
+          );
+        } else {
+          setError(`Failed to initialize Gmail client: ${raw}`);
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [ready, clientId, apiKey, clientReady]);
+  }, [ready, clientId, apiKey, clientReady, inIframe]);
 
   const handleSaveCreds = useCallback(async () => {
     if (!user) {
