@@ -546,6 +546,14 @@ const ChatPage: React.FC = () => {
                               edited
                             </Badge>
                           )}
+                          {own && !isDeleted && lastSeenOwnId === m.id && (
+                            <span
+                              className="text-[10px] font-medium text-primary"
+                              title={seenAtMs ? `Seen ${new Date(seenAtMs).toLocaleString()}` : "Seen"}
+                            >
+                              Seen
+                            </span>
+                          )}
                           {!isDeleted && !isEditing && (own || isMod) && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
