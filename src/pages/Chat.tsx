@@ -351,6 +351,7 @@ const ChatPage: React.FC = () => {
               {threads.map((t) => {
                 const label = otherParticipantLabel(t);
                 const active = t.id === activeId;
+                const unread = !!user && isThreadUnread(t, user.uid) && !active;
                 return (
                   <button
                     key={t.id}
@@ -360,17 +361,25 @@ const ChatPage: React.FC = () => {
                       active ? "bg-accent" : "hover:bg-accent/50"
                     )}
                   >
-                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                    <div className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                       {label.charAt(0).toUpperCase()}
+                      {unread && (
+                        <span
+                          className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-card"
+                          aria-label="Unread messages"
+                        />
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="truncate text-sm font-medium">{label}</p>
+                        <p className={cn("truncate text-sm", unread ? "font-semibold text-foreground" : "font-medium")}>
+                          {label}
+                        </p>
                         <span className="flex-shrink-0 text-[10px] text-muted-foreground">
                           {t.lastMessageAt ? formatTime(t.lastMessageAt) : ""}
                         </span>
                       </div>
-                      <p className="truncate text-xs text-muted-foreground">
+                      <p className={cn("truncate text-xs", unread ? "text-foreground" : "text-muted-foreground")}>
                         {t.lastMessagePreview || "No messages yet"}
                       </p>
                     </div>
@@ -413,7 +422,9 @@ const ChatPage: React.FC = () => {
                       {otherParticipantLabel(activeThread)}
                     </p>
                     <p className="truncate text-[11px] text-muted-foreground">
-                      {activeThread.participantEmails.find((e) => e !== profile?.email) || ""}
+                      {otherTyping
+                        ? "typing…"
+                        : activeThread.participantEmails.find((e) => e !== profile?.email) || ""}
                     </p>
                   </div>
                 </div>
@@ -547,7 +558,16 @@ const ChatPage: React.FC = () => {
                   <Textarea
                     placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
                     value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
+                    onChange={(e) => handleDraftChange(e.target.value)}
+                    onBlur={() => {
+                      // Drop the typing flag immediately when the composer
+                      // loses focus so the recipient doesn't see a stale
+                      // "typing…" label after I tab away.
+                      if (user && activeId) {
+                        lastTypingPingRef.current = 0;
+                        void clearTyping(activeId, user.uid);
+                      }
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
