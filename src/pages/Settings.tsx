@@ -1393,27 +1393,27 @@ const SettingsPage: React.FC = () => {
               <div className="flex flex-wrap gap-2 sm:shrink-0">
                 <Button
                   onClick={handleSaveSlackWebhook}
-                  disabled={savingSlackWebhook || slackWebhookDraft === slackWebhook}
+                  disabled={savingSlackWebhook || !slackWebhookDraft.trim() || !canEditWebhook}
                   className="gap-1.5"
                 >
                   <Check className="h-4 w-4" />
                   {savingSlackWebhook ? "Saving…" : "Save"}
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleTestPing}
-                  disabled={testingPing || !slackWebhookDraft.trim()}
-                  className="gap-1.5"
-                  aria-label="Send a test ping to confirm the Slack webhook works"
-                >
-                  <Send className="h-4 w-4" />
-                  {testingPing ? "Sending…" : "Send test ping"}
-                </Button>
-                {slackWebhook && (
+                {slackConfigured && (
                   <Button
                     variant="outline"
-                    onClick={() => setSlackWebhookDraft("")}
-                    disabled={savingSlackWebhook}
+                    onClick={async () => {
+                      setSavingSlackWebhook(true);
+                      try {
+                        await setSlackWebhookUrl("");
+                        toast({ title: "Slack webhook cleared" });
+                      } catch (e: any) {
+                        toast({ title: "Could not clear", description: e?.message, variant: "destructive" });
+                      } finally {
+                        setSavingSlackWebhook(false);
+                      }
+                    }}
+                    disabled={savingSlackWebhook || !canEditWebhook}
                     aria-label="Clear webhook"
                   >
                     <X className="h-4 w-4" />
@@ -1422,8 +1422,8 @@ const SettingsPage: React.FC = () => {
               </div>
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
-              {slackWebhook
-                ? "Active — Slack pings are firing on every shortcut tap."
+              {slackConfigured
+                ? "Active — server-side proxy will forward Ping Slack alerts. URL is hidden from the browser."
                 : "Not configured — only in-app bell notifications fire."}
             </p>
           </div>
