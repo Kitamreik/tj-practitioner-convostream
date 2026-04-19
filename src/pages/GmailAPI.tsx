@@ -815,9 +815,20 @@ const GmailAPI: React.FC = () => {
       </motion.div>
 
       {error && (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 mb-6 flex items-center gap-3">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
           <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0" />
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-sm text-destructive flex-1">{error}</p>
+          {inIframe && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 self-start sm:self-auto"
+              onClick={() => window.open(window.location.href, "_blank", "noopener,noreferrer")}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open in new tab
+            </Button>
+          )}
         </div>
       )}
 
