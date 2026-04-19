@@ -1,8 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { httpsCallable } from "firebase/functions";
 import { useAuth } from "@/contexts/AuthContext";
 import { functions } from "@/lib/firebase";
 import { loadAllIntegrations } from "@/lib/integrationsStore";
+import { getBoolPref, subscribeBoolPref } from "@/lib/userPrefs";
+
+/** localStorage key (per-uid) for the opt-in toggle on /settings. */
+export const BG_GMAIL_INGEST_PREF = "bgGmailIngest";
 
 /**
  * Background Gmail → ConvoHub poller.
