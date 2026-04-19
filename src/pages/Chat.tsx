@@ -576,8 +576,11 @@ const ChatPage: React.FC = () => {
                           )}
                         >
                         {!own && (
-                          <span className="px-1 text-[11px] text-muted-foreground">
+                          <span className="flex items-center gap-1 px-1 text-[11px] text-muted-foreground">
                             {m.senderName}
+                            {(isSupportByUid(supportUsers, m.senderUid) || isSupportByEmail(supportUsers, m.senderEmail)) && (
+                              <SupportBadge />
+                            )}
                           </span>
                         )}
                         <div
