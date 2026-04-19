@@ -98,6 +98,58 @@
     --info: 210 70% 60%;
     --info-foreground: 0 0% 100%;
   }
+
+  /* =========================================================================
+     Coder Mode — soft-blue, low-contrast palette for sensitive eyes.
+     Sits alongside light/dark via the .coder class on <html>. Tokens mirror
+     the dark-mode shape so every component reads correctly without edits.
+     Contrast targets: body text ≥ 7:1 (AAA), accents ≥ 4.5:1 (AA).
+     ========================================================================= */
+  .coder {
+    --background: 215 38% 11%;            /* deep slate-blue, no warm tones */
+    --foreground: 210 35% 88%;            /* soft frost-white, easy on eyes */
+
+    --card: 215 32% 14%;
+    --card-foreground: 210 35% 90%;
+
+    --popover: 215 32% 14%;
+    --popover-foreground: 210 35% 90%;
+
+    --primary: 205 78% 62%;               /* clear sky-blue accent */
+    --primary-foreground: 215 40% 10%;
+
+    --secondary: 215 25% 19%;
+    --secondary-foreground: 210 30% 82%;
+
+    --muted: 215 22% 18%;
+    --muted-foreground: 210 18% 65%;
+
+    --accent: 195 70% 55%;                /* cyan accent, complements primary */
+    --accent-foreground: 215 40% 10%;
+
+    --destructive: 0 55% 52%;             /* dialled-down red, still readable */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 22% 22%;
+    --input: 215 22% 22%;
+    --ring: 205 78% 62%;
+
+    --sidebar-background: 215 32% 13%;
+    --sidebar-foreground: 210 28% 78%;
+    --sidebar-primary: 205 78% 62%;
+    --sidebar-primary-foreground: 215 40% 10%;
+    --sidebar-accent: 215 25% 18%;
+    --sidebar-accent-foreground: 210 28% 80%;
+    --sidebar-border: 215 22% 20%;
+    --sidebar-ring: 205 78% 62%;
+
+    --success: 152 50% 50%;
+    --success-foreground: 215 40% 10%;
+    --warning: 38 80% 60%;
+    --warning-foreground: 215 40% 10%;
+    --info: 205 78% 62%;
+    --info-foreground: 215 40% 10%;
+  }
 }
 
 @layer base {

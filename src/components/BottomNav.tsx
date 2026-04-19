@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
-import { Plug, Shield, Mail, Settings as SettingsIcon, LogOut, Moon, Sun, Archive as ArchiveIcon, ScrollText, Megaphone, FileVideo, KeyRound } from "lucide-react";
+import { Plug, Shield, Mail, Settings as SettingsIcon, LogOut, Moon, Sun, Eye, Archive as ArchiveIcon, ScrollText, Megaphone, FileVideo, KeyRound } from "lucide-react";
 import WebmasterContactButtons from "@/components/WebmasterContactButtons";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -262,9 +262,21 @@ const BottomNav: React.FC = () => {
             {/* One-tap call/text the on-call webmaster — hidden for the
                 webmaster role (component handles gating). */}
             <WebmasterContactButtons className="w-full" />
-            <Button variant="ghost" size="sm" className="w-full justify-start gap-3" onClick={toggleTheme}>
-              {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-              {theme === "light" ? "Dark Mode" : "Light Mode"}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start gap-3"
+              onClick={toggleTheme}
+              aria-label={`Switch theme — current: ${theme}. Cycles light → dark → coder.`}
+            >
+              {theme === "light" ? (
+                <Moon className="h-4 w-4" />
+              ) : theme === "dark" ? (
+                <Eye className="h-4 w-4" />
+              ) : (
+                <Sun className="h-4 w-4" />
+              )}
+              {theme === "light" ? "Dark Mode" : theme === "dark" ? "Coder Mode" : "Light Mode"}
             </Button>
             <Button variant="ghost" size="sm" className="w-full justify-start gap-3 text-destructive" onClick={signOut}>
               <LogOut className="h-4 w-4" /> Sign Out

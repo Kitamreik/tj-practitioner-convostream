@@ -17,9 +17,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
-import { subscribeCooldownMin, subscribeSlackWebhookUrl, DEFAULT_COOLDOWN_MIN, type CooldownMinutes } from "@/lib/webmasterCooldown";
+import { subscribeCooldownMin, subscribeSlackAlertConfigured, getLocalSlackAlertConfigured, DEFAULT_COOLDOWN_MIN, type CooldownMinutes } from "@/lib/webmasterCooldown";
 import { notifyWebmasterOnContact, pingWebmasterSlackAlert } from "@/lib/notifyWebmaster";
-import { getLocalSlackWebhookUrl } from "@/lib/webmasterCooldown";
 
 /**
  * WebmasterContactButtons — direct call/SMS shortcuts to the on-call
@@ -106,8 +105,8 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
   useEffect(() => subscribeCooldownMin(setCooldownMin), []);
   // Track whether the team-wide Slack webhook is configured so we can
   // disable the Slack Alert button (and explain why) when it's empty.
-  const [slackWebhook, setSlackWebhook] = useState<string>(() => getLocalSlackWebhookUrl());
-  useEffect(() => subscribeSlackWebhookUrl(setSlackWebhook), []);
+  const [slackConfigured, setSlackConfigured] = useState<boolean>(() => getLocalSlackAlertConfigured());
+  useEffect(() => subscribeSlackAlertConfigured(setSlackConfigured), []);
   const [slackSending, setSlackSending] = useState(false);
   const cooldownMs = cooldownMin * 60 * 1000;
 
@@ -267,21 +266,21 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
   // Slack Alert — fires the fixed "review ConvoHub" message to the team
   // channel. Standalone from Call/Text: no dialer hand-off, no contact
   // record, no cooldown gate. Disabled when the webhook isn't set.
-  const webhookConfigured = !!slackWebhook && slackWebhook.startsWith("https://hooks.slack.com/");
+  const webhookConfigured = slackConfigured;
   const handleSlackAlert = async () => {
     if (!webhookConfigured || slackSending) return;
     setSlackSending(true);
     try {
-      const ok = await pingWebmasterSlackAlert({
+      const res = await pingWebmasterSlackAlert({
         agentName: senderName,
         route: location.pathname,
       });
       toast({
-        title: ok ? "Slack channel pinged" : "Slack alert not sent",
-        description: ok
+        title: res.ok ? "Slack channel pinged" : res.rateLimited ? "Cooldown active" : "Slack alert not sent",
+        description: res.ok
           ? "The webmaster channel has been notified for review."
-          : "Webhook isn't configured. Ask the webmaster to set it on Settings.",
-        variant: ok ? undefined : "destructive",
+          : res.error || "Webhook isn't configured. Ask an admin or webmaster to set it on Settings.",
+        variant: res.ok ? undefined : "destructive",
       });
     } finally {
       setSlackSending(false);

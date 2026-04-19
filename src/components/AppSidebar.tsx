@@ -19,6 +19,7 @@ import {
   Megaphone,
   FileVideo,
   KeyRound,
+  Eye,
 } from "lucide-react";
 import WebmasterContactButtons from "@/components/WebmasterContactButtons";
 import { Button } from "@/components/ui/button";
@@ -267,9 +268,22 @@ const AppSidebar: React.FC = () => {
             themselves (the component handles that gating). */}
         <WebmasterContactButtons className="w-full" />
 
-        <Button variant="ghost" size="sm" className="w-full justify-start gap-3" onClick={toggleTheme}>
-          {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-          {theme === "light" ? "Dark Mode" : "Light Mode"}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-3"
+          onClick={toggleTheme}
+          aria-label={`Switch theme — current: ${theme}. Cycles light → dark → coder.`}
+          title="Cycle theme: light → dark → coder"
+        >
+          {theme === "light" ? (
+            <Moon className="h-4 w-4" />
+          ) : theme === "dark" ? (
+            <Eye className="h-4 w-4" />
+          ) : (
+            <Sun className="h-4 w-4" />
+          )}
+          {theme === "light" ? "Dark Mode" : theme === "dark" ? "Coder Mode" : "Light Mode"}
         </Button>
 
         <div className="flex items-center gap-3 rounded-lg bg-sidebar-accent/50 px-3 py-2">

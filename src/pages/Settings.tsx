@@ -89,7 +89,7 @@ import {
   DEFAULT_COOLDOWN_MIN,
   setCooldownMin,
   subscribeCooldownMin,
-  subscribeSlackWebhookUrl,
+  subscribeSlackAlertConfigured,
   setSlackWebhookUrl,
   type CooldownMinutes,
 } from "@/lib/webmasterCooldown";
@@ -137,7 +137,7 @@ interface InvestigationRow {
 
 const SettingsPage: React.FC = () => {
   const { user, profile } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, setTheme } = useTheme();
   const isMobile = useIsMobile();
 
   // Resizable nav-pane width (desktop + webmaster only). Mirrors the pattern in
@@ -325,28 +325,27 @@ const SettingsPage: React.FC = () => {
   const [savingCooldown, setSavingCooldown] = useState(false);
   useEffect(() => subscribeCooldownMin(setCooldownMinState), []);
 
-  // ---- Webmaster Slack webhook (team-wide; pings on Call/Text shortcut) ----
-  const [slackWebhook, setSlackWebhook] = useState<string>("");
+  // ---- Slack webhook (team-wide; admin/webmaster). The URL itself never
+  //      reaches the browser anymore — we only know whether one is set via
+  //      the public `appSettings/slackAlertStatus.configured` mirror. The
+  //      input field is a write-only "paste a new URL" control.
+  const isAdmin = profile?.role === "admin";
+  const canEditWebhook = isWebmaster || isAdmin;
+  const [slackConfigured, setSlackConfigured] = useState<boolean>(false);
   const [slackWebhookDraft, setSlackWebhookDraft] = useState<string>("");
   const [savingSlackWebhook, setSavingSlackWebhook] = useState(false);
-  useEffect(
-    () =>
-      subscribeSlackWebhookUrl((url) => {
-        setSlackWebhook(url);
-        setSlackWebhookDraft(url);
-      }),
-    []
-  );
+  useEffect(() => subscribeSlackAlertConfigured(setSlackConfigured), []);
   const handleSaveSlackWebhook = async () => {
     setSavingSlackWebhook(true);
     try {
-      await setSlackWebhookUrl(slackWebhookDraft, profile?.uid);
+      const res = await setSlackWebhookUrl(slackWebhookDraft);
       toast({
-        title: slackWebhookDraft ? "Slack webhook saved" : "Slack webhook cleared",
-        description: slackWebhookDraft
-          ? "Future Call/Text shortcuts will ping this channel."
-          : "Slack pings disabled — bell notifications still fire.",
+        title: res.configured ? "Slack webhook saved" : "Slack webhook cleared",
+        description: res.configured
+          ? "Stored server-side. Ping Slack alerts are now active."
+          : "Slack alerts disabled — bell notifications still fire.",
       });
+      setSlackWebhookDraft("");
     } catch (e: any) {
       toast({
         title: "Could not save webhook",
@@ -358,50 +357,9 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // Fire a test message to whatever URL is currently in the input. Uses the
-  // draft (not the saved value) so the webmaster can validate a freshly
-  // pasted URL without having to save it first. Mirrors the Slack ping
-  // shape used by notifyWebmasterOnContact so a successful test confirms
-  // the same channel will receive real alerts.
-  const [testingPing, setTestingPing] = useState(false);
-  const handleTestPing = async () => {
-    const url = slackWebhookDraft.trim();
-    if (!url || !url.startsWith("https://hooks.slack.com/")) {
-      toast({
-        title: "Enter a Slack webhook URL first",
-        description: "Must start with https://hooks.slack.com/",
-        variant: "destructive",
-      });
-      return;
-    }
-    setTestingPing(true);
-    try {
-      // Slack rejects browser preflight on incoming-webhooks, so we use
-      // mode:'no-cors'. The request still reaches Slack but we can't read
-      // the response — same trade-off as notifyWebmaster.pingSlack. A
-      // network-layer failure throws; otherwise we assume delivery.
-      await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        mode: "no-cors",
-        body: JSON.stringify({
-          text: `:white_check_mark: Test ping from *${profile?.displayName || "the webmaster"}* — ConvoHub Slack alerts are wired up correctly.`,
-        }),
-      });
-      toast({
-        title: "Test ping sent",
-        description: "Check your Slack channel — the message should appear within a few seconds.",
-      });
-    } catch (e: any) {
-      toast({
-        title: "Test ping failed",
-        description: e?.message || "Could not reach Slack. Double-check the URL.",
-        variant: "destructive",
-      });
-    } finally {
-      setTestingPing(false);
-    }
-  };
+  // The legacy "Send test ping" was removed when the webhook moved
+  // server-side — the URL is no longer in the browser to test against.
+  // Use the "Ping Slack" button on /conversations to verify end-to-end.
 
   const handleCooldownChange = async (value: string) => {
     const n = Number(value) as CooldownMinutes;
@@ -1209,21 +1167,49 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Appearance */}
+        {/* Appearance — three-way toggle: light / dark / coder. "Coder Mode"
+            is a soft-blue, low-contrast palette tuned for sensitive eyes. */}
         <div id="appearance" className="rounded-xl border border-border bg-card p-6">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-4">
-            {theme === "light" ? <Sun className="h-5 w-5 text-primary" /> : <Moon className="h-5 w-5 text-primary" />}
+            {theme === "light" ? (
+              <Sun className="h-5 w-5 text-primary" />
+            ) : theme === "dark" ? (
+              <Moon className="h-5 w-5 text-primary" />
+            ) : (
+              <Eye className="h-5 w-5 text-primary" />
+            )}
             Appearance
           </h3>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-medium text-foreground">Theme</p>
-              <p className="text-xs text-muted-foreground">Switch between light and dark mode</p>
+              <p className="text-xs text-muted-foreground">
+                Light, dark, or Coder Mode (soft-blue, low-contrast for sensitive eyes).
+              </p>
             </div>
-            <Button variant="outline" onClick={toggleTheme} className="gap-2">
-              {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-              {theme === "light" ? "Dark" : "Light"}
-            </Button>
+            <div className="inline-flex rounded-lg border border-border bg-background p-1">
+              {(["light", "dark", "coder"] as const).map((t) => {
+                const Icon = t === "light" ? Sun : t === "dark" ? Moon : Eye;
+                const active = theme === t;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTheme(t)}
+                    aria-pressed={active}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {t === "coder" ? "Coder" : t}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -1327,7 +1313,7 @@ const SettingsPage: React.FC = () => {
             Stored team-wide in `appSettings/webmasterContact.slackWebhookUrl`
             so every agent's browser can read it (per-user integrations creds
             are owner-only). */}
-        {isWebmaster && (
+        {canEditWebhook && (
           <div id="webmaster-slack" className="rounded-xl border border-border bg-card p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-2">
               <Send className="h-5 w-5 text-primary" />
@@ -1366,27 +1352,27 @@ const SettingsPage: React.FC = () => {
               <div className="flex flex-wrap gap-2 sm:shrink-0">
                 <Button
                   onClick={handleSaveSlackWebhook}
-                  disabled={savingSlackWebhook || slackWebhookDraft === slackWebhook}
+                  disabled={savingSlackWebhook || !slackWebhookDraft.trim() || !canEditWebhook}
                   className="gap-1.5"
                 >
                   <Check className="h-4 w-4" />
                   {savingSlackWebhook ? "Saving…" : "Save"}
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleTestPing}
-                  disabled={testingPing || !slackWebhookDraft.trim()}
-                  className="gap-1.5"
-                  aria-label="Send a test ping to confirm the Slack webhook works"
-                >
-                  <Send className="h-4 w-4" />
-                  {testingPing ? "Sending…" : "Send test ping"}
-                </Button>
-                {slackWebhook && (
+                {slackConfigured && (
                   <Button
                     variant="outline"
-                    onClick={() => setSlackWebhookDraft("")}
-                    disabled={savingSlackWebhook}
+                    onClick={async () => {
+                      setSavingSlackWebhook(true);
+                      try {
+                        await setSlackWebhookUrl("");
+                        toast({ title: "Slack webhook cleared" });
+                      } catch (e: any) {
+                        toast({ title: "Could not clear", description: e?.message, variant: "destructive" });
+                      } finally {
+                        setSavingSlackWebhook(false);
+                      }
+                    }}
+                    disabled={savingSlackWebhook || !canEditWebhook}
                     aria-label="Clear webhook"
                   >
                     <X className="h-4 w-4" />
@@ -1395,8 +1381,8 @@ const SettingsPage: React.FC = () => {
               </div>
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
-              {slackWebhook
-                ? "Active — Slack pings are firing on every shortcut tap."
+              {slackConfigured
+                ? "Active — server-side proxy will forward Ping Slack alerts. URL is hidden from the browser."
                 : "Not configured — only in-app bell notifications fire."}
             </p>
           </div>

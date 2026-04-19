@@ -6,21 +6,24 @@
  *
  * Fields:
  *  - cooldownMinutes  (5/15/30/60) — gate between Call/Text taps.
- *  - slackWebhookUrl  (optional)   — incoming-webhook the system pings
- *    whenever an agent uses the Call/Text shortcut. Stored team-wide (not
- *    per-user) so every webmaster gets the alert via one Slack channel even
- *    when the agent can't read another user's private integration creds.
+ *  - slackWebhookUrl  (optional)   — incoming-webhook the system pings.
+ *    SECURITY: As of the Slack-proxy migration this URL is no longer read by
+ *    the browser at all — the `pingWebmasterSlack` Cloud Function fetches it
+ *    server-side. Clients only see whether it's configured via the public
+ *    `appSettings/slackAlertStatus.configured` boolean.
  */
 import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "@/lib/firebase";
 
 export const COOLDOWN_OPTIONS_MIN = [5, 15, 30, 60] as const;
 export type CooldownMinutes = (typeof COOLDOWN_OPTIONS_MIN)[number];
 export const DEFAULT_COOLDOWN_MIN: CooldownMinutes = 15;
 
 const LOCAL_KEY_COOLDOWN = "convohub.webmasterCooldownMin";
-const LOCAL_KEY_WEBHOOK = "convohub.webmasterSlackWebhookUrl";
+const LOCAL_KEY_WEBHOOK_CONFIGURED = "convohub.slackAlertConfigured";
 const DOC_PATH = ["appSettings", "webmasterContact"] as const;
+const STATUS_DOC_PATH = ["appSettings", "slackAlertStatus"] as const;
 
 function isValid(n: unknown): n is CooldownMinutes {
   return typeof n === "number" && (COOLDOWN_OPTIONS_MIN as readonly number[]).includes(n);
@@ -39,18 +42,6 @@ export function getLocalCooldownMin(): CooldownMinutes {
 
 function setLocalCooldownMin(value: CooldownMinutes): void {
   try { localStorage.setItem(LOCAL_KEY_COOLDOWN, String(value)); } catch { /* ignore */ }
-}
-
-export function getLocalSlackWebhookUrl(): string {
-  try {
-    return localStorage.getItem(LOCAL_KEY_WEBHOOK) || "";
-  } catch {
-    return "";
-  }
-}
-
-function setLocalSlackWebhookUrl(value: string): void {
-  try { localStorage.setItem(LOCAL_KEY_WEBHOOK, value); } catch { /* ignore */ }
 }
 
 /**
@@ -77,18 +68,34 @@ export function subscribeCooldownMin(cb: (mins: CooldownMinutes) => void): () =>
 }
 
 /**
- * Subscribe to the team-wide Slack webhook URL. Empty string == not
- * configured; callers should silently skip the Slack ping in that case.
+ * Boolean mirror of `appSettings/slackAlertStatus.configured`. Lets the
+ * SlackAlertButton enable/disable itself without ever loading the secret URL.
  */
-export function subscribeSlackWebhookUrl(cb: (url: string) => void): () => void {
-  cb(getLocalSlackWebhookUrl());
+export function getLocalSlackAlertConfigured(): boolean {
+  try {
+    return localStorage.getItem(LOCAL_KEY_WEBHOOK_CONFIGURED) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setLocalSlackAlertConfigured(value: boolean): void {
+  try {
+    localStorage.setItem(LOCAL_KEY_WEBHOOK_CONFIGURED, value ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
+export function subscribeSlackAlertConfigured(cb: (configured: boolean) => void): () => void {
+  cb(getLocalSlackAlertConfigured());
   const unsub = onSnapshot(
-    doc(db, ...DOC_PATH),
+    doc(db, ...STATUS_DOC_PATH),
     (snap) => {
-      const data = snap.data() as { slackWebhookUrl?: string } | undefined;
-      const url = (data?.slackWebhookUrl || "").trim();
-      setLocalSlackWebhookUrl(url);
-      cb(url);
+      const data = snap.data() as { configured?: boolean } | undefined;
+      const configured = !!data?.configured;
+      setLocalSlackAlertConfigured(configured);
+      cb(configured);
     },
     () => {
       /* permission/network — keep last known local value */
@@ -116,22 +123,23 @@ export async function setCooldownMin(value: CooldownMinutes, actorUid: string | 
 }
 
 /**
- * Persist the team-wide Slack webhook URL. Empty string clears it.
- * Webmaster-only (rules enforce).
+ * Persist the team-wide Slack webhook URL through the server-side proxy
+ * (`setSlackWebhookUrlAdmin` callable). The URL never lands in the browser
+ * bundle — only the server stores and uses it. Pass an empty string to
+ * clear the configuration.
+ *
+ * Caller must be admin or webmaster (function enforces).
  */
-export async function setSlackWebhookUrl(value: string, actorUid: string | null | undefined): Promise<void> {
+export async function setSlackWebhookUrl(value: string): Promise<{ configured: boolean }> {
   const cleaned = value.trim();
   if (cleaned && !cleaned.startsWith("https://hooks.slack.com/")) {
     throw new Error("URL must start with https://hooks.slack.com/");
   }
-  setLocalSlackWebhookUrl(cleaned);
-  await setDoc(
-    doc(db, ...DOC_PATH),
-    {
-      slackWebhookUrl: cleaned,
-      updatedAt: serverTimestamp(),
-      updatedBy: actorUid ?? null,
-    },
-    { merge: true }
+  const fn = httpsCallable<{ url: string }, { ok: boolean; configured: boolean }>(
+    functions,
+    "setSlackWebhookUrlAdmin"
   );
+  const res = await fn({ url: cleaned });
+  setLocalSlackAlertConfigured(!!res.data.configured);
+  return { configured: !!res.data.configured };
 }

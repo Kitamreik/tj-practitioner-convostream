@@ -1763,3 +1763,233 @@ export const triggerScheduledHealthCheckNow = onCall(async (request) => {
   return { ok: true, results, failing, checkedAt: Date.now() };
 });
 
+
+// =============================================================================
+// Slack alert proxy — keeps the webhook URL out of the browser bundle
+// =============================================================================
+//
+// Background: the on-call webmaster's Slack incoming-webhook URL was previously
+// stored in `appSettings/webmasterContact.slackWebhookUrl` and read directly by
+// every signed-in client. That worked, but any agent could open devtools, copy
+// the URL, and spam the channel from outside the app. Moving the network call
+// server-side lets us:
+//
+//   1. Hide the webhook URL — only this function (admin SDK) ever sees it.
+//   2. Verify the caller via the Firebase Auth ID token (auto-validated by
+//      onCall) AND check their `users/{uid}.role` is agent/admin/webmaster.
+//   3. Enforce a 10-minute per-uid rate limit so a stressed agent can't fan
+//      out 10 pings in a row by accident.
+//   4. Append every successful press to `webmasterContactEvents` with channel
+//      'slack-alert', so the /settings history shows it alongside Call/Text.
+//
+// The companion doc `appSettings/slackAlertStatus` is written by the
+// `setSlackWebhookUrlAdmin` callable and exposes only `{ configured: bool }`
+// to all signed-in users so the SlackAlertButton can render a disabled state
+// without leaking the URL itself.
+
+const SLACK_ALERT_RATE_LIMIT_MS = 10 * 60 * 1000; // 10 minutes
+const FIXED_SLACK_ALERT_MESSAGE =
+  "An agent has pinged this channel for review of the ConvoHub app. Please review or get Kit for scanning.";
+
+function safeForSlack(s: string): string {
+  return String(s).replace(/[\u0000-\u001F\u007F]/g, " ").slice(0, 240);
+}
+
+/**
+ * Read the team-wide Slack webhook URL. Prefers the runtime env var
+ * `SLACK_WEBHOOK_URL` (set via `firebase functions:secrets:set` or in the
+ * deploy environment) and falls back to the Firestore-stored value for
+ * backward compat with the existing /settings UI. Returns null when neither
+ * is configured.
+ */
+async function readSlackWebhookUrl(): Promise<string | null> {
+  const fromEnv = (process.env.SLACK_WEBHOOK_URL || "").trim();
+  if (fromEnv && fromEnv.startsWith("https://hooks.slack.com/")) return fromEnv;
+
+  try {
+    const snap = await db.doc("appSettings/webmasterContact").get();
+    const url = ((snap.data() as { slackWebhookUrl?: string } | undefined)?.slackWebhookUrl || "").trim();
+    if (url && url.startsWith("https://hooks.slack.com/")) return url;
+  } catch (err) {
+    logger.warn("readSlackWebhookUrl: Firestore read failed", err);
+  }
+  return null;
+}
+
+/**
+ * Admin/webmaster-only: store the team's Slack incoming-webhook URL
+ * server-side. Writes the URL to `appSettings/webmasterContact` (admin/wm
+ * read-only via rules) AND a public-readable status doc so every client can
+ * see whether alerts are wired up without seeing the secret.
+ *
+ * Request: { url: string }  // empty string clears the configuration
+ */
+export const setSlackWebhookUrlAdmin = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerUid = request.auth.uid;
+  const callerSnap = await db.doc(`users/${callerUid}`).get();
+  const callerData = callerSnap.data() as { role?: string; email?: string } | undefined;
+  if (callerData?.role !== "webmaster" && callerData?.role !== "admin") {
+    throw new HttpsError("permission-denied", "Admins or webmasters only.");
+  }
+
+  const data = (request.data ?? {}) as { url?: unknown };
+  const raw = typeof data.url === "string" ? data.url.trim() : "";
+  if (raw && !raw.startsWith("https://hooks.slack.com/")) {
+    throw new HttpsError("invalid-argument", "URL must start with https://hooks.slack.com/");
+  }
+
+  await db.doc("appSettings/webmasterContact").set(
+    {
+      slackWebhookUrl: raw,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: callerUid,
+    },
+    { merge: true }
+  );
+
+  // Public-readable mirror: only the boolean leaves Firestore — never the URL.
+  await db.doc("appSettings/slackAlertStatus").set(
+    {
+      configured: !!raw,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: callerUid,
+      updatedByEmail: callerData?.email ?? null,
+    },
+    { merge: true }
+  );
+
+  logger.info("setSlackWebhookUrlAdmin", { by: callerUid, configured: !!raw });
+  return { ok: true, configured: !!raw };
+});
+
+/**
+ * Any signed-in user (agent/admin/webmaster) can fire a Slack alert. The
+ * function:
+ *   1. Verifies the caller's profile + role.
+ *   2. Enforces a 10-minute per-uid cooldown via a transactional write to
+ *      `slackAlertRateLimits/{uid}`.
+ *   3. POSTs the fixed review message to the team Slack webhook.
+ *   4. Appends a `webmasterContactEvents` row (channel: 'slack-alert').
+ *
+ * Returns: { ok, sentAt, nextAllowedAt }
+ * Throws:  resource-exhausted (with details.retryAt) when rate-limited,
+ *          failed-precondition when no webhook is configured.
+ */
+export const pingWebmasterSlack = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const uid = request.auth.uid;
+
+  const userSnap = await db.doc(`users/${uid}`).get();
+  if (!userSnap.exists) throw new HttpsError("not-found", "Profile missing.");
+  const userData = userSnap.data() as { role?: string; displayName?: string; email?: string };
+  const role = userData.role;
+  if (role !== "agent" && role !== "admin" && role !== "webmaster") {
+    throw new HttpsError("permission-denied", "Account role is not authorized to send Slack alerts.");
+  }
+
+  const data = (request.data ?? {}) as { route?: unknown };
+  const route = typeof data.route === "string" ? safeForSlack(data.route) : "/";
+
+  // ---- Rate limit (transactional read-modify-write) --------------------------
+  const rateLimitRef = db.doc(`slackAlertRateLimits/${uid}`);
+  const now = Date.now();
+  const nextAllowedAt = now + SLACK_ALERT_RATE_LIMIT_MS;
+
+  const rateOk = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(rateLimitRef);
+    const lastMs = snap.exists
+      ? ((snap.data() as { lastSentMs?: number }).lastSentMs ?? 0)
+      : 0;
+    if (lastMs && now - lastMs < SLACK_ALERT_RATE_LIMIT_MS) {
+      return { allowed: false as const, retryAt: lastMs + SLACK_ALERT_RATE_LIMIT_MS };
+    }
+    tx.set(rateLimitRef, {
+      lastSentMs: now,
+      lastRoute: route,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { allowed: true as const, retryAt: nextAllowedAt };
+  });
+
+  if (!rateOk.allowed) {
+    throw new HttpsError(
+      "resource-exhausted",
+      `Slack alert rate limit hit. Try again at ${new Date(rateOk.retryAt).toISOString()}.`,
+      { retryAt: rateOk.retryAt }
+    );
+  }
+
+  // ---- Resolve webhook URL ---------------------------------------------------
+  const webhookUrl = await readSlackWebhookUrl();
+  if (!webhookUrl) {
+    // Roll back the rate-limit write so the user isn't penalised for a
+    // misconfiguration outside their control.
+    await rateLimitRef.delete().catch(() => undefined);
+    throw new HttpsError(
+      "failed-precondition",
+      "Slack webhook is not configured. Ask an admin or webmaster to set it on Settings."
+    );
+  }
+
+  // ---- POST to Slack ---------------------------------------------------------
+  const agentName = safeForSlack(userData.displayName || userData.email?.split("@")[0] || "a teammate");
+  const slackBody = {
+    text: `:rotating_light: ${FIXED_SLACK_ALERT_MESSAGE} (from ${agentName} · ${route})`,
+    blocks: [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `:rotating_light: *${FIXED_SLACK_ALERT_MESSAGE}*\n>From *${agentName}* on \`${route}\``,
+        },
+      },
+    ],
+  };
+
+  let slackOk = true;
+  let slackError: string | null = null;
+  try {
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(slackBody),
+    });
+    if (!res.ok) {
+      slackOk = false;
+      slackError = `Slack responded ${res.status}`;
+      logger.warn("pingWebmasterSlack: Slack returned non-2xx", {
+        status: res.status,
+        uid,
+      });
+    }
+  } catch (err) {
+    slackOk = false;
+    slackError = (err as Error).message;
+    logger.error("pingWebmasterSlack: fetch failed", err);
+  }
+
+  // ---- Append to the contact-events history (channel: 'slack-alert') --------
+  // We log even when the Slack POST failed so the webmaster can see
+  // attempted alerts and the rate-limit metering matches reality.
+  try {
+    await db.collection("webmasterContactEvents").add({
+      agentUid: uid,
+      agentName: safeForSlack(userData.displayName || "Unknown"),
+      channel: "slack-alert",
+      route,
+      slackOk,
+      slackError,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (err) {
+    logger.warn("pingWebmasterSlack: contact-event log failed", err);
+  }
+
+  if (!slackOk) {
+    throw new HttpsError("internal", slackError || "Slack delivery failed.");
+  }
+
+  logger.info("pingWebmasterSlack: sent", { uid, route });
+  return { ok: true, sentAt: now, nextAllowedAt };
+});
