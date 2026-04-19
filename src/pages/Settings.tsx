@@ -221,10 +221,6 @@ const SettingsPage: React.FC = () => {
   // already exist (sign up via /login first).
   const SUPPORT_EMAIL = "support@convohub.dev";
   const [provisioningSupport, setProvisioningSupport] = useState(false);
-  const supportAccount = useMemo(
-    () => accounts.find((a) => a.email.trim().toLowerCase() === SUPPORT_EMAIL),
-    [/* set after accounts is declared; see below */]
-  );
 
   const handleProvisionSupport = async () => {
     setProvisioningSupport(true);
