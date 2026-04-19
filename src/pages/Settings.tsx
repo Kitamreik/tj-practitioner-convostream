@@ -1988,6 +1988,11 @@ const SettingsPage: React.FC = () => {
                               <CheckCircle2 className="h-2.5 w-2.5" /> Escalated
                             </Badge>
                           )}
+                          {acc.supportAccess && (
+                            <Badge variant="outline" className="text-[10px] gap-1">
+                              <LifeBuoy className="h-2.5 w-2.5" /> Support
+                            </Badge>
+                          )}
                           {history.length > 0 && (
                             <button
                               type="button"
