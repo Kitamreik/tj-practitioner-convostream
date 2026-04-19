@@ -40,6 +40,14 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import {
+  appendOptimisticMessage,
+  loadCachedMessages,
+  loadCachedThreads,
+  mergeWithOptimistic,
+  saveCachedMessages,
+  saveCachedThreads,
+} from "@/lib/chatCache";
 
 export const SUPPORT_EMAIL = "support@convohub.dev";
 
@@ -142,6 +150,15 @@ export function subscribeMyThreads(
   uid: string,
   cb: (threads: ChatThread[]) => void
 ): () => void {
+  // 1) Hydrate from localStorage immediately so the UI never flashes empty
+  //    while Firestore is still warming its connection / replaying cache.
+  try {
+    const cached = loadCachedThreads(uid);
+    if (cached.length > 0) cb(cached);
+  } catch {
+    /* non-fatal */
+  }
+
   const q = query(
     collection(db, "chatThreads"),
     where("participantUids", "array-contains", uid)
@@ -157,11 +174,16 @@ export function subscribeMyThreads(
         const bt = b.lastMessageAt?.toMillis?.() ?? b.createdAt?.toMillis?.() ?? 0;
         return bt - at;
       });
+      // Write-through cache, then publish.
+      saveCachedThreads(uid, rows);
       cb(rows);
     },
     (err) => {
       console.warn("subscribeMyThreads error:", err);
-      cb([]);
+      // On error, keep showing the cache (don't blank the UI). If the cache
+      // is also empty there's nothing more we can do.
+      const cached = loadCachedThreads(uid);
+      cb(cached);
     }
   );
 }
@@ -169,8 +191,23 @@ export function subscribeMyThreads(
 /** Subscribe to messages in a thread, oldest first. */
 export function subscribeThreadMessages(
   threadId: string,
-  cb: (messages: ChatMessage[]) => void
+  cb: (messages: ChatMessage[]) => void,
+  /**
+   * Caller's uid. Required for the localStorage failsafe (cache is
+   * scoped per-user). Pass null to skip caching entirely.
+   */
+  selfUid: string | null = null
 ): () => void {
+  // Hydrate from cache before the live snapshot arrives.
+  if (selfUid) {
+    try {
+      const cached = loadCachedMessages(selfUid, threadId);
+      if (cached.length > 0) cb(cached);
+    } catch {
+      /* non-fatal */
+    }
+  }
+
   const q = query(
     collection(db, "chatThreads", threadId, "messages"),
     orderBy("createdAt", "asc"),
@@ -183,11 +220,21 @@ export function subscribeThreadMessages(
         id: d.id,
         ...(d.data() as Omit<ChatMessage, "id">),
       }));
-      cb(rows);
+      // Merge any still-pending optimistic local messages so a just-sent
+      // bubble doesn't blink out while the server snapshot is in flight.
+      const merged = selfUid ? mergeWithOptimistic(selfUid, threadId, rows) : rows;
+      if (selfUid) saveCachedMessages(selfUid, threadId, merged);
+      cb(merged);
     },
     (err) => {
       console.warn("subscribeThreadMessages error:", err);
-      cb([]);
+      // Fall back to whatever the cache has so the user can still read prior history offline.
+      if (selfUid) {
+        const cached = loadCachedMessages(selfUid, threadId);
+        cb(cached);
+      } else {
+        cb([]);
+      }
     }
   );
 }
