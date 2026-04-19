@@ -700,6 +700,59 @@ export const generateAgentSignupLink = onCall(async (request) => {
  *
  * Request: { conversationId: string, customerName?: string, reason?: string }
  */
+/**
+ * "Elevate to webmaster" investigation request.
+ *
+ * Primary: SMTP email to ESCALATION_NOTIFY_EMAIL with full context.
+ * Failsafes (only fire when primary fails — kept off the happy path so
+ * normal escalations don't double-notify):
+ *   1. Post the same context to the team Slack channel via the existing
+ *      webhook (no per-uid rate-limit — escalation is privileged).
+ *   2. SMTP send to support@convohub.dev as a permanent inbox copy.
+ *
+ * Every attempt is recorded on the investigationRequests row so the
+ * webmaster can audit which hops actually delivered.
+ */
+const ESCALATION_FALLBACK_EMAIL = "support@convohub.dev";
+
+async function postEscalationToSlack(opts: { body: string }): Promise<{ ok: boolean; error: string | null }> {
+  const url = await readSlackWebhookUrl();
+  if (!url) return { ok: false, error: "Slack webhook not configured" };
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: ":rotating_light: ConvoHub escalation",
+        blocks: [
+          { type: "section", text: { type: "mrkdwn", text: `:rotating_light: *ConvoHub escalation*\n${opts.body}` } },
+        ],
+      }),
+    });
+    if (!res.ok) return { ok: false, error: `Slack responded ${res.status}` };
+    return { ok: true, error: null };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+async function postEscalationToFailsafeEmail(opts: { subject: string; body: string }): Promise<{ ok: boolean; error: string | null }> {
+  const transport = buildTransport();
+  if (!transport) return { ok: false, error: "SMTP not configured for failsafe inbox" };
+  try {
+    await transport.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: ESCALATION_FALLBACK_EMAIL,
+      subject: opts.subject,
+      text: opts.body,
+    });
+    return { ok: true, error: null };
+  } catch (err) {
+    logger.warn("postEscalationToFailsafeEmail: SMTP send failed", err);
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
 export const requestConversationInvestigation = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const uid = request.auth.uid;
@@ -731,22 +784,53 @@ export const requestConversationInvestigation = onCall(async (request) => {
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  const { sent, error } = await sendEscalationEmail({
-    subject: `[ConvoHub] Conversation investigation requested${customerName ? ` — ${customerName}` : ""}`,
-    text:
-      `${userData.displayName ?? "(no name)"} <${userData.email ?? uid}> is asking a webmaster ` +
-      `to investigate conversation ${conversationId}` +
-      `${customerName ? ` with ${customerName}` : ""}.\n\n` +
-      `Reason: ${reason || "(none provided)"}\n\n` +
-      `Request ID: ${ref.id}`,
-  });
+  const subject = `[ConvoHub] Conversation investigation requested${customerName ? ` — ${customerName}` : ""}`;
+  const bodyText =
+    `${userData.displayName ?? "(no name)"} <${userData.email ?? uid}> is asking a webmaster ` +
+    `to investigate conversation ${conversationId}` +
+    `${customerName ? ` with ${customerName}` : ""}.\n\n` +
+    `Reason: ${reason || "(none provided)"}\n\n` +
+    `Request ID: ${ref.id}`;
+
+  // 1. Primary path
+  const primary = await sendEscalationEmail({ subject, text: bodyText });
+
+  // 2. Failsafes — only when primary failed.
+  let slackResult: { ok: boolean; error: string | null } = { ok: false, error: "skipped" };
+  let failsafeEmailResult: { ok: boolean; error: string | null } = { ok: false, error: "skipped" };
+  if (!primary.sent) {
+    const slackBody =
+      `*Requester:* ${userData.displayName ?? "(no name)"} <${userData.email ?? uid}>\n` +
+      `*Conversation:* ${conversationId}${customerName ? ` (${customerName})` : ""}\n` +
+      `*Reason:* ${reason || "_none provided_"}\n` +
+      `*Request ID:* \`${ref.id}\`\n` +
+      `_Primary email failed: ${primary.error || "unknown"} — please check in or get Kit for scanning._`;
+    [slackResult, failsafeEmailResult] = await Promise.all([
+      postEscalationToSlack({ body: slackBody }),
+      postEscalationToFailsafeEmail({ subject, body: bodyText }),
+    ]);
+  }
 
   await ref.update({
-    emailSent: sent,
-    ...(error ? { emailError: error } : {}),
+    emailSent: primary.sent,
+    ...(primary.error ? { emailError: primary.error } : {}),
+    fallbackSlackSent: slackResult.ok,
+    ...(slackResult.error ? { fallbackSlackError: slackResult.error } : {}),
+    fallbackEmailSent: failsafeEmailResult.ok,
+    ...(failsafeEmailResult.error ? { fallbackEmailError: failsafeEmailResult.error } : {}),
+    fallbackEmailRecipient: ESCALATION_FALLBACK_EMAIL,
   });
 
-  return { ok: true, requestId: ref.id, emailSent: sent, emailError: error };
+  const anyDelivered = primary.sent || slackResult.ok || failsafeEmailResult.ok;
+  return {
+    ok: true,
+    requestId: ref.id,
+    emailSent: primary.sent,
+    emailError: primary.error,
+    fallbackSlackSent: slackResult.ok,
+    fallbackEmailSent: failsafeEmailResult.ok,
+    delivered: anyDelivered,
+  };
 });
 
 /**
