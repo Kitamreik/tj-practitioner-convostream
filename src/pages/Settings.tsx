@@ -1157,6 +1157,7 @@ const SettingsPage: React.FC = () => {
           { id: "webmaster-contact", label: "Webmaster contact" },
           { id: "bg-gmail", label: "Background Gmail ingestion" },
           { id: "promote", label: "Promote to Webmaster" },
+          { id: "provision-support", label: "Provision Support" },
           { id: "pending", label: "Pending escalations" },
           { id: "agents", label: "Agents" },
           { id: "accounts", label: "Accounts" },
@@ -1776,7 +1777,66 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Webmaster-only: Pending escalation requests */}
+        {/* Webmaster-only: Provision Support account (support@convohub.dev) */}
+        {isWebmaster && (() => {
+          const supportAccount = accounts.find(
+            (a) => a.email.trim().toLowerCase() === SUPPORT_EMAIL
+          );
+          const exists = !!supportAccount;
+          const alreadyWebmaster = supportAccount?.role === "webmaster";
+          return (
+            <div id="provision-support" className="rounded-xl border border-primary/30 bg-primary/5 p-6">
+              <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
+                <LifeBuoy className="h-5 w-5 text-primary" />
+                Provision Support account
+              </h3>
+              <p className="text-xs text-muted-foreground mb-4">
+                Grants <code className="mx-1 rounded bg-muted px-1 py-0.5">{SUPPORT_EMAIL}</code> webmaster access
+                and clones your <code className="mx-1 rounded bg-muted px-1 py-0.5">integrations/credentials</code>
+                + <code className="mx-1 rounded bg-muted px-1 py-0.5">prefs/ui</code> into that account so the
+                Support operator inherits Slack/Gmail config and the background-ingest toggle.
+              </p>
+              <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-muted-foreground">Status:</span>
+                {!exists && (
+                  <Badge variant="outline" className="gap-1">
+                    <X className="h-3 w-3" /> Not signed up yet
+                  </Badge>
+                )}
+                {exists && !alreadyWebmaster && (
+                  <Badge variant="outline" className="gap-1">
+                    <Clock className="h-3 w-3" /> Found — role: {supportAccount?.role}
+                  </Badge>
+                )}
+                {exists && alreadyWebmaster && (
+                  <Badge className="gap-1">
+                    <CheckCircle2 className="h-3 w-3" /> Webmaster
+                  </Badge>
+                )}
+              </div>
+              {!exists && (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  The Support account doesn't exist yet. Sign up{" "}
+                  <code className="rounded bg-muted px-1 py-0.5">{SUPPORT_EMAIL}</code> via the{" "}
+                  <Link to="/login" className="underline">login page</Link>, then click below.
+                </p>
+              )}
+              <Button
+                onClick={handleProvisionSupport}
+                disabled={provisioningSupport || !exists}
+                className="gap-2"
+              >
+                <LifeBuoy className="h-4 w-4" />
+                {provisioningSupport
+                  ? "Provisioning…"
+                  : alreadyWebmaster
+                  ? "Re-sync integrations & prefs"
+                  : "Grant Webmaster + clone integrations"}
+              </Button>
+            </div>
+          );
+        })()}
+
         {isWebmaster && (
           <div id="pending" className="rounded-xl border border-border bg-card p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
