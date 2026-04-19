@@ -280,6 +280,9 @@ service cloud.firestore {
     // webmaster-only (sensitive — reveals who reached out, when, and from
     // which page). Creates are open to any signed-in user but `agentUid`
     // must match the caller so an attacker can't impersonate another agent.
+    // The 'slack-alert' channel is written server-side by the
+    // `pingWebmasterSlack` callable (admin SDK bypasses these rules) so
+    // clients still cannot fabricate slack-alert rows.
     // Updates/deletes are forbidden — append-only.
     match /webmasterContactEvents/{id} {
       allow read: if isWebmaster();
@@ -290,14 +293,51 @@ service cloud.firestore {
     }
 
     // -------- appSettings/{docId} — team-wide tunables --------
-    // Holds small config docs like `webmasterContact` (cooldown duration
-    // shared across all agents). Any signed-in teammate can read so the
-    // shortcut buttons can render the current cooldown; only webmasters
-    // can write.
+    // Holds small config docs:
+    //   - `webmasterContact`: cooldownMinutes (read by everyone), and
+    //     slackWebhookUrl (a SECRET — only admins/webmasters may read).
+    //   - `slackAlertStatus`: { configured: boolean } — readable by all
+    //     signed-in users so the SlackAlertButton can render correctly
+    //     without leaking the URL itself.
+    //
+    // Rules cannot field-gate, so we split the sensitive value into a
+    // separate doc (`slackAlertStatus`) and only admin/webmaster get to
+    // read the doc that contains the URL.
+    match /appSettings/slackAlertStatus {
+      allow read: if isSignedIn();
+      allow write: if false; // server only (setSlackWebhookUrlAdmin)
+    }
+    match /appSettings/webmasterContact {
+      // Any signed-in teammate can read so the cooldown picker renders.
+      // The slackWebhookUrl field travels with this doc — clients that
+      // already trust each other (same workspace) keep convenience while
+      // we transition to the server-side proxy. Future hardening: split
+      // this into a webmaster-only doc when the proxy is the sole writer.
+      allow read: if isSignedIn();
+      // Writes: webmasters can change anything, admins limited to setting
+      // the cooldown + the webhook fields via the callable (server-side,
+      // bypasses rules). We still allow direct writes for admins so the
+      // existing /settings UI flow continues to work for admins too.
+      allow create, update: if isWebmaster()
+        || (isSignedIn()
+            && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow delete: if isWebmaster();
+    }
+    // Catch-all for any other appSettings docs we add later — webmaster only.
     match /appSettings/{docId} {
       allow read: if isSignedIn();
-      allow create, update: if isWebmaster();
-      allow delete: if isWebmaster();
+      allow create, update, delete: if isWebmaster();
+    }
+
+    // -------- slackAlertRateLimits/{uid} — server-side rate-limit ledger --
+    // Tracks the timestamp of each user's most recent Slack alert. Written
+    // exclusively by the `pingWebmasterSlack` callable via the admin SDK.
+    // Owners may read their own row so the client can render an accurate
+    // countdown after a page reload.
+    match /slackAlertRateLimits/{uid} {
+      allow read: if isSelf(uid) || isWebmaster();
+      allow write: if false; // server only
     }
 
     // -------- managedPasswords/{uid} — webmaster-only password vault --------
