@@ -122,6 +122,7 @@ interface AccountRow {
   displayName: string;
   role: "agent" | "admin" | "webmaster";
   escalatedAccess?: boolean;
+  supportAccess?: boolean;
   createdAt?: any;
 }
 
@@ -541,6 +542,7 @@ const SettingsPage: React.FC = () => {
             displayName: data.displayName ?? "",
             role: data.role ?? "admin",
             escalatedAccess: !!data.escalatedAccess,
+            supportAccess: !!data.supportAccess,
             createdAt: data.createdAt,
           };
         });
