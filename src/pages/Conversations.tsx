@@ -349,6 +349,7 @@ const Conversations: React.FC = () => {
   };
   const replyInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
+  const supportUsers = useSupportUsers();
 
   // Note: the previous resizable thread-list pane was removed in favor of an
   // overlay layout — selecting a conversation now hides the list and shows
