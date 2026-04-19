@@ -62,6 +62,8 @@ const SupportHomeOrConversations: React.FC = () => {
   const isSupport = (profile?.email || "").trim().toLowerCase() === SUPPORT_EMAIL;
   return isSupport ? <Home /> : <Conversations />;
 };
+
+const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
