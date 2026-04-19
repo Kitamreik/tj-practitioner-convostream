@@ -115,10 +115,11 @@ const BottomNav: React.FC = () => {
   };
 
   const escalated = profile?.role === "webmaster" || profile?.escalatedAccess === true;
-  // Non-escalated admins lose the Stats slot; surface Archive instead so the bar stays useful.
-  const primaryItems: NavItem[] = escalated
-    ? [chatsItem, peopleItem, alertsItem, statsItem]
-    : [chatsItem, peopleItem, alertsItem, { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" }];
+  // Bottom bar after the trim: Chats, Alerts, Archive, Settings — same for
+  // every role. Webmaster-gated entries live inside the More sheet, which
+  // uses `escalated` to decide which optional rows to render.
+  void escalated;
+  const primaryItems: NavItem[] = [chatsItem, alertsItem, archiveItem, settingsItem];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch border-t border-border bg-background pb-[env(safe-area-inset-bottom)] md:hidden">
