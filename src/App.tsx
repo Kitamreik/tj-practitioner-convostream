@@ -23,6 +23,7 @@ import AgentLogs from "./pages/AgentLogs";
 import StaffUpdates from "./pages/StaffUpdates";
 import FileRecordings from "./pages/FileRecordings";
 import IconKey from "./pages/IconKey";
+import Chat from "./pages/Chat";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -85,6 +86,7 @@ const App = () => (
                 <Route path="/" element={<SupportHomeOrConversations />} />
                 <Route path="/conversations" element={<Conversations />} />
                 <Route path="/conversations/:id" element={<Conversations />} />
+                <Route path="/chat" element={<Chat />} />
                 <Route path="/agents" element={<Agents />} />
                 {/* Legacy redirect: /people → /agents */}
                 <Route path="/people" element={<Navigate to="/agents" replace />} />
