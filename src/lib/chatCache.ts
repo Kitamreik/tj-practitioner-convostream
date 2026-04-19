@@ -207,13 +207,20 @@ export function saveCachedMessages(
 export function appendOptimisticMessage(
   uid: string,
   threadId: string,
-  partial: Omit<ChatMessage, "id" | "createdAt"> & { createdAtMs?: number }
-): ChatMessage {
-  const optimistic: ChatMessage = {
+  partial: Omit<ChatMessage, "id" | "createdAt"> & {
+    createdAtMs?: number;
+    /** Stable id used to de-dupe against a server echo from the outbox flush. */
+    clientId?: string;
+  }
+): ChatMessage & { clientId: string } {
+  const clientId =
+    partial.clientId ?? `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const optimistic = {
     ...partial,
-    id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: clientId,
+    clientId,
     createdAt: Timestamp.fromMillis(partial.createdAtMs ?? Date.now()),
-  };
+  } as ChatMessage & { clientId: string };
   const existing = loadCachedMessages(uid, threadId);
   saveCachedMessages(uid, threadId, [...existing, optimistic]);
   return optimistic;
@@ -257,7 +264,11 @@ export function mergeWithOptimistic(
   const FRESH_WINDOW_MS = 30_000;
   const stillPending = localOnly.filter((local) => {
     const localMs = local.createdAt?.toMillis?.() ?? 0;
+    const localClientId = (local as any).clientId as string | undefined;
     return !serverMessages.some((s) => {
+      // Strongest signal: clientId echoed back from the outbox flush.
+      const sClientId = (s as any).clientId as string | undefined;
+      if (localClientId && sClientId && localClientId === sClientId) return true;
       if (s.senderUid !== local.senderUid) return false;
       if (s.body !== local.body) return false;
       const sMs = s.createdAt?.toMillis?.() ?? 0;
