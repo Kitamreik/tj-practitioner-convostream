@@ -1376,7 +1376,7 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
 
-
+        {/* Webmaster-only: Slack DM webhook for the Call/Text shortcut.
             Stored team-wide in `appSettings/webmasterContact.slackWebhookUrl`
             so every agent's browser can read it (per-user integrations creds
             are owner-only). */}
