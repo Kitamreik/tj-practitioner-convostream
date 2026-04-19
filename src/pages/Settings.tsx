@@ -31,6 +31,7 @@ import {
   Copy,
   PhoneCall,
   Mail,
+  LifeBuoy,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { getBoolPref, setBoolPrefRemote, subscribeBoolPrefRemote } from "@/lib/userPrefs";
@@ -210,6 +211,57 @@ const SettingsPage: React.FC = () => {
       });
     } finally {
       setPromoting(false);
+    }
+  };
+
+  // ---- Provision Support (webmaster only) ----
+  // One-click flow that grants webmaster role to support@convohub.dev AND
+  // clones the calling webmaster's integrations + UI prefs into that account
+  // via the `cloneIntegrationsToSupport` callable. The Support account must
+  // already exist (sign up via /login first).
+  const SUPPORT_EMAIL = "support@convohub.dev";
+  const [provisioningSupport, setProvisioningSupport] = useState(false);
+  const supportAccount = useMemo(
+    () => accounts.find((a) => a.email.trim().toLowerCase() === SUPPORT_EMAIL),
+    [/* set after accounts is declared; see below */]
+  );
+
+  const handleProvisionSupport = async () => {
+    setProvisioningSupport(true);
+    try {
+      // 1) Promote to webmaster (idempotent — re-promoting is a no-op).
+      const promoteFn = httpsCallable<
+        { targetEmail: string; role: "webmaster" },
+        { ok: boolean; previousRole: string; newRole: string }
+      >(functions, "promoteToWebmaster");
+      const promoteRes = await promoteFn({ targetEmail: SUPPORT_EMAIL, role: "webmaster" });
+
+      // 2) Clone integrations + UI prefs from the caller into Support's uid.
+      const cloneFn = httpsCallable<
+        { targetEmail: string },
+        { ok: boolean; clonedIntegrations: boolean; clonedPrefs: boolean }
+      >(functions, "cloneIntegrationsToSupport");
+      const cloneRes = await cloneFn({ targetEmail: SUPPORT_EMAIL });
+
+      const parts: string[] = [];
+      parts.push(`Role ${promoteRes.data.previousRole} → ${promoteRes.data.newRole}`);
+      parts.push(cloneRes.data.clonedIntegrations ? "integrations cloned" : "no integrations to clone");
+      parts.push(cloneRes.data.clonedPrefs ? "prefs cloned" : "no prefs to clone");
+      toast({
+        title: "Support account provisioned",
+        description: parts.join(" · "),
+      });
+    } catch (e: any) {
+      const msg = e?.message || "Unable to provision Support account.";
+      toast({
+        title: "Provisioning failed",
+        description: msg.includes("No user with email")
+          ? `Sign up ${SUPPORT_EMAIL} first via the login page, then retry.`
+          : msg,
+        variant: "destructive",
+      });
+    } finally {
+      setProvisioningSupport(false);
     }
   };
 
