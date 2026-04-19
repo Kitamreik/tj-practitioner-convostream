@@ -95,11 +95,24 @@ export function useBackgroundGmailPoller() {
   const initializedRef = useRef(false);
   const inflightRef = useRef(false);
 
+  // Opt-in toggle, persisted per-uid via userPrefs (defaults OFF). Subscribing
+  // means flipping the switch on /settings starts/stops polling immediately
+  // without a page reload.
+  const [enabled, setEnabled] = useState<boolean>(() =>
+    getBoolPref(user?.uid, BG_GMAIL_INGEST_PREF, false)
+  );
+  useEffect(() => {
+    setEnabled(getBoolPref(user?.uid, BG_GMAIL_INGEST_PREF, false));
+    return subscribeBoolPref(user?.uid, BG_GMAIL_INGEST_PREF, setEnabled);
+  }, [user?.uid]);
+
   useEffect(() => {
     if (!user || !profile) return;
     // Only webmasters poll in the background. Agents/admins continue to use
     // the manual Push to ConvoHub button on /gmail-api.
     if (profile.role !== "webmaster") return;
+    // Honor the opt-in toggle on /settings.
+    if (!enabled) return;
 
     let cancelled = false;
     const uid = user.uid;
@@ -249,5 +262,5 @@ export function useBackgroundGmailPoller() {
       if (intervalRef.current) window.clearInterval(intervalRef.current);
       intervalRef.current = null;
     };
-  }, [user, profile]);
+  }, [user, profile, enabled]);
 }
