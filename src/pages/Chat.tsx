@@ -166,7 +166,9 @@ const ChatPage: React.FC = () => {
       setMessages([]);
       return;
     }
-    const unsub = subscribeThreadMessages(activeId, setMessages);
+    // Pass selfUid so the subscription hydrates from localStorage and
+    // write-throughs every snapshot — the failsafe layer (chatCache.ts).
+    const unsub = subscribeThreadMessages(activeId, setMessages, user?.uid ?? null);
     // When this thread closes (or we switch to another), clear our
     // typing flag so the previous recipient doesn't see a stale "typing…".
     return () => {
