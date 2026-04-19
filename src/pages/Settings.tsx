@@ -89,7 +89,7 @@ import {
   DEFAULT_COOLDOWN_MIN,
   setCooldownMin,
   subscribeCooldownMin,
-  subscribeSlackWebhookUrl,
+  subscribeSlackAlertConfigured,
   setSlackWebhookUrl,
   type CooldownMinutes,
 } from "@/lib/webmasterCooldown";
