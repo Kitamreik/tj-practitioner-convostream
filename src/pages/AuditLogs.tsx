@@ -976,6 +976,100 @@ const AuditLogs: React.FC = () => {
             />
           </div>
         </TabsContent>
+
+        <TabsContent value="support">
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+            <p className="text-xs text-muted-foreground">
+              Webmaster grants and revocations of Support access. Support users can moderate Team
+              Chat and land on the Support call-center home. Entries originate from{" "}
+              <code className="rounded bg-muted px-1 py-0.5">setSupportAccess</code> and are
+              server-written, so they cannot be edited or cleared from the client.
+            </p>
+            <ExportCsvButton
+              label="support access"
+              count={support.length}
+              onExport={() =>
+                downloadCsv(
+                  "support-access",
+                  ["Action", "Target Email", "Target UID", "Granted By", "Timestamp"],
+                  support.map((s) => [
+                    s.action === "grantSupport" ? "Granted" : "Revoked",
+                    s.targetEmail ?? "",
+                    s.targetUid,
+                    s.grantedByEmail ?? "",
+                    s.grantedAt?.toDate?.()?.toISOString() ?? "",
+                  ])
+                )
+              }
+            />
+          </div>
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px]">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Action</th>
+                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Target</th>
+                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">By</th>
+                    <th className="px-4 md:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingSupport ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">Loading...</td>
+                    </tr>
+                  ) : visibleSupport.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">
+                        No Support access changes yet. Grant or revoke Support from Settings → Accounts to see entries here.
+                      </td>
+                    </tr>
+                  ) : (
+                    visibleSupport.map((s, i) => {
+                      const granted = s.action === "grantSupport";
+                      return (
+                        <motion.tr
+                          key={s.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: i * 0.02 }}
+                          className="border-b border-border last:border-0"
+                        >
+                          <td className="px-4 md:px-6 py-3">
+                            <Badge variant={granted ? "default" : "destructive"} className="gap-1 text-xs">
+                              <LifeBuoy className="h-3 w-3" />
+                              {granted ? "Granted" : "Revoked"}
+                            </Badge>
+                          </td>
+                          <td className="px-4 md:px-6 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                                {(s.targetEmail || "?").charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate">{s.targetEmail || "—"}</p>
+                                <p className="text-[10px] text-muted-foreground font-mono truncate">{s.targetUid}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 md:px-6 py-3 text-sm text-muted-foreground">{s.grantedByEmail || "—"}</td>
+                          <td className="px-4 md:px-6 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatTs(s.grantedAt)}</td>
+                        </motion.tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={supportPage}
+              pageCount={supportPageCount}
+              onChange={setSupportPage}
+              totalLabel={`${support.length} entries`}
+            />
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   );
