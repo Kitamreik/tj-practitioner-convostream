@@ -14,6 +14,7 @@ import { db } from "@/lib/firebase";
 import { getActiveCount, subscribeRecordings } from "@/lib/fileRecordings";
 import { getBoolPref, subscribeBoolPref } from "@/lib/userPrefs";
 import { useIntegrationsHealth } from "@/hooks/useIntegrationsHealth";
+import { useChatUnreadCount } from "@/hooks/useChatUnreadCount";
 
 interface NavItem {
   label: string;
@@ -25,7 +26,7 @@ interface NavItem {
 }
 
 const chatsItem: NavItem = { label: "Chats", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" };
-const teamChatItem: NavItem = { label: "Team", icon: <MessagesSquare className="h-5 w-5" />, path: "/chat" };
+const teamChatItem: NavItem = { label: "Team", icon: <MessagesSquare className="h-5 w-5" />, path: "/chat", badgeKey: "chat" };
 const alertsItem: NavItem = { label: "Alerts", icon: <Bell className="h-5 w-5" />, path: "/notifications", badgeKey: "notifications" };
 const archiveItem: NavItem = { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" };
 const settingsItem: NavItem = { label: "Settings", icon: <SettingsIcon className="h-5 w-5" />, path: "/settings" };
@@ -51,6 +52,7 @@ const BottomNav: React.FC = () => {
   const [staffActive, setStaffActive] = useState(0);
   const [recordingsActive, setRecordingsActive] = useState(() => getActiveCount());
   const [moreOpen, setMoreOpen] = useState(false);
+  const chatUnread = useChatUnreadCount();
 
   useEffect(() => {
     const q = query(collection(db, "conversations"), where("unread", "==", true));
@@ -107,6 +109,7 @@ const BottomNav: React.FC = () => {
     if (item.badgeKey === "notifications") return notifs;
     if (item.badgeKey === "staff") return staffActive;
     if (item.badgeKey === "recordings") return recordingsActive;
+    if (item.badgeKey === "chat") return chatUnread;
     return 0;
   };
 
