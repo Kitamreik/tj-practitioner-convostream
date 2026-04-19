@@ -117,8 +117,7 @@ const BottomNav: React.FC = () => {
   const escalated = profile?.role === "webmaster" || profile?.escalatedAccess === true;
   // Bottom bar after the trim: Chats, Alerts, Archive, Settings — same for
   // every role. Webmaster-gated entries live inside the More sheet, which
-  // uses `escalated` to decide which optional rows to render.
-  void escalated;
+  // consumes `escalated` further down to filter optional rows.
   const primaryItems: NavItem[] = [chatsItem, alertsItem, archiveItem, settingsItem];
 
   return (
