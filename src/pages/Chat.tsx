@@ -282,6 +282,28 @@ const ChatPage: React.FC = () => {
   const showThreadPane = !isMobile || activeId === null;
   const showMessagePane = !isMobile || activeId !== null;
 
+  // ---- read receipts -------------------------------------------------------
+  // Compute the recipient's last-read timestamp (ms) and find the index of
+  // the latest of *my* messages whose createdAt is <= that timestamp. We only
+  // render "Seen" on that single bubble (Slack/iMessage style) so the UI
+  // doesn't shout "Seen" under every line. Recomputed whenever messages or
+  // the thread's readState change.
+  const { seenAtMs, lastSeenOwnId } = useMemo(() => {
+    if (!user || !activeThread) return { seenAtMs: 0, lastSeenOwnId: null as string | null };
+    const otherUid = activeThread.participantUids.find((u) => u !== user.uid);
+    if (!otherUid) return { seenAtMs: 0, lastSeenOwnId: null };
+    const ms = activeThread.readState?.[otherUid]?.toMillis?.() ?? 0;
+    if (!ms) return { seenAtMs: 0, lastSeenOwnId: null };
+    let id: string | null = null;
+    for (const m of messages) {
+      if (m.senderUid !== user.uid) continue;
+      if (m.deleted) continue;
+      const c = m.createdAt?.toMillis?.() ?? 0;
+      if (c && c <= ms) id = m.id;
+    }
+    return { seenAtMs: ms, lastSeenOwnId: id };
+  }, [user, activeThread, messages]);
+
   return (
     <div className="flex h-full max-h-[calc(100vh-3.5rem)] md:max-h-screen">
       {showThreadPane && (
