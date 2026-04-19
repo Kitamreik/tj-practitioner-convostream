@@ -637,7 +637,8 @@ const ChatPage: React.FC = () => {
                             </DropdownMenu>
                           )}
                         </div>
-                      </div>
+                        </div>
+                      </React.Fragment>
                     );
                   })}
                   <div ref={messagesEndRef} />
