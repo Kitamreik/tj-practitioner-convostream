@@ -357,50 +357,9 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // Fire a test message to whatever URL is currently in the input. Uses the
-  // draft (not the saved value) so the webmaster can validate a freshly
-  // pasted URL without having to save it first. Mirrors the Slack ping
-  // shape used by notifyWebmasterOnContact so a successful test confirms
-  // the same channel will receive real alerts.
-  const [testingPing, setTestingPing] = useState(false);
-  const handleTestPing = async () => {
-    const url = slackWebhookDraft.trim();
-    if (!url || !url.startsWith("https://hooks.slack.com/")) {
-      toast({
-        title: "Enter a Slack webhook URL first",
-        description: "Must start with https://hooks.slack.com/",
-        variant: "destructive",
-      });
-      return;
-    }
-    setTestingPing(true);
-    try {
-      // Slack rejects browser preflight on incoming-webhooks, so we use
-      // mode:'no-cors'. The request still reaches Slack but we can't read
-      // the response — same trade-off as notifyWebmaster.pingSlack. A
-      // network-layer failure throws; otherwise we assume delivery.
-      await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        mode: "no-cors",
-        body: JSON.stringify({
-          text: `:white_check_mark: Test ping from *${profile?.displayName || "the webmaster"}* — ConvoHub Slack alerts are wired up correctly.`,
-        }),
-      });
-      toast({
-        title: "Test ping sent",
-        description: "Check your Slack channel — the message should appear within a few seconds.",
-      });
-    } catch (e: any) {
-      toast({
-        title: "Test ping failed",
-        description: e?.message || "Could not reach Slack. Double-check the URL.",
-        variant: "destructive",
-      });
-    } finally {
-      setTestingPing(false);
-    }
-  };
+  // The legacy "Send test ping" was removed when the webhook moved
+  // server-side — the URL is no longer in the browser to test against.
+  // Use the "Ping Slack" button on /conversations to verify end-to-end.
 
   const handleCooldownChange = async (value: string) => {
     const n = Number(value) as CooldownMinutes;
