@@ -5,13 +5,19 @@ import {
   canModerateChat,
   ChatMessage,
   ChatThread,
+  clearTyping,
   editChatMessage,
+  isOtherTyping,
+  isThreadUnread,
   listOtherUsers,
+  markThreadRead,
   openOrCreateDmThread,
+  pingTyping,
   sendChatMessage,
   softDeleteChatMessage,
   subscribeMyThreads,
   subscribeThreadMessages,
+  TYPING_FRESH_MS,
 } from "@/lib/chat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -156,10 +162,65 @@ const ChatPage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, activeId]);
 
+  // Mark active thread as read whenever it opens or a new message lands.
+  // Stamps `readState[selfUid]=now` on the thread doc so the unread count
+  // in the sidebar/bottom-nav drops immediately for this user only.
+  useEffect(() => {
+    if (!user || !activeId) return;
+    void markThreadRead(activeId, user.uid);
+  }, [user, activeId, messages.length]);
+
+  // Typing indicator freshness ticker — re-renders the header every 2s so
+  // the "typing…" label decays without a Firestore round-trip when the
+  // other user stops typing.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!activeId) return;
+    const t = setInterval(() => setNowMs(Date.now()), 2_000);
+    return () => clearInterval(t);
+  }, [activeId]);
+  const otherTyping = isOtherTyping(activeThread, user?.uid ?? "", nowMs);
+
   // ---- composer ------------------------------------------------------------
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  // Throttle typing pings: at most one Firestore write per ~3s while the
+  // user is actively composing. Each ping refreshes our `typingState[uid]`
+  // timestamp on the thread; consumers use TYPING_FRESH_MS (5s) freshness.
+  const lastTypingPingRef = useRef(0);
+  const TYPING_PING_INTERVAL_MS = Math.max(3_000, TYPING_FRESH_MS - 2_000);
+  const handleDraftChange = (next: string) => {
+    setDraft(next);
+    if (!user || !activeId) return;
+    if (!next.trim()) return; // empty draft = not typing
+    const now = Date.now();
+    if (now - lastTypingPingRef.current >= TYPING_PING_INTERVAL_MS) {
+      lastTypingPingRef.current = now;
+      void pingTyping(activeId, user.uid);
+    }
+  };
   const handleSend = async () => {
+    if (!user || !profile || !activeId || !draft.trim()) return;
+    setSending(true);
+    try {
+      await sendChatMessage({
+        threadId: activeId,
+        senderUid: user.uid,
+        senderName: profile.displayName,
+        senderEmail: profile.email,
+        body: draft,
+      });
+      setDraft("");
+      // Clear our typing flag immediately so the recipient's "typing…"
+      // label disappears without waiting for the freshness window.
+      lastTypingPingRef.current = 0;
+      void clearTyping(activeId, user.uid);
+    } catch (e: any) {
+      toast({ title: "Couldn't send", description: e?.message, variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
+  };
     if (!user || !profile || !activeId || !draft.trim()) return;
     setSending(true);
     try {
