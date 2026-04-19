@@ -38,6 +38,7 @@ import { getBoolPref, setBoolPrefRemote, subscribeBoolPrefRemote } from "@/lib/u
 import { BG_GMAIL_INGEST_PREF } from "@/hooks/useBackgroundGmailPoller";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { AccountActionsMenu } from "@/components/AccountActionsMenu";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
