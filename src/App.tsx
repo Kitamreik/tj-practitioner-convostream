@@ -51,7 +51,17 @@ const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>;
 };
 
-const App = () => (
+/**
+ * The `/` route renders the new Support call-center home ONLY for the
+ * support@convohub.dev account; everyone else continues to land on the
+ * full Conversations inbox so existing workflows are untouched.
+ */
+const SUPPORT_EMAIL = "support@convohub.dev";
+const SupportHomeOrConversations: React.FC = () => {
+  const { profile } = useAuth();
+  const isSupport = (profile?.email || "").trim().toLowerCase() === SUPPORT_EMAIL;
+  return isSupport ? <Home /> : <Conversations />;
+};
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
