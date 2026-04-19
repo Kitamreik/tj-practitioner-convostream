@@ -38,6 +38,7 @@ import { getBoolPref, setBoolPrefRemote, subscribeBoolPrefRemote } from "@/lib/u
 import { BG_GMAIL_INGEST_PREF } from "@/hooks/useBackgroundGmailPoller";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { AccountActionsMenu } from "@/components/AccountActionsMenu";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -551,6 +552,10 @@ const SettingsPage: React.FC = () => {
   // ---- All accounts (webmaster only) ----
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [deletingUid, setDeletingUid] = useState<string | null>(null);
+  /** Controlled state for the per-account delete confirmation dialog —
+   *  lifted out of the row so the AccountActionsMenu can open it from
+   *  either the inline desktop button or the mobile ⋯ menu. */
+  const [deleteDialogUid, setDeleteDialogUid] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isWebmaster) return;
@@ -2036,35 +2041,31 @@ const SettingsPage: React.FC = () => {
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{acc.email || acc.uid}</p>
                       </div>
-                      <div className="flex flex-shrink-0 flex-wrap gap-2">
-                        <Button size="sm" variant="outline" className="gap-1" onClick={() => openRename(acc)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                          Rename
-                        </Button>
-                        {isAdminTier ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1"
-                            disabled={busy}
-                            onClick={() => demoteToAgent(acc)}
-                          >
-                            <ArrowDown className="h-3.5 w-3.5" />
-                            {busy ? "…" : "Demote to agent"}
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1"
-                            disabled={busy}
-                            onClick={() => promoteAgentToAdmin(acc)}
-                          >
-                            <ArrowUp className="h-3.5 w-3.5" />
-                            {busy ? "…" : "Promote to admin"}
-                          </Button>
-                        )}
-                      </div>
+                      <AccountActionsMenu
+                        actions={[
+                          {
+                            key: "rename",
+                            label: "Rename",
+                            icon: <Pencil className="h-3.5 w-3.5" />,
+                            onClick: () => openRename(acc),
+                          },
+                          isAdminTier
+                            ? {
+                                key: "demote",
+                                label: busy ? "…" : "Demote to agent",
+                                icon: <ArrowDown className="h-3.5 w-3.5" />,
+                                disabled: busy,
+                                onClick: () => demoteToAgent(acc),
+                              }
+                            : {
+                                key: "promote",
+                                label: busy ? "…" : "Promote to admin",
+                                icon: <ArrowUp className="h-3.5 w-3.5" />,
+                                disabled: busy,
+                                onClick: () => promoteAgentToAdmin(acc),
+                              },
+                        ]}
+                      />
                     </div>
                     {isOpen && history.length > 0 && (
                       <ul className="mt-3 space-y-1.5 border-t border-border pt-3">
@@ -2240,113 +2241,67 @@ const SettingsPage: React.FC = () => {
                         );
                       })()}
                     </div>
-                    <div className="flex flex-shrink-0 gap-2 flex-wrap">
-                      {/* Promote / Demote — webmaster-only role flips. Hidden
-                          for self and for existing webmasters (the latter
-                          must be demoted via promoteToWebmaster role=admin
-                          first to satisfy the demoteAgent precondition). */}
-                      {!isSelf && acc.role !== "webmaster" && (
-                        acc.role === "agent" ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1"
-                            disabled={roleChangingUid === acc.uid}
-                            onClick={() => promoteAgentToAdmin(acc)}
-                          >
-                            <ArrowUp className="h-3.5 w-3.5" />
-                            {roleChangingUid === acc.uid ? "Promoting…" : "Promote to admin"}
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1"
-                            disabled={roleChangingUid === acc.uid}
-                            onClick={() => demoteToAgent(acc)}
-                          >
-                            <ArrowDown className="h-3.5 w-3.5" />
-                            {roleChangingUid === acc.uid ? "Demoting…" : "Demote to agent"}
-                          </Button>
-                        )
-                      )}
-
-                      {/* Grant / Revoke Support — webmaster-only. Lets any
-                          account (typically an agent or admin) access the
-                          Support call-center home + chat moderation. */}
-                      {!isSelf && (
-                        acc.supportAccess ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1"
-                            disabled={supportChangingUid === acc.uid}
-                            onClick={() => setSupportAccessFor(acc, false)}
-                          >
-                            <LifeBuoy className="h-3.5 w-3.5" />
-                            {supportChangingUid === acc.uid ? "Updating…" : "Revoke Support"}
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1"
-                            disabled={supportChangingUid === acc.uid}
-                            onClick={() => setSupportAccessFor(acc, true)}
-                          >
-                            <LifeBuoy className="h-3.5 w-3.5" />
-                            {supportChangingUid === acc.uid ? "Updating…" : "Grant Support"}
-                          </Button>
-                        )
-                      )}
-
-                      {acc.escalatedAccess && acc.role !== "webmaster" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1"
-                          disabled={revokingUid === acc.uid}
-                          onClick={() => {
+                    <AccountActionsMenu
+                      actions={[
+                        // Promote / Demote — webmaster-only role flips. Hidden
+                        // for self and for existing webmasters (the latter
+                        // must be demoted via promoteToWebmaster role=admin
+                        // first to satisfy the demoteAgent precondition).
+                        {
+                          key: "promote",
+                          label: roleChangingUid === acc.uid ? "Promoting…" : "Promote to admin",
+                          icon: <ArrowUp className="h-3.5 w-3.5" />,
+                          disabled: roleChangingUid === acc.uid,
+                          hidden: isSelf || acc.role === "webmaster" || acc.role !== "agent",
+                          onClick: () => promoteAgentToAdmin(acc),
+                        },
+                        {
+                          key: "demote",
+                          label: roleChangingUid === acc.uid ? "Demoting…" : "Demote to agent",
+                          icon: <ArrowDown className="h-3.5 w-3.5" />,
+                          disabled: roleChangingUid === acc.uid,
+                          hidden: isSelf || acc.role === "webmaster" || acc.role === "agent",
+                          onClick: () => demoteToAgent(acc),
+                        },
+                        // Grant / Revoke Support — webmaster-only.
+                        {
+                          key: "grant-support",
+                          label: supportChangingUid === acc.uid ? "Updating…" : "Grant Support",
+                          icon: <LifeBuoy className="h-3.5 w-3.5" />,
+                          disabled: supportChangingUid === acc.uid,
+                          hidden: isSelf || !!acc.supportAccess,
+                          onClick: () => setSupportAccessFor(acc, true),
+                        },
+                        {
+                          key: "revoke-support",
+                          label: supportChangingUid === acc.uid ? "Updating…" : "Revoke Support",
+                          icon: <LifeBuoy className="h-3.5 w-3.5" />,
+                          disabled: supportChangingUid === acc.uid,
+                          hidden: isSelf || !acc.supportAccess,
+                          onClick: () => setSupportAccessFor(acc, false),
+                        },
+                        {
+                          key: "revoke-escalation",
+                          label: revokingUid === acc.uid ? "Revoking…" : "Revoke escalation",
+                          icon: <ShieldOff className="h-3.5 w-3.5" />,
+                          disabled: revokingUid === acc.uid,
+                          hidden: !(acc.escalatedAccess && acc.role !== "webmaster"),
+                          onClick: () => {
                             setRevokeReason("");
                             setRevokeDialogUid(acc.uid);
-                          }}
-                        >
-                          <ShieldOff className="h-3.5 w-3.5" />
-                          {revokingUid === acc.uid ? "Revoking…" : "Revoke escalation"}
-                        </Button>
-                      )}
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1 text-destructive hover:text-destructive"
-                            disabled={isSelf || deletingUid === acc.uid}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            {deletingUid === acc.uid ? "Deleting…" : "Delete"}
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete this account?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This permanently removes {acc.email || acc.displayName || acc.uid} from
-                              Firebase Auth and Firestore. They will lose access immediately and cannot sign in again.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              onClick={() => deleteAccount(acc.uid, acc.email)}
-                            >
-                              Delete account
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
+                          },
+                        },
+                        {
+                          key: "delete",
+                          label: deletingUid === acc.uid ? "Deleting…" : "Delete",
+                          icon: <Trash2 className="h-3.5 w-3.5" />,
+                          destructive: true,
+                          disabled: isSelf || deletingUid === acc.uid,
+                          hidden: isSelf,
+                          onClick: () => setDeleteDialogUid(acc.uid),
+                        },
+                      ]}
+                    />
                   </div>
                 );
               })}
@@ -2355,6 +2310,41 @@ const SettingsPage: React.FC = () => {
                   No accounts yet.
                 </div>
               )}
+              {/* Shared delete-confirmation dialog — controlled via
+                  deleteDialogUid so both the desktop inline Delete button
+                  and the mobile ⋯ menu open the same dialog. */}
+              <AlertDialog
+                open={!!deleteDialogUid}
+                onOpenChange={(o) => {
+                  if (!o) setDeleteDialogUid(null);
+                }}
+              >
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this account?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {(() => {
+                        const target = accounts.find((a) => a.uid === deleteDialogUid);
+                        const who = target?.email || target?.displayName || target?.uid || "this user";
+                        return `This permanently removes ${who} from Firebase Auth and Firestore. They will lose access immediately and cannot sign in again.`;
+                      })()}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => {
+                        const target = accounts.find((a) => a.uid === deleteDialogUid);
+                        if (target) deleteAccount(target.uid, target.email);
+                        setDeleteDialogUid(null);
+                      }}
+                    >
+                      Delete account
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         )}
