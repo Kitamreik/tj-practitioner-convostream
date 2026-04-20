@@ -2301,8 +2301,15 @@ export const pingWebmasterSlack = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Account role is not authorized to send Slack alerts.");
   }
 
-  const data = (request.data ?? {}) as { route?: unknown };
+  const data = (request.data ?? {}) as { route?: unknown; message?: unknown };
   const route = typeof data.route === "string" ? safeForSlack(data.route) : "/";
+  // Optional free-form message body. Sanitised (strip control chars) and
+  // capped to 800 chars so the Slack block stays readable. Empty/whitespace
+  // collapses to null and we fall back to the fixed review message.
+  const rawMessage = typeof data.message === "string" ? data.message.trim() : "";
+  const customMessage = rawMessage
+    ? rawMessage.replace(/[\u0000-\u001F\u007F]/g, " ").slice(0, 800)
+    : null;
 
   // ---- Rate limit (transactional read-modify-write) --------------------------
   const rateLimitRef = db.doc(`slackAlertRateLimits/${uid}`);
@@ -2347,14 +2354,15 @@ export const pingWebmasterSlack = onCall(async (request) => {
 
   // ---- POST to Slack ---------------------------------------------------------
   const agentName = safeForSlack(userData.displayName || userData.email?.split("@")[0] || "a teammate");
+  const headline = customMessage ?? FIXED_SLACK_ALERT_MESSAGE;
   const slackBody = {
-    text: `:rotating_light: ${FIXED_SLACK_ALERT_MESSAGE} (from ${agentName} · ${route})`,
+    text: `:rotating_light: ${headline} (from ${agentName} · ${route})`,
     blocks: [
       {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `:rotating_light: *${FIXED_SLACK_ALERT_MESSAGE}*\n>From *${agentName}* on \`${route}\``,
+          text: `:rotating_light: *${headline}*\n>From *${agentName}* on \`${route}\``,
         },
       },
     ],

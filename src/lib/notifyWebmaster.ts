@@ -62,13 +62,20 @@ export interface PingResult {
 export async function pingWebmasterSlackAlert(input: {
   agentName: string; // ignored — server resolves identity from auth
   route: string;
+  /** Optional free-form body. Empty/whitespace falls back to the fixed
+   *  review message server-side. Trimmed and capped to 800 chars. */
+  message?: string;
 }): Promise<PingResult> {
   try {
-    const fn = httpsCallable<{ route: string }, { ok: boolean; sentAt: number; nextAllowedAt: number }>(
-      functions,
-      "pingWebmasterSlack"
-    );
-    const res = await fn({ route: input.route || "/" });
+    const fn = httpsCallable<
+      { route: string; message?: string },
+      { ok: boolean; sentAt: number; nextAllowedAt: number }
+    >(functions, "pingWebmasterSlack");
+    const trimmed = (input.message ?? "").trim();
+    const res = await fn({
+      route: input.route || "/",
+      ...(trimmed ? { message: trimmed.slice(0, 800) } : {}),
+    });
     return { ok: !!res.data.ok, nextAllowedAt: res.data.nextAllowedAt };
   } catch (err: unknown) {
     const e = err as { code?: string; message?: string; details?: { retryAt?: number } };
