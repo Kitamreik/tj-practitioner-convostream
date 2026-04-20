@@ -132,6 +132,16 @@ service cloud.firestore {
             && request.resource.data.read == false);
     }
 
+    // -------- per-user UI preferences --------
+    // Cross-device prefs (theme, background Gmail toggle, etc.) live at
+    // users/{uid}/prefs/{docId}. Owner-only — nothing here is sensitive but
+    // there's no reason for other teammates to read or mutate it. Without
+    // this explicit rule, the catch-all denies access and the
+    // `subscribeBoolPrefRemote` listener errors out with permission-denied.
+    match /users/{uid}/prefs/{docId} {
+      allow read, write: if isSelf(uid);
+    }
+
     // -------- audit collections --------
     // login_attempts: anyone can append (login form runs unauthenticated on
     // failure), but reads + deletes are webmaster-only since these records

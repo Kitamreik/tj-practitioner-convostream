@@ -26,6 +26,7 @@ import IconKey from "./pages/IconKey";
 import Chat from "./pages/Chat";
 import Bootstrap from "./pages/Bootstrap";
 import NotFound from "./pages/NotFound";
+import FirestoreErrorBoundary from "./components/FirestoreErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -68,52 +69,54 @@ const SupportHomeOrConversations: React.FC = () => {
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
-              <Route path="/forgot-password" element={<AuthRoute><ForgotPassword /></AuthRoute>} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              {/* First-time setup. Cloud Function gates by webmaster existence. */}
-              <Route path="/bootstrap" element={<Bootstrap />} />
-              <Route
-                element={
-                  <ProtectedRoute>
-                    <AppLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route path="/" element={<SupportHomeOrConversations />} />
-                <Route path="/conversations" element={<Conversations />} />
-                <Route path="/conversations/:id" element={<Conversations />} />
-                <Route path="/chat" element={<Chat />} />
-                <Route path="/agents" element={<Agents />} />
-                {/* Legacy redirect: /people → /agents */}
-                <Route path="/people" element={<Navigate to="/agents" replace />} />
-                <Route path="/notifications" element={<Notifications />} />
-                <Route path="/integrations" element={<ProtectedRoute escalated><Integrations /></ProtectedRoute>} />
-                <Route path="/audit" element={<ProtectedRoute roles={["webmaster"]}><AuditLogs /></ProtectedRoute>} />
-                <Route path="/analytics" element={<ProtectedRoute escalated><Analytics /></ProtectedRoute>} />
-                <Route path="/gmail" element={<ProtectedRoute escalated><GmailAPI /></ProtectedRoute>} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/archive" element={<Archive />} />
-                <Route path="/agent-logs" element={<AgentLogs />} />
-                <Route path="/staff-updates" element={<StaffUpdates />} />
-                <Route path="/file-recordings" element={<FileRecordings />} />
-                <Route path="/icon-key" element={<IconKey />} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
+  <FirestoreErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
+                <Route path="/forgot-password" element={<AuthRoute><ForgotPassword /></AuthRoute>} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                {/* First-time setup. Cloud Function gates by webmaster existence. */}
+                <Route path="/bootstrap" element={<Bootstrap />} />
+                <Route
+                  element={
+                    <ProtectedRoute>
+                      <AppLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="/" element={<SupportHomeOrConversations />} />
+                  <Route path="/conversations" element={<Conversations />} />
+                  <Route path="/conversations/:id" element={<Conversations />} />
+                  <Route path="/chat" element={<Chat />} />
+                  <Route path="/agents" element={<Agents />} />
+                  {/* Legacy redirect: /people → /agents */}
+                  <Route path="/people" element={<Navigate to="/agents" replace />} />
+                  <Route path="/notifications" element={<Notifications />} />
+                  <Route path="/integrations" element={<ProtectedRoute escalated><Integrations /></ProtectedRoute>} />
+                  <Route path="/audit" element={<ProtectedRoute roles={["webmaster"]}><AuditLogs /></ProtectedRoute>} />
+                  <Route path="/analytics" element={<ProtectedRoute escalated><Analytics /></ProtectedRoute>} />
+                  <Route path="/gmail" element={<ProtectedRoute escalated><GmailAPI /></ProtectedRoute>} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/archive" element={<Archive />} />
+                  <Route path="/agent-logs" element={<AgentLogs />} />
+                  <Route path="/staff-updates" element={<StaffUpdates />} />
+                  <Route path="/file-recordings" element={<FileRecordings />} />
+                  <Route path="/icon-key" element={<IconKey />} />
+                </Route>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  </FirestoreErrorBoundary>
 );
 
 export default App;
