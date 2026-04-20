@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Bell, Clock } from "lucide-react";
+import { Bell, Clock, Send } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { subscribeSlackAlertConfigured, getLocalSlackAlertConfigured } from "@/lib/webmasterCooldown";
@@ -68,6 +70,8 @@ const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
   const location = useLocation();
   const [configured, setConfigured] = useState<boolean>(() => getLocalSlackAlertConfigured());
   const [sending, setSending] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [message, setMessage] = useState("");
   // `nextAllowedAt` drives the disabled state + countdown label. We hydrate
   // from localStorage immediately so the cooldown survives page reloads.
   const [nextAllowedAt, setNextAllowedAt] = useState<number>(() => readLocalNextAllowed(profile?.uid));
@@ -101,38 +105,40 @@ const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
     };
   }, [nextAllowedAt]);
 
-  // Webmasters used to be hidden (they're the recipient), but the Slack
-  // connection is now established and the team wants every signed-in
-  // teammate — including the webmaster — to be able to ping the channel
-  // (e.g. webmaster signed in as themselves needs to test the alert path
-  // without switching accounts). Server-side rate-limit + role check still
-  // apply, so unhiding here doesn't change the security posture.
   if (!profile) return null;
 
   const senderName = profile.displayName || profile.email?.split("@")[0] || "a teammate";
   const compact = variant === "compact";
   const remainingMs = Math.max(0, nextAllowedAt - Date.now());
   const inCooldown = remainingMs > 0;
-  const disabled = !configured || sending || inCooldown;
+  // The webhook is now provisioned server-side as a Cloud Functions secret —
+  // we no longer require the legacy `appSettings/slackAlertStatus.configured`
+  // mirror to enable the button. The callable returns `failed-precondition`
+  // if the secret is genuinely missing, which we surface as a toast.
+  const disabled = sending || inCooldown;
 
-  const handleClick = async () => {
+  const handleSend = async () => {
     if (disabled) return;
     setSending(true);
     try {
       const res = await pingWebmasterSlackAlert({
         agentName: senderName,
         route: location.pathname,
+        message: message.trim() || undefined,
       });
       if (res.ok) {
         const next = res.nextAllowedAt ?? Date.now() + RATE_LIMIT_MS;
         setNextAllowedAt(next);
         writeLocalNextAllowed(profile.uid, next);
+        setMessage("");
+        setOpen(false);
         toast({
           title: "Slack channel pinged",
-          description: "The webmaster channel has been notified for review.",
+          description: message.trim()
+            ? "Your custom message was sent to the team channel."
+            : "The webmaster channel has been notified for review.",
         });
       } else if (res.rateLimited && res.nextAllowedAt) {
-        // Server's authoritative — sync local state to it.
         setNextAllowedAt(res.nextAllowedAt);
         writeLocalNextAllowed(profile.uid, res.nextAllowedAt);
         toast({
@@ -152,9 +158,6 @@ const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
     }
   };
 
-  // Label: while in cooldown show the countdown so the agent knows exactly
-  // how long until the next press is allowed (reduces the "is it broken?"
-  // confusion when the button looks disabled).
   const label = sending
     ? "Pinging…"
     : inCooldown
@@ -162,45 +165,89 @@ const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
       : "Ping Slack";
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={disabled}
-          onClick={handleClick}
-          className={["h-7 gap-1.5 text-xs border-primary/40 text-primary hover:bg-primary/10", className].filter(Boolean).join(" ")}
-          aria-label={
-            inCooldown
-              ? `Slack alert cooldown — wait ${formatCountdown(remainingMs)}`
-              : "Send Slack alert asking the webmaster to review ConvoHub"
-          }
-        >
-          {inCooldown ? <Clock className="h-3 w-3" /> : <Bell className="h-3 w-3" />}
-          {compact ? null : <span>{label}</span>}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="text-xs max-w-[260px]">
-        {!configured ? (
-          <>Slack webhook isn't set. Ask an admin or webmaster to configure it on Settings.</>
-        ) : inCooldown ? (
-          <>
-            Cooldown active to prevent accidental double-pings.
-            <div className="mt-1 text-muted-foreground">
-              Next allowed in {formatCountdown(remainingMs)}.
-            </div>
-          </>
-        ) : (
-          <>
-            Pings the team Slack channel asking the webmaster to review ConvoHub.
-            <div className="mt-1 text-muted-foreground">
-              No call or text is sent. 10-minute cooldown after each press.
-            </div>
-          </>
-        )}
-      </TooltipContent>
-    </Tooltip>
+    <Popover open={open} onOpenChange={(v) => !sending && setOpen(v)}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={disabled}
+              className={["h-7 gap-1.5 text-xs border-primary/40 text-primary hover:bg-primary/10", className].filter(Boolean).join(" ")}
+              aria-label={
+                inCooldown
+                  ? `Slack alert cooldown — wait ${formatCountdown(remainingMs)}`
+                  : "Open Slack alert composer"
+              }
+            >
+              {inCooldown ? <Clock className="h-3 w-3" /> : <Bell className="h-3 w-3" />}
+              {compact ? null : <span>{label}</span>}
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs max-w-[260px]">
+          {inCooldown ? (
+            <>
+              Cooldown active to prevent accidental double-pings.
+              <div className="mt-1 text-muted-foreground">
+                Next allowed in {formatCountdown(remainingMs)}.
+              </div>
+            </>
+          ) : (
+            <>
+              Pings the team Slack channel. Add a custom message or send the default review request.
+              {!configured && (
+                <div className="mt-1 text-muted-foreground">
+                  Webhook is managed server-side — the function will tell you if it's not configured.
+                </div>
+              )}
+            </>
+          )}
+        </TooltipContent>
+      </Tooltip>
+      <PopoverContent align="end" className="w-80 p-3 space-y-2">
+        <div>
+          <p className="text-xs font-medium text-foreground">Send Slack alert</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Optional message body. Leave blank to send the default review request.
+          </p>
+        </div>
+        <Textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value.slice(0, 800))}
+          placeholder="Add context for the team (optional)…"
+          rows={3}
+          className="text-xs resize-none"
+          disabled={sending}
+        />
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] text-muted-foreground">{message.length}/800</span>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs"
+              onClick={() => setOpen(false)}
+              disabled={sending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 gap-1.5 text-xs"
+              onClick={handleSend}
+              disabled={disabled}
+            >
+              <Send className="h-3 w-3" />
+              {sending ? "Sending…" : "Send ping"}
+            </Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 
