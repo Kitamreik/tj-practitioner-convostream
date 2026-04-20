@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Phone, MessageSquare, Clock, Bell } from "lucide-react";
+import { Phone, MessageSquare, Clock, Bell, Send } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
