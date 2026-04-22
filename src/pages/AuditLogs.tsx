@@ -34,7 +34,9 @@ import {
   Clock,
   ArrowUpDown,
   LifeBuoy,
+  Activity,
 } from "lucide-react";
+import SmokeTestPanel from "@/components/SmokeTestPanel";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -631,7 +633,7 @@ const AuditLogs: React.FC = () => {
       </div>
 
       <Tabs defaultValue="logins" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5">
           <TabsTrigger value="logins" className="gap-2">
             <LogIn className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Login Attempts</span>
@@ -651,6 +653,11 @@ const AuditLogs: React.FC = () => {
             <LifeBuoy className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Support Access</span>
             <span className="sm:hidden">Support</span>
+          </TabsTrigger>
+          <TabsTrigger value="smoke" className="gap-2">
+            <Activity className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Smoke Test</span>
+            <span className="sm:hidden">Smoke</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1095,6 +1102,19 @@ const AuditLogs: React.FC = () => {
               onChange={setSupportPage}
               totalLabel={`${support.length} entries`}
             />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="smoke">
+          <div className="rounded-xl border border-border bg-card p-4 md:p-5">
+            <div className="mb-3">
+              <h2 className="text-sm font-semibold text-foreground">Deployment smoke test</h2>
+              <p className="text-xs text-muted-foreground">
+                Verify Firestore rules + Cloud Functions are live. Each check is safe and idempotent — the
+                full standalone view lives at <code className="rounded bg-muted px-1 py-0.5 text-[11px]">/smoke-test</code>.
+              </p>
+            </div>
+            <SmokeTestPanel embedded />
           </div>
         </TabsContent>
       </Tabs>
