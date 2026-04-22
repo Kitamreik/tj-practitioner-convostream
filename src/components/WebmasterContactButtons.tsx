@@ -142,6 +142,24 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
   // disable the Slack Alert button (and explain why) when it's empty.
   const [slackConfigured, setSlackConfigured] = useState<boolean>(() => getLocalSlackAlertConfigured());
   useEffect(() => subscribeSlackAlertConfigured(setSlackConfigured), []);
+  // Merge custom SMS templates from Firestore on top of the starter list,
+  // so any team-managed SMS rows (created on /conversations) also show up
+  // in the webmaster Text picker. Errors are swallowed — starters remain.
+  useEffect(() => {
+    const q = query(collection(db, "templates"), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const custom: SmsTemplate[] = snap.docs
+          .map((d) => ({ id: d.id, ...(d.data() as { name?: string; channel?: string; body?: string }) }))
+          .filter((t) => t.channel === "sms" && typeof t.body === "string" && typeof t.name === "string")
+          .map((t) => ({ id: t.id, name: t.name as string, body: t.body as string }));
+        setSmsTemplates([...STARTER_SMS_TEMPLATES, ...custom]);
+      },
+      () => setSmsTemplates(STARTER_SMS_TEMPLATES)
+    );
+    return unsub;
+  }, []);
   const [slackSending, setSlackSending] = useState(false);
   const [slackOpen, setSlackOpen] = useState(false);
   const [slackMessage, setSlackMessage] = useState("");
