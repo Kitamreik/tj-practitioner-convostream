@@ -166,8 +166,12 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
   // SMS template picker state. We hydrate the same starter SMS templates
   // shipped in ConversationTemplates so the menu is never empty even if
   // the Firestore listener hasn't resolved yet (or the user is offline).
+  // `smsPreview` holds the template the agent picked but hasn't yet
+  // confirmed — when set, the popover swaps from "list" to "preview" mode
+  // so they can see the fully substituted body before the OS composer opens.
   const [smsOpen, setSmsOpen] = useState(false);
   const [smsTemplates, setSmsTemplates] = useState<SmsTemplate[]>(STARTER_SMS_TEMPLATES);
+  const [smsPreview, setSmsPreview] = useState<{ id: string; name: string; body: string } | null>(null);
   const cooldownMs = cooldownMin * 60 * 1000;
 
   const lastKey = profile?.uid ? LAST_CONTACT_KEY_PREFIX + profile.uid : null;
@@ -492,7 +496,13 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
               and then launches the OS sms: composer prefilled with the
               chosen body. Forces an explicit choice so we never send a
               hallucinated default body. */}
-          <Popover open={smsOpen} onOpenChange={setSmsOpen}>
+          <Popover
+            open={smsOpen}
+            onOpenChange={(open) => {
+              setSmsOpen(open);
+              if (!open) setSmsPreview(null);
+            }}
+          >
             <Tooltip>
               <TooltipTrigger asChild>
                 <PopoverTrigger asChild>
@@ -510,25 +520,46 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs max-w-[220px]">
                 Text webmaster · {DISPLAY_NUMBER}
-                <div className="mt-1 text-muted-foreground">Pick a template to prefill the SMS body.</div>
+                <div className="mt-1 text-muted-foreground">Pick a template, preview, then send.</div>
               </TooltipContent>
             </Tooltip>
             <PopoverContent align="end" className="w-80 p-0">
-              <div className="border-b border-border p-3">
-                <p className="text-xs font-medium text-foreground">Choose an SMS template</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  Variables auto-fill: {"{{name}}"} → Webmaster, {"{{agent}}"} → you, {"{{company}}"} → ConvoHub.
-                </p>
-              </div>
-              <div className="max-h-72 overflow-auto p-2">
-                {smsTemplates.map((tpl) => {
-                  const filled = applyTemplateVars(tpl.body, senderName);
-                  return (
-                    <button
-                      key={tpl.id}
+              {smsPreview ? (
+                // Preview step — shows the fully substituted body before
+                // we launch the device SMS composer. Forces the agent to
+                // visually confirm the variable substitution worked.
+                <div className="p-3 space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-foreground">Preview SMS</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      Template: <span className="text-foreground">{smsPreview.name}</span> · To: {DISPLAY_NUMBER}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-border bg-muted/40 p-3">
+                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">
+                      {smsPreview.body}
+                    </p>
+                    <p className="mt-2 text-[10px] text-muted-foreground">
+                      {smsPreview.body.length} chars · {Math.ceil(smsPreview.body.length / 160)} SMS segment
+                      {Math.ceil(smsPreview.body.length / 160) === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <Button
                       type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs"
+                      onClick={() => setSmsPreview(null)}
+                    >
+                      ← Pick another
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
                       onClick={() => {
-                        const href = `sms:${WEBMASTER_NUMBER}?body=${encodeURIComponent(filled)}`;
+                        const href = `sms:${WEBMASTER_NUMBER}?body=${encodeURIComponent(smsPreview.body)}`;
                         const a = document.createElement("a");
                         a.href = href;
                         a.rel = "noopener";
@@ -536,25 +567,50 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
                         a.click();
                         a.remove();
                         recordContact("text");
-                        setSmsOpen(false);
                         toast({
-                          title: `SMS template loaded: ${tpl.name}`,
+                          title: `SMS template sent: ${smsPreview.name}`,
                           description: "Your messaging app should open with the message prefilled.",
                         });
+                        setSmsPreview(null);
+                        setSmsOpen(false);
                       }}
-                      className="block w-full rounded-md border border-transparent p-2 text-left transition-colors hover:border-border hover:bg-accent/40"
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-medium text-foreground">{tpl.name}</span>
-                        {tpl.locked && (
-                          <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70">Starter</span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{filled}</p>
-                    </button>
-                  );
-                })}
-              </div>
+                      <Send className="h-3 w-3" />
+                      Open composer
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="border-b border-border p-3">
+                    <p className="text-xs font-medium text-foreground">Choose an SMS template</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      Variables auto-fill: {"{{name}}"} → Webmaster, {"{{agent}}"} → you, {"{{company}}"} → ConvoHub.
+                    </p>
+                  </div>
+                  <div className="max-h-72 overflow-auto p-2">
+                    {smsTemplates.map((tpl) => {
+                      const filled = applyTemplateVars(tpl.body, senderName);
+                      return (
+                        <button
+                          key={tpl.id}
+                          type="button"
+                          onClick={() => setSmsPreview({ id: tpl.id, name: tpl.name, body: filled })}
+                          className="block w-full rounded-md border border-transparent p-2 text-left transition-colors hover:border-border hover:bg-accent/40"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium text-foreground">{tpl.name}</span>
+                            {tpl.locked && (
+                              <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70">Starter</span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{filled}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </PopoverContent>
           </Popover>
         </div>
