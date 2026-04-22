@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Phone, MessageSquare, Clock, Bell, Send } from "lucide-react";
+import { Phone, MessageSquare, Clock, Bell, Send, AlertTriangle, ShieldAlert } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { collection, orderBy, query } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -86,6 +87,74 @@ function applyTemplateVars(body: string, agentName: string): string {
     .replace(/\{\{name\}\}/g, "Webmaster")
     .replace(/\{\{agent\}\}/g, agentName)
     .replace(/\{\{company\}\}/g, "ConvoHub");
+}
+
+/**
+ * SMS carrier-limit metrics for the previewed body.
+ *
+ * GSM-7 (the default 7-bit alphabet) fits 160 chars in a single segment;
+ * concatenated segments drop to 153 chars each because 7 bytes are eaten
+ * by the User Data Header. If the body contains any non-GSM character
+ * (emoji, smart quotes, accented letters, etc.), the carrier transparently
+ * upgrades to UCS-2 which only fits 70 chars per single segment / 67 per
+ * concatenated segment. We approximate the GSM detection conservatively —
+ * anything outside the basic GSM-7 set forces UCS-2.
+ *
+ * Hard cap: most US carriers reject anything over 10 segments
+ * (1530 GSM-7 / 670 UCS-2). We surface a warning at >3 segments and a
+ * hard block at >10 segments.
+ */
+const GSM7_REGEX = /^[A-Za-z0-9 \r\n@£$¥èéùìòÇØøÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ!"#¤%&'()*+,\-./:;<=>?¡ÄÖÑÜ§¿äöñüà^{}\\[~\]|€]*$/;
+const SOFT_SEGMENT_WARN = 3;
+const HARD_SEGMENT_LIMIT = 10;
+
+interface SmsLimits {
+  encoding: "GSM-7" | "UCS-2";
+  perSegment: number;
+  segments: number;
+  charCount: number;
+  remainingInSegment: number;
+  level: "ok" | "warn" | "block";
+  reason?: string;
+}
+
+function computeSmsLimits(body: string): SmsLimits {
+  const charCount = body.length;
+  const isGsm = GSM7_REGEX.test(body);
+  const encoding: SmsLimits["encoding"] = isGsm ? "GSM-7" : "UCS-2";
+
+  const singleCap = isGsm ? 160 : 70;
+  const concatCap = isGsm ? 153 : 67;
+
+  let segments: number;
+  let perSegment: number;
+  if (charCount === 0) {
+    segments = 1;
+    perSegment = singleCap;
+  } else if (charCount <= singleCap) {
+    segments = 1;
+    perSegment = singleCap;
+  } else {
+    segments = Math.ceil(charCount / concatCap);
+    perSegment = concatCap;
+  }
+
+  const remainingInSegment = Math.max(0, segments * perSegment - charCount);
+
+  let level: SmsLimits["level"] = "ok";
+  let reason: string | undefined;
+  if (segments > HARD_SEGMENT_LIMIT) {
+    level = "block";
+    reason = `Exceeds the ${HARD_SEGMENT_LIMIT}-segment carrier hard cap (${segments} segments). Most US carriers will reject this message.`;
+  } else if (segments > SOFT_SEGMENT_WARN) {
+    level = "warn";
+    reason = `${segments} segments will be billed and may arrive out of order or be split by the recipient's carrier.`;
+  } else if (!isGsm && segments > 1) {
+    level = "warn";
+    reason = `Non-GSM characters force UCS-2 encoding (${concatCap} chars/segment) — consider removing emoji or smart quotes.`;
+  }
+
+  return { encoding, perSegment, segments, charCount, remainingInSegment, level, reason };
 }
 interface Props {
   /** "compact" = icon-only buttons (sidebar/bottom-sheet); "full" = labelled. */
@@ -172,6 +241,13 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
   const [smsOpen, setSmsOpen] = useState(false);
   const [smsTemplates, setSmsTemplates] = useState<SmsTemplate[]>(STARTER_SMS_TEMPLATES);
   const [smsPreview, setSmsPreview] = useState<{ id: string; name: string; body: string } | null>(null);
+  // Agent must explicitly tick the warning checkbox before the composer
+  // unlocks when the message exceeds the soft segment threshold. Reset
+  // whenever the picked template changes.
+  const [oversizeAck, setOversizeAck] = useState(false);
+  useEffect(() => {
+    setOversizeAck(false);
+  }, [smsPreview?.id]);
   const cooldownMs = cooldownMin * 60 * 1000;
 
   const lastKey = profile?.uid ? LAST_CONTACT_KEY_PREFIX + profile.uid : null;
@@ -527,59 +603,128 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
               {smsPreview ? (
                 // Preview step — shows the fully substituted body before
                 // we launch the device SMS composer. Forces the agent to
-                // visually confirm the variable substitution worked.
-                <div className="p-3 space-y-3">
-                  <div>
-                    <p className="text-xs font-medium text-foreground">Preview SMS</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      Template: <span className="text-foreground">{smsPreview.name}</span> · To: {DISPLAY_NUMBER}
-                    </p>
-                  </div>
-                  <div className="rounded-md border border-border bg-muted/40 p-3">
-                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">
-                      {smsPreview.body}
-                    </p>
-                    <p className="mt-2 text-[10px] text-muted-foreground">
-                      {smsPreview.body.length} chars · {Math.ceil(smsPreview.body.length / 160)} SMS segment
-                      {Math.ceil(smsPreview.body.length / 160) === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs"
-                      onClick={() => setSmsPreview(null)}
-                    >
-                      ← Pick another
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-7 gap-1.5 text-xs"
-                      onClick={() => {
-                        const href = `sms:${WEBMASTER_NUMBER}?body=${encodeURIComponent(smsPreview.body)}`;
-                        const a = document.createElement("a");
-                        a.href = href;
-                        a.rel = "noopener";
-                        document.body.appendChild(a);
-                        a.click();
-                        a.remove();
-                        recordContact("text");
-                        toast({
-                          title: `SMS template sent: ${smsPreview.name}`,
-                          description: "Your messaging app should open with the message prefilled.",
-                        });
-                        setSmsPreview(null);
-                        setSmsOpen(false);
-                      }}
-                    >
-                      <Send className="h-3 w-3" />
-                      Open composer
-                    </Button>
-                  </div>
-                </div>
+                // visually confirm the variable substitution worked, AND
+                // surfaces a hard block + soft warning when the body
+                // exceeds typical carrier segment limits.
+                (() => {
+                  const limits = computeSmsLimits(smsPreview.body);
+                  const blocked = limits.level === "block";
+                  const warn = limits.level === "warn";
+                  const requireAck = warn || blocked;
+                  const composerDisabled = blocked || (requireAck && !oversizeAck);
+                  return (
+                    <div className="p-3 space-y-3">
+                      <div>
+                        <p className="text-xs font-medium text-foreground">Preview SMS</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          Template: <span className="text-foreground">{smsPreview.name}</span> · To: {DISPLAY_NUMBER}
+                        </p>
+                      </div>
+                      <div className="rounded-md border border-border bg-muted/40 p-3">
+                        <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">
+                          {smsPreview.body}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+                          <span>{limits.charCount} chars</span>
+                          <span>·</span>
+                          <span className={limits.segments > SOFT_SEGMENT_WARN ? "font-semibold text-warning" : ""}>
+                            {limits.segments} segment{limits.segments === 1 ? "" : "s"}
+                          </span>
+                          <span>·</span>
+                          <span>{limits.encoding}</span>
+                          <span>·</span>
+                          <span>{limits.perSegment}/seg</span>
+                        </div>
+                      </div>
+
+                      {/* Carrier-limit advisory. Three possible states:
+                          - block: hard cap exceeded, composer never unlocks.
+                          - warn: requires explicit checkbox confirmation.
+                          - ok: hidden. */}
+                      {blocked && (
+                        <div
+                          role="alert"
+                          className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-[11px] text-destructive"
+                        >
+                          <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                          <div>
+                            <p className="font-semibold">Carrier hard limit exceeded</p>
+                            <p className="mt-0.5 text-destructive/90">{limits.reason}</p>
+                            <p className="mt-1 text-destructive/80">
+                              Trim the body to ≤ {HARD_SEGMENT_LIMIT * limits.perSegment} chars before sending.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {warn && !blocked && (
+                        <div
+                          role="alert"
+                          className="space-y-2 rounded-md border border-warning/40 bg-warning/10 p-2.5 text-[11px] text-warning-foreground"
+                        >
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                            <div>
+                              <p className="font-semibold">Exceeds typical carrier limit</p>
+                              <p className="mt-0.5">{limits.reason}</p>
+                            </div>
+                          </div>
+                          <label className="flex items-start gap-2 cursor-pointer pl-5">
+                            <Checkbox
+                              checked={oversizeAck}
+                              onCheckedChange={(v) => setOversizeAck(v === true)}
+                              aria-label="I understand the message will be sent in multiple segments"
+                              className="mt-0.5"
+                            />
+                            <span className="text-foreground">
+                              I understand this will be split into {limits.segments} segments and may incur extra charges or arrive out of order.
+                            </span>
+                          </label>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs"
+                          onClick={() => setSmsPreview(null)}
+                        >
+                          ← Pick another
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-7 gap-1.5 text-xs"
+                          disabled={composerDisabled}
+                          onClick={() => {
+                            if (composerDisabled) return;
+                            const href = `sms:${WEBMASTER_NUMBER}?body=${encodeURIComponent(smsPreview.body)}`;
+                            const a = document.createElement("a");
+                            a.href = href;
+                            a.rel = "noopener";
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            recordContact("text");
+                            toast({
+                              title: `SMS template sent: ${smsPreview.name}`,
+                              description: warn
+                                ? `Sent in ${limits.segments} segments. Your messaging app should open with the message prefilled.`
+                                : "Your messaging app should open with the message prefilled.",
+                            });
+                            setSmsPreview(null);
+                            setSmsOpen(false);
+                            setOversizeAck(false);
+                          }}
+                        >
+                          <Send className="h-3 w-3" />
+                          {blocked ? "Blocked" : "Open composer"}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })()
               ) : (
                 <>
                   <div className="border-b border-border p-3">
