@@ -241,6 +241,13 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
   const [smsOpen, setSmsOpen] = useState(false);
   const [smsTemplates, setSmsTemplates] = useState<SmsTemplate[]>(STARTER_SMS_TEMPLATES);
   const [smsPreview, setSmsPreview] = useState<{ id: string; name: string; body: string } | null>(null);
+  // Agent must explicitly tick the warning checkbox before the composer
+  // unlocks when the message exceeds the soft segment threshold. Reset
+  // whenever the picked template changes.
+  const [oversizeAck, setOversizeAck] = useState(false);
+  useEffect(() => {
+    setOversizeAck(false);
+  }, [smsPreview?.id]);
   const cooldownMs = cooldownMin * 60 * 1000;
 
   const lastKey = profile?.uid ? LAST_CONTACT_KEY_PREFIX + profile.uid : null;
