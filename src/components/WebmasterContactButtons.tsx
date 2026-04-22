@@ -87,6 +87,74 @@ function applyTemplateVars(body: string, agentName: string): string {
     .replace(/\{\{agent\}\}/g, agentName)
     .replace(/\{\{company\}\}/g, "ConvoHub");
 }
+
+/**
+ * SMS carrier-limit metrics for the previewed body.
+ *
+ * GSM-7 (the default 7-bit alphabet) fits 160 chars in a single segment;
+ * concatenated segments drop to 153 chars each because 7 bytes are eaten
+ * by the User Data Header. If the body contains any non-GSM character
+ * (emoji, smart quotes, accented letters, etc.), the carrier transparently
+ * upgrades to UCS-2 which only fits 70 chars per single segment / 67 per
+ * concatenated segment. We approximate the GSM detection conservatively —
+ * anything outside the basic GSM-7 set forces UCS-2.
+ *
+ * Hard cap: most US carriers reject anything over 10 segments
+ * (1530 GSM-7 / 670 UCS-2). We surface a warning at >3 segments and a
+ * hard block at >10 segments.
+ */
+const GSM7_REGEX = /^[A-Za-z0-9 \r\n@£$¥èéùìòÇØøÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ!"#¤%&'()*+,\-./:;<=>?¡ÄÖÑÜ§¿äöñüà^{}\\[~\]|€]*$/;
+const SOFT_SEGMENT_WARN = 3;
+const HARD_SEGMENT_LIMIT = 10;
+
+interface SmsLimits {
+  encoding: "GSM-7" | "UCS-2";
+  perSegment: number;
+  segments: number;
+  charCount: number;
+  remainingInSegment: number;
+  level: "ok" | "warn" | "block";
+  reason?: string;
+}
+
+function computeSmsLimits(body: string): SmsLimits {
+  const charCount = body.length;
+  const isGsm = GSM7_REGEX.test(body);
+  const encoding: SmsLimits["encoding"] = isGsm ? "GSM-7" : "UCS-2";
+
+  const singleCap = isGsm ? 160 : 70;
+  const concatCap = isGsm ? 153 : 67;
+
+  let segments: number;
+  let perSegment: number;
+  if (charCount === 0) {
+    segments = 1;
+    perSegment = singleCap;
+  } else if (charCount <= singleCap) {
+    segments = 1;
+    perSegment = singleCap;
+  } else {
+    segments = Math.ceil(charCount / concatCap);
+    perSegment = concatCap;
+  }
+
+  const remainingInSegment = Math.max(0, segments * perSegment - charCount);
+
+  let level: SmsLimits["level"] = "ok";
+  let reason: string | undefined;
+  if (segments > HARD_SEGMENT_LIMIT) {
+    level = "block";
+    reason = `Exceeds the ${HARD_SEGMENT_LIMIT}-segment carrier hard cap (${segments} segments). Most US carriers will reject this message.`;
+  } else if (segments > SOFT_SEGMENT_WARN) {
+    level = "warn";
+    reason = `${segments} segments will be billed and may arrive out of order or be split by the recipient's carrier.`;
+  } else if (!isGsm && segments > 1) {
+    level = "warn";
+    reason = `Non-GSM characters force UCS-2 encoding (${concatCap} chars/segment) — consider removing emoji or smart quotes.`;
+  }
+
+  return { encoding, perSegment, segments, charCount, remainingInSegment, level, reason };
+}
 interface Props {
   /** "compact" = icon-only buttons (sidebar/bottom-sheet); "full" = labelled. */
   variant?: "compact" | "full";
