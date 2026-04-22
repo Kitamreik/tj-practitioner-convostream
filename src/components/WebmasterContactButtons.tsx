@@ -113,6 +113,11 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
   const [slackSending, setSlackSending] = useState(false);
   const [slackOpen, setSlackOpen] = useState(false);
   const [slackMessage, setSlackMessage] = useState("");
+  // SMS template picker state. We hydrate the same starter SMS templates
+  // shipped in ConversationTemplates so the menu is never empty even if
+  // the Firestore listener hasn't resolved yet (or the user is offline).
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsTemplates, setSmsTemplates] = useState<SmsTemplate[]>(STARTER_SMS_TEMPLATES);
   const cooldownMs = cooldownMin * 60 * 1000;
 
   const lastKey = profile?.uid ? LAST_CONTACT_KEY_PREFIX + profile.uid : null;
