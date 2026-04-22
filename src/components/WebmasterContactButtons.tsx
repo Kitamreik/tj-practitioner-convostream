@@ -591,8 +591,10 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
             <AlertDialogCancel className="sm:mr-auto">Not now</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                launchChannel("text");
+                // Open the template picker rather than firing a bare SMS —
+                // keeps the "no hallucinated default body" rule.
                 setConfirmChannel(null);
+                setSmsOpen(true);
               }}
               className="gap-2"
             >
