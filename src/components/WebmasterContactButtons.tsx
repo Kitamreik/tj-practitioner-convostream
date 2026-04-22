@@ -486,36 +486,77 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
             </TooltipContent>
           </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                asChild
-                variant="outline"
-                size={compact ? "icon" : "sm"}
-                className={compact ? "h-9 w-9" : "flex-1 justify-center gap-2"}
-              >
-                <a
-                  href={smsHref}
-                  aria-label={`Text webmaster at ${DISPLAY_NUMBER}. Long-press to copy context.`}
-                  onClick={guardClick("text")}
-                  onMouseDown={startLongPress}
-                  onMouseUp={cancelLongPress}
-                  onMouseLeave={cancelLongPress}
-                  onTouchStart={startLongPress}
-                  onTouchEnd={cancelLongPress}
-                  onTouchCancel={cancelLongPress}
-                  onContextMenu={(e) => e.preventDefault()}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  {!compact && <span>Text</span>}
-                </a>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs max-w-[220px]">
-              Text webmaster · prefilled with your name &amp; page.
-              <div className="mt-1 text-muted-foreground">Long-press to copy context line.</div>
-            </TooltipContent>
-          </Tooltip>
+          {/* Text — opens a popover that lists SMS templates instead of
+              dispatching the OS composer with the basic context line.
+              Picking a template substitutes {{name}}/{{agent}}/{{company}}
+              and then launches the OS sms: composer prefilled with the
+              chosen body. Forces an explicit choice so we never send a
+              hallucinated default body. */}
+          <Popover open={smsOpen} onOpenChange={setSmsOpen}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size={compact ? "icon" : "sm"}
+                    className={compact ? "h-9 w-9" : "flex-1 justify-center gap-2"}
+                    aria-label={`Text webmaster at ${DISPLAY_NUMBER}. Choose an SMS template.`}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    {!compact && <span>Text</span>}
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs max-w-[220px]">
+                Text webmaster · {DISPLAY_NUMBER}
+                <div className="mt-1 text-muted-foreground">Pick a template to prefill the SMS body.</div>
+              </TooltipContent>
+            </Tooltip>
+            <PopoverContent align="end" className="w-80 p-0">
+              <div className="border-b border-border p-3">
+                <p className="text-xs font-medium text-foreground">Choose an SMS template</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Variables auto-fill: {"{{name}}"} → Webmaster, {"{{agent}}"} → you, {"{{company}}"} → ConvoHub.
+                </p>
+              </div>
+              <div className="max-h-72 overflow-auto p-2">
+                {smsTemplates.map((tpl) => {
+                  const filled = applyTemplateVars(tpl.body, senderName);
+                  return (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => {
+                        const href = `sms:${WEBMASTER_NUMBER}?body=${encodeURIComponent(filled)}`;
+                        const a = document.createElement("a");
+                        a.href = href;
+                        a.rel = "noopener";
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        recordContact("text");
+                        setSmsOpen(false);
+                        toast({
+                          title: `SMS template loaded: ${tpl.name}`,
+                          description: "Your messaging app should open with the message prefilled.",
+                        });
+                      }}
+                      className="block w-full rounded-md border border-transparent p-2 text-left transition-colors hover:border-border hover:bg-accent/40"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-foreground">{tpl.name}</span>
+                        {tpl.locked && (
+                          <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70">Starter</span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{filled}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       )}
 
