@@ -54,7 +54,39 @@ const LONG_PRESS_MS = 500;
 // Cooldown is configurable via /settings (5/15/30/60 min). This is just the
 // initial fallback used before the Firestore subscription delivers a value.
 
+/**
+ * SMS templates shown in the Text button's picker. We mirror the starter
+ * SMS rows from ConversationTemplates so this list works offline and
+ * before the Firestore listener resolves. Custom templates added by the
+ * team via the templates collection are merged on top via onSnapshot.
+ *
+ * Each template body supports {{name}}, {{agent}}, {{company}} variables
+ * — we substitute the webmaster as {{name}}, the current user as {{agent}},
+ * and "ConvoHub" as {{company}} before launching the SMS composer.
+ */
+interface SmsTemplate {
+  id: string;
+  name: string;
+  body: string;
+  locked?: boolean;
+}
 
+const STARTER_SMS_TEMPLATES: SmsTemplate[] = [
+  { id: "wm-sms-acknowledge", locked: true, name: "Quick Acknowledgement", body: "Hi {{name}}, this is {{agent}} from {{company}}. Got your message — I'll have a full response within the next few hours. Thanks!" },
+  { id: "wm-sms-reminder", locked: true, name: "Appointment Reminder", body: "Hi {{name}}, friendly reminder of your call with {{agent}} tomorrow. Reply YES to confirm or RESCHEDULE to pick a new time." },
+  { id: "wm-sms-confirm", locked: true, name: "Meeting Confirmation", body: "Hi {{name}}, confirming our meeting today. I'll send the call link 10 minutes beforehand. See you soon — {{agent}}" },
+  { id: "wm-sms-late", locked: true, name: "Running Late", body: "Hi {{name}}, {{agent}} here — running about 5 minutes late to our call. Apologies and thanks for your patience." },
+  { id: "wm-sms-doc", locked: true, name: "Document Sent Notice", body: "Hi {{name}}, I just emailed over the document we discussed. Let me know once you've had a chance to review. — {{agent}}" },
+  { id: "wm-sms-payment", locked: true, name: "Payment Reminder", body: "Hi {{name}}, a friendly reminder that invoice [#####] is due in 3 days. Reply if you need a copy resent. Thanks — {{company}}" },
+  { id: "wm-sms-checkin", locked: true, name: "Thank You / Check-in", body: "Hi {{name}}, just checking in after our recent work together. Anything we can help with? Always glad to hear from you. — {{agent}}" },
+];
+
+function applyTemplateVars(body: string, agentName: string): string {
+  return body
+    .replaceAll("{{name}}", "Webmaster")
+    .replaceAll("{{agent}}", agentName)
+    .replaceAll("{{company}}", "ConvoHub");
+}
 interface Props {
   /** "compact" = icon-only buttons (sidebar/bottom-sheet); "full" = labelled. */
   variant?: "compact" | "full";
