@@ -83,9 +83,9 @@ const STARTER_SMS_TEMPLATES: SmsTemplate[] = [
 
 function applyTemplateVars(body: string, agentName: string): string {
   return body
-    .replaceAll("{{name}}", "Webmaster")
-    .replaceAll("{{agent}}", agentName)
-    .replaceAll("{{company}}", "ConvoHub");
+    .replace(/\{\{name\}\}/g, "Webmaster")
+    .replace(/\{\{agent\}\}/g, agentName)
+    .replace(/\{\{company\}\}/g, "ConvoHub");
 }
 interface Props {
   /** "compact" = icon-only buttons (sidebar/bottom-sheet); "full" = labelled. */
