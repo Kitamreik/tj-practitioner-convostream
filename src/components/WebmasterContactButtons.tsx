@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Phone, MessageSquare, Clock, Bell, Send } from "lucide-react";
 import { useLocation } from "react-router-dom";
+import { collection, orderBy, query } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -53,7 +54,39 @@ const LONG_PRESS_MS = 500;
 // Cooldown is configurable via /settings (5/15/30/60 min). This is just the
 // initial fallback used before the Firestore subscription delivers a value.
 
+/**
+ * SMS templates shown in the Text button's picker. We mirror the starter
+ * SMS rows from ConversationTemplates so this list works offline and
+ * before the Firestore listener resolves. Custom templates added by the
+ * team via the templates collection are merged on top via onSnapshot.
+ *
+ * Each template body supports {{name}}, {{agent}}, {{company}} variables
+ * — we substitute the webmaster as {{name}}, the current user as {{agent}},
+ * and "ConvoHub" as {{company}} before launching the SMS composer.
+ */
+interface SmsTemplate {
+  id: string;
+  name: string;
+  body: string;
+  locked?: boolean;
+}
 
+const STARTER_SMS_TEMPLATES: SmsTemplate[] = [
+  { id: "wm-sms-acknowledge", locked: true, name: "Quick Acknowledgement", body: "Hi {{name}}, this is {{agent}} from {{company}}. Got your message — I'll have a full response within the next few hours. Thanks!" },
+  { id: "wm-sms-reminder", locked: true, name: "Appointment Reminder", body: "Hi {{name}}, friendly reminder of your call with {{agent}} tomorrow. Reply YES to confirm or RESCHEDULE to pick a new time." },
+  { id: "wm-sms-confirm", locked: true, name: "Meeting Confirmation", body: "Hi {{name}}, confirming our meeting today. I'll send the call link 10 minutes beforehand. See you soon — {{agent}}" },
+  { id: "wm-sms-late", locked: true, name: "Running Late", body: "Hi {{name}}, {{agent}} here — running about 5 minutes late to our call. Apologies and thanks for your patience." },
+  { id: "wm-sms-doc", locked: true, name: "Document Sent Notice", body: "Hi {{name}}, I just emailed over the document we discussed. Let me know once you've had a chance to review. — {{agent}}" },
+  { id: "wm-sms-payment", locked: true, name: "Payment Reminder", body: "Hi {{name}}, a friendly reminder that invoice [#####] is due in 3 days. Reply if you need a copy resent. Thanks — {{company}}" },
+  { id: "wm-sms-checkin", locked: true, name: "Thank You / Check-in", body: "Hi {{name}}, just checking in after our recent work together. Anything we can help with? Always glad to hear from you. — {{agent}}" },
+];
+
+function applyTemplateVars(body: string, agentName: string): string {
+  return body
+    .replace(/\{\{name\}\}/g, "Webmaster")
+    .replace(/\{\{agent\}\}/g, agentName)
+    .replace(/\{\{company\}\}/g, "ConvoHub");
+}
 interface Props {
   /** "compact" = icon-only buttons (sidebar/bottom-sheet); "full" = labelled. */
   variant?: "compact" | "full";
@@ -109,9 +142,32 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
   // disable the Slack Alert button (and explain why) when it's empty.
   const [slackConfigured, setSlackConfigured] = useState<boolean>(() => getLocalSlackAlertConfigured());
   useEffect(() => subscribeSlackAlertConfigured(setSlackConfigured), []);
+  // Merge custom SMS templates from Firestore on top of the starter list,
+  // so any team-managed SMS rows (created on /conversations) also show up
+  // in the webmaster Text picker. Errors are swallowed — starters remain.
+  useEffect(() => {
+    const q = query(collection(db, "templates"), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const custom: SmsTemplate[] = snap.docs
+          .map((d) => ({ id: d.id, ...(d.data() as { name?: string; channel?: string; body?: string }) }))
+          .filter((t) => t.channel === "sms" && typeof t.body === "string" && typeof t.name === "string")
+          .map((t) => ({ id: t.id, name: t.name as string, body: t.body as string }));
+        setSmsTemplates([...STARTER_SMS_TEMPLATES, ...custom]);
+      },
+      () => setSmsTemplates(STARTER_SMS_TEMPLATES)
+    );
+    return unsub;
+  }, []);
   const [slackSending, setSlackSending] = useState(false);
   const [slackOpen, setSlackOpen] = useState(false);
   const [slackMessage, setSlackMessage] = useState("");
+  // SMS template picker state. We hydrate the same starter SMS templates
+  // shipped in ConversationTemplates so the menu is never empty even if
+  // the Firestore listener hasn't resolved yet (or the user is offline).
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsTemplates, setSmsTemplates] = useState<SmsTemplate[]>(STARTER_SMS_TEMPLATES);
   const cooldownMs = cooldownMin * 60 * 1000;
 
   const lastKey = profile?.uid ? LAST_CONTACT_KEY_PREFIX + profile.uid : null;
@@ -430,36 +486,77 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
             </TooltipContent>
           </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                asChild
-                variant="outline"
-                size={compact ? "icon" : "sm"}
-                className={compact ? "h-9 w-9" : "flex-1 justify-center gap-2"}
-              >
-                <a
-                  href={smsHref}
-                  aria-label={`Text webmaster at ${DISPLAY_NUMBER}. Long-press to copy context.`}
-                  onClick={guardClick("text")}
-                  onMouseDown={startLongPress}
-                  onMouseUp={cancelLongPress}
-                  onMouseLeave={cancelLongPress}
-                  onTouchStart={startLongPress}
-                  onTouchEnd={cancelLongPress}
-                  onTouchCancel={cancelLongPress}
-                  onContextMenu={(e) => e.preventDefault()}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  {!compact && <span>Text</span>}
-                </a>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs max-w-[220px]">
-              Text webmaster · prefilled with your name &amp; page.
-              <div className="mt-1 text-muted-foreground">Long-press to copy context line.</div>
-            </TooltipContent>
-          </Tooltip>
+          {/* Text — opens a popover that lists SMS templates instead of
+              dispatching the OS composer with the basic context line.
+              Picking a template substitutes {{name}}/{{agent}}/{{company}}
+              and then launches the OS sms: composer prefilled with the
+              chosen body. Forces an explicit choice so we never send a
+              hallucinated default body. */}
+          <Popover open={smsOpen} onOpenChange={setSmsOpen}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size={compact ? "icon" : "sm"}
+                    className={compact ? "h-9 w-9" : "flex-1 justify-center gap-2"}
+                    aria-label={`Text webmaster at ${DISPLAY_NUMBER}. Choose an SMS template.`}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    {!compact && <span>Text</span>}
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs max-w-[220px]">
+                Text webmaster · {DISPLAY_NUMBER}
+                <div className="mt-1 text-muted-foreground">Pick a template to prefill the SMS body.</div>
+              </TooltipContent>
+            </Tooltip>
+            <PopoverContent align="end" className="w-80 p-0">
+              <div className="border-b border-border p-3">
+                <p className="text-xs font-medium text-foreground">Choose an SMS template</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Variables auto-fill: {"{{name}}"} → Webmaster, {"{{agent}}"} → you, {"{{company}}"} → ConvoHub.
+                </p>
+              </div>
+              <div className="max-h-72 overflow-auto p-2">
+                {smsTemplates.map((tpl) => {
+                  const filled = applyTemplateVars(tpl.body, senderName);
+                  return (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => {
+                        const href = `sms:${WEBMASTER_NUMBER}?body=${encodeURIComponent(filled)}`;
+                        const a = document.createElement("a");
+                        a.href = href;
+                        a.rel = "noopener";
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        recordContact("text");
+                        setSmsOpen(false);
+                        toast({
+                          title: `SMS template loaded: ${tpl.name}`,
+                          description: "Your messaging app should open with the message prefilled.",
+                        });
+                      }}
+                      className="block w-full rounded-md border border-transparent p-2 text-left transition-colors hover:border-border hover:bg-accent/40"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-foreground">{tpl.name}</span>
+                        {tpl.locked && (
+                          <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70">Starter</span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{filled}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       )}
 
@@ -494,8 +591,10 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
             <AlertDialogCancel className="sm:mr-auto">Not now</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                launchChannel("text");
+                // Open the template picker rather than firing a bare SMS —
+                // keeps the "no hallucinated default body" rule.
                 setConfirmChannel(null);
+                setSmsOpen(true);
               }}
               className="gap-2"
             >
