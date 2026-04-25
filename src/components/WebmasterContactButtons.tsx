@@ -48,8 +48,8 @@ import { notifyWebmasterOnContact, pingWebmasterSlackAlert } from "@/lib/notifyW
  *
  * Number is hard-coded per ops decision — change in one place if it moves.
  */
-const WEBMASTER_NUMBER = "+17206639706"; // (720) 663-9706
-const DISPLAY_NUMBER = "(720) 663-9706";
+const WEBMASTER_NUMBER = import.meta.env.VITE_WEBMASTER_PHONE_E164 || "+17206639706";
+const DISPLAY_NUMBER = import.meta.env.VITE_WEBMASTER_PHONE_DISPLAY || "(720) 663-9706";
 const LAST_CONTACT_KEY_PREFIX = "convohub.webmasterLastContact.";
 const LONG_PRESS_MS = 500;
 // Cooldown is configurable via /settings (5/15/30/60 min). This is just the
