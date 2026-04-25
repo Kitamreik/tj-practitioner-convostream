@@ -180,7 +180,7 @@ const Integrations: React.FC = () => {
       const failures = Object.values(res.data.results).filter((r) => !r.ok).length;
       toast({
         title: failures === 0 ? "All integrations healthy" : `${failures} issue${failures === 1 ? "" : "s"} found`,
-        description: failures === 0 ? "Slack, Twilio, Gmail and Google Voice are live." : "Click each card for details.",
+        description: failures === 0 ? "Slack, Gmail and Google Voice are live." : "Click each card for details.",
         variant: failures === 0 ? "default" : "destructive",
       });
     } catch (e: any) {
@@ -336,14 +336,11 @@ const Integrations: React.FC = () => {
   };
 
   // ----- Real Cloud Function webhook URLs -----
-  // These point at the deployed firebase-functions endpoints. Once you run
-  // `firebase deploy --only functions:slackEvents,functions:twilioInbound`,
-  // copy these URLs into Slack's Event Subscriptions request_url and
-  // Twilio's Voice/SMS webhook config in the Twilio Console.
+  // Once you run `firebase deploy --only functions:slackEvents`, copy this
+  // URL into Slack's Event Subscriptions request_url.
   const fnBase = "https://us-central1-convo-hub-71514.cloudfunctions.net";
-  const twilioWebhookUrl = `${fnBase}/twilioInbound`;
   const slackWebhookUrl = `${fnBase}/slackEvents`;
-  const webhookUrl = twilioWebhookUrl;
+  const webhookUrl = slackWebhookUrl;
 
   const copyWebhookUrl = () => {
     navigator.clipboard.writeText(webhookUrl);
@@ -446,7 +443,7 @@ const Integrations: React.FC = () => {
                 </Badge>
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Pings Slack <code className="bg-muted px-1 rounded">auth.test</code>, Twilio account info,
+                Pings Slack <code className="bg-muted px-1 rounded">auth.test</code>,
                 Gmail token validity, and Google Voice activity to confirm each credential is live.
               </p>
             </div>
@@ -474,7 +471,6 @@ const Integrations: React.FC = () => {
             <div className="grid gap-2 sm:grid-cols-2">
               {[
                 { id: "slack", label: "Slack", icon: <Hash className="h-4 w-4" /> },
-                { id: "twilio", label: "Twilio (SMS / Voice)", icon: <MessageSquare className="h-4 w-4" /> },
                 { id: "gmail", label: "Gmail", icon: <Mail className="h-4 w-4" /> },
                 { id: "google-voice", label: "Google Voice", icon: <Phone className="h-4 w-4" /> },
               ].map((p) => {
@@ -611,15 +607,9 @@ const Integrations: React.FC = () => {
 
         <div className="space-y-3 mb-4">
           <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Twilio (SMS + Voice)</p>
-            <div className="rounded-lg border border-border bg-muted/40 p-3 flex items-center justify-between gap-2">
-              <code className="text-xs font-mono text-foreground break-all">{twilioWebhookUrl}</code>
-              <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(twilioWebhookUrl); toast({ title: "Twilio URL copied" }); }} aria-label="Copy URL">
-                <Copy className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Twilio Console → Phone Numbers → your number → Messaging "A message comes in" + Voice "A call comes in" → Webhook (POST). Requires <code className="bg-muted px-1 rounded">TWILIO_AUTH_TOKEN</code> env var on the function. Port your Google Voice number to Twilio to use it as a real number.
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">SMS + Voice</p>
+            <p className="text-[11px] text-muted-foreground">
+              SMS and voice ingestion is handled by the Google Voice integration above. Configure your Google Voice number on the Google Voice card and use the webhook contract panel to forward call/SMS events into Firestore.
             </p>
           </div>
 
