@@ -1356,6 +1356,11 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Environment variables — read-only, masked diagnostics for VITE_* keys.
+            Visible to every signed-in user so anyone can verify .env.local
+            actually shipped without having to crack open devtools. */}
+        <EnvVarsPanel />
+
         {/* Webmaster-only: contact cooldown duration */}
         {isWebmaster && (
           <div id="webmaster-contact" className="rounded-xl border border-border bg-card p-6">
