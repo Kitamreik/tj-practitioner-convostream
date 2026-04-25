@@ -178,7 +178,9 @@ const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
               aria-label={
                 inCooldown
                   ? `Slack alert cooldown — wait ${formatCountdown(remainingMs)}`
-                  : "Open Slack alert composer"
+                  : profile.role === "webmaster"
+                    ? "Open Slack alert composer (test the on-call channel)"
+                    : "Open Slack alert composer (notify the on-call webmaster)"
               }
             >
               {inCooldown ? <Clock className="h-3 w-3" /> : <Bell className="h-3 w-3" />}
@@ -196,17 +198,27 @@ const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
             </>
           ) : (
             <>
-              Pings the team Slack channel. Add a custom message or send the default review request.
-              {!configured && (
-                <div className="mt-1 text-muted-foreground">
-                  Webhook is managed server-side — the function will tell you if it's not configured.
-                </div>
-              )}
+              {profile.role === "webmaster"
+                ? "Test the on-call Slack channel — agents and admins use this to escalate to you."
+                : profile.role === "admin"
+                  ? "Notify the on-call webmaster in Slack. Optional custom message; defaults to the standard review request."
+                  : "Notify the on-call webmaster in Slack. Optional custom message; defaults to the standard review request."}
+              <div className="mt-1 text-muted-foreground">
+                Rate-limited to one ping every 10 minutes per user.
+              </div>
             </>
           )}
         </TooltipContent>
       </Tooltip>
-      <PopoverContent align="end" sideOffset={6} collisionPadding={12} className="w-[min(20rem,calc(100vw-1.5rem))] p-3 space-y-2">
+      <PopoverContent
+        align="center"
+        side="top"
+        sideOffset={6}
+        collisionPadding={12}
+        avoidCollisions
+        sticky="always"
+        className="w-[min(22rem,calc(100vw-1rem))] max-h-[70vh] overflow-auto p-3 space-y-2"
+      >
         <div>
           <p className="text-xs font-medium text-foreground">Send Slack alert</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">
