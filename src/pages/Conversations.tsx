@@ -1605,7 +1605,7 @@ const Conversations: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
               <SlackAlertButton />
               <Button
                 size="sm"
@@ -1614,7 +1614,8 @@ const Conversations: React.FC = () => {
                 onClick={() => setElevateOpen(true)}
               >
                 <ShieldAlert className="h-3 w-3" />
-                Elevate to webmaster
+                <span className="hidden sm:inline">Elevate to webmaster</span>
+                <span className="sm:hidden">Elevate</span>
               </Button>
             </div>
           </div>
