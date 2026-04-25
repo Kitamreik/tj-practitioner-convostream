@@ -38,6 +38,82 @@ interface CheckRow {
   detail: string;
   status: CheckStatus;
   message?: string;
+  /** Concrete fix to apply when the row ends in warn/fail. */
+  recommendation?: string;
+  /** Optional copyable command (rendered as <code> + copy button). */
+  command?: string;
+}
+
+/**
+ * Per-row recommendation lookup. Keyed by check id × outcome so we can
+ * surface a precise next step (with copyable shell commands where useful)
+ * the moment a check ends in warn or fail. Kept out of the main run loop
+ * so it can be unit-tested independently.
+ */
+const RECOMMENDATIONS: Record<string, { fail?: { message: string; command?: string }; warn?: { message: string; command?: string } }> = {
+  auth: {
+    fail: {
+      message: "Sign in with the webmaster account, or have an existing webmaster promote you via the promoteToWebmaster callable.",
+    },
+  },
+  prefs: {
+    fail: {
+      message: "Firestore rules likely out of date — redeploy them so users/{uid}/prefs allows owner writes.",
+      command: "firebase deploy --only firestore:rules",
+    },
+  },
+  notifications: {
+    fail: {
+      message: "users/{uid}/notifications owner-read rule missing. Verify the rule block exists, then redeploy.",
+      command: "firebase deploy --only firestore:rules",
+    },
+    warn: {
+      message: "Read returned an unexpected error. Check the browser console for the raw Firestore error code.",
+    },
+  },
+  contactEvents: {
+    fail: {
+      message: "webmasterContactEvents collection rejected the heartbeat. Verify the create rule allows the current uid as agentUid.",
+      command: "firebase deploy --only firestore:rules",
+    },
+  },
+  slackFn: {
+    fail: {
+      message: "pingWebmasterSlack callable is unreachable. Confirm the function is deployed to the active project.",
+      command: "firebase deploy --only functions:pingWebmasterSlack",
+    },
+    warn: {
+      message: "Function is deployed but the Slack webhook secret is missing. Set it via the Functions secret manager.",
+      command: "firebase functions:secrets:set SLACK_WEBHOOK_URL",
+    },
+  },
+  promoteFn: {
+    fail: {
+      message: "promoteToWebmaster isn't deployed in the active project.",
+      command: "firebase deploy --only functions:promoteToWebmaster",
+    },
+    warn: {
+      message: "Callable returned an unexpected error — inspect Cloud Functions logs for the failing invocation.",
+      command: "firebase functions:log --only promoteToWebmaster",
+    },
+  },
+  cloneFn: {
+    fail: {
+      message: "cloneIntegrationsToSupport isn't deployed in the active project.",
+      command: "firebase deploy --only functions:cloneIntegrationsToSupport",
+    },
+    warn: {
+      message: "Callable returned an unexpected error — inspect Cloud Functions logs for the failing invocation.",
+      command: "firebase functions:log --only cloneIntegrationsToSupport",
+    },
+  },
+};
+
+function applyRecommendation(id: string, status: CheckStatus): Pick<CheckRow, "recommendation" | "command"> {
+  if (status !== "fail" && status !== "warn") return {};
+  const rec = RECOMMENDATIONS[id]?.[status];
+  if (!rec) return {};
+  return { recommendation: rec.message, command: rec.command };
 }
 
 const INITIAL: CheckRow[] = [
