@@ -7,13 +7,17 @@ import {
 } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 
+// Firebase web config — values are publishable, but we read them from
+// `import.meta.env` so deploys can swap projects (staging/prod) without a
+// code change. `.env.local` ships safe defaults for the dev/preview env;
+// production overrides come from Lovable Project Secrets (also VITE_-prefixed).
 const firebaseConfig = {
-  apiKey: "AIzaSyCB_t3-JUvgWEfyyFmIi7Gh_8Rm6pWuLh0",
-  authDomain: "convo-hub-71514.firebaseapp.com",
-  projectId: "convo-hub-71514",
-  storageBucket: "convo-hub-71514.firebasestorage.app",
-  messagingSenderId: "188671429501",
-  appId: "1:188671429501:web:6cc334bd11784ccdc79a14",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? "AIzaSyCB_t3-JUvgWEfyyFmIi7Gh_8Rm6pWuLh0",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? "convo-hub-71514.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? "convo-hub-71514",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? "convo-hub-71514.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "188671429501",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? "1:188671429501:web:6cc334bd11784ccdc79a14",
 };
 
 // Reuse the existing FirebaseApp across Vite HMR reloads. Calling
