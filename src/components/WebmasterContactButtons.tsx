@@ -107,6 +107,15 @@ function applyTemplateVars(body: string, agentName: string): string {
 const GSM7_REGEX = /^[A-Za-z0-9 \r\n@£$¥èéùìòÇØøÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ!"#¤%&'()*+,\-./:;<=>?¡ÄÖÑÜ§¿äöñüà^{}\\[~\]|€]*$/;
 const SOFT_SEGMENT_WARN = 3;
 const HARD_SEGMENT_LIMIT = 10;
+// Most mobile OS sms: handlers truncate the URI at ~2048 chars (iOS Safari
+// reportedly truncates earlier on some carriers). We treat 2048 as a hard
+// block and 1500 as a soft warning so the agent has a chance to trim.
+const SMS_URI_SOFT_LIMIT = 1500;
+const SMS_URI_HARD_LIMIT = 2048;
+// E.164 max length (incl. leading +) is 15 digits. Anything beyond that
+// will be rejected by every carrier we ship to.
+const E164_MAX_LENGTH = 16;
+const E164_MIN_LENGTH = 8;
 
 interface SmsLimits {
   encoding: "GSM-7" | "UCS-2";
@@ -114,11 +123,16 @@ interface SmsLimits {
   segments: number;
   charCount: number;
   remainingInSegment: number;
+  uriLength: number;
+  recipientLength: number;
+  recipientValid: boolean;
   level: "ok" | "warn" | "block";
   reason?: string;
+  /** Short, actionable next step shown below the reason. */
+  recommendation?: string;
 }
 
-function computeSmsLimits(body: string): SmsLimits {
+function computeSmsLimits(body: string, recipient: string = WEBMASTER_NUMBER): SmsLimits {
   const charCount = body.length;
   const isGsm = GSM7_REGEX.test(body);
   const encoding: SmsLimits["encoding"] = isGsm ? "GSM-7" : "UCS-2";
@@ -141,20 +155,69 @@ function computeSmsLimits(body: string): SmsLimits {
 
   const remainingInSegment = Math.max(0, segments * perSegment - charCount);
 
+  // URL-encoded length matters because the OS sms: handler receives the
+  // entire encoded URI, not the raw body. A line of emoji can blow past
+  // 2 KB even though the visible body is only ~400 chars.
+  const uriBody = encodeURIComponent(body);
+  const uriLength = `sms:${recipient}?body=${uriBody}`.length;
+
+  // Recipient sanity — strip any non-digits except a leading + and check
+  // it falls within E.164 bounds. We keep the leading + in the count.
+  const trimmedRecipient = recipient.trim();
+  const recipientLength = trimmedRecipient.length;
+  const recipientDigits = trimmedRecipient.replace(/[^\d]/g, "");
+  const recipientValid =
+    /^\+?\d+$/.test(trimmedRecipient) &&
+    recipientLength >= E164_MIN_LENGTH &&
+    recipientLength <= E164_MAX_LENGTH &&
+    recipientDigits.length >= 7 &&
+    recipientDigits.length <= 15;
+
   let level: SmsLimits["level"] = "ok";
   let reason: string | undefined;
-  if (segments > HARD_SEGMENT_LIMIT) {
+  let recommendation: string | undefined;
+
+  // Recipient problems are always a hard block — there's no point opening
+  // the composer if the OS will reject the URI on parse.
+  if (!recipientValid) {
+    level = "block";
+    reason = `Recipient number "${trimmedRecipient}" is not a valid E.164 phone number (${recipientLength} chars).`;
+    recommendation = `Use the international format with a leading "+" and ${E164_MIN_LENGTH - 1}–15 digits (e.g. +17206639706).`;
+  } else if (uriLength > SMS_URI_HARD_LIMIT) {
+    level = "block";
+    reason = `URL-encoded SMS link is ${uriLength} chars — exceeds the ${SMS_URI_HARD_LIMIT}-char OS limit, so the composer will silently truncate the body.`;
+    recommendation = `Trim the body by ~${Math.ceil((uriLength - SMS_URI_HARD_LIMIT) / 3)} chars (URL encoding inflates emoji/punctuation ~3×).`;
+  } else if (segments > HARD_SEGMENT_LIMIT) {
     level = "block";
     reason = `Exceeds the ${HARD_SEGMENT_LIMIT}-segment carrier hard cap (${segments} segments). Most US carriers will reject this message.`;
+    recommendation = `Trim to ≤ ${HARD_SEGMENT_LIMIT * perSegment} chars or split into multiple sends.`;
+  } else if (uriLength > SMS_URI_SOFT_LIMIT) {
+    level = "warn";
+    reason = `URL-encoded link is ${uriLength} chars — within ${SMS_URI_HARD_LIMIT - uriLength} of the OS truncation limit.`;
+    recommendation = `Some carriers/OS combos truncate around 1.6 KB. Consider trimming or sending a follow-up.`;
   } else if (segments > SOFT_SEGMENT_WARN) {
     level = "warn";
     reason = `${segments} segments will be billed and may arrive out of order or be split by the recipient's carrier.`;
+    recommendation = `Aim for ≤ ${SOFT_SEGMENT_WARN * perSegment} chars to fit in ${SOFT_SEGMENT_WARN} segments.`;
   } else if (!isGsm && segments > 1) {
     level = "warn";
     reason = `Non-GSM characters force UCS-2 encoding (${concatCap} chars/segment) — consider removing emoji or smart quotes.`;
+    recommendation = `Replace smart quotes (" ") with ASCII (" ') and drop emoji to switch back to GSM-7 (160 chars/segment).`;
   }
 
-  return { encoding, perSegment, segments, charCount, remainingInSegment, level, reason };
+  return {
+    encoding,
+    perSegment,
+    segments,
+    charCount,
+    remainingInSegment,
+    uriLength,
+    recipientLength,
+    recipientValid,
+    level,
+    reason,
+    recommendation,
+  };
 }
 interface Props {
   /** "compact" = icon-only buttons (sidebar/bottom-sheet); "full" = labelled. */
