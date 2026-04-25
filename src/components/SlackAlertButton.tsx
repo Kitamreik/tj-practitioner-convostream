@@ -68,7 +68,6 @@ function formatCountdown(ms: number): string {
 const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
   const { profile } = useAuth();
   const location = useLocation();
-  const [configured, setConfigured] = useState<boolean>(() => getLocalSlackAlertConfigured());
   const [sending, setSending] = useState(false);
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -77,8 +76,10 @@ const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
   const [nextAllowedAt, setNextAllowedAt] = useState<number>(() => readLocalNextAllowed(profile?.uid));
   const [, setNowTick] = useState(0);
   const tickRef = useRef<number | null>(null);
-
-  useEffect(() => subscribeSlackAlertConfigured(setConfigured), []);
+  // Webhook configuration is now managed server-side as a Cloud Functions
+  // secret — the client no longer mirrors `appSettings/slackAlertStatus`,
+  // and the callable returns `failed-precondition` when the secret is
+  // genuinely missing (we surface that error in a toast).
 
   // Re-hydrate when the user changes (e.g. webmaster signs in as agent).
   useEffect(() => {
