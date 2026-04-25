@@ -346,12 +346,111 @@ const SmokeTestPanel: React.FC<Props> = ({ embedded = false }) => {
                   {row.message}
                 </p>
               )}
+              {(row.status === "fail" || row.status === "warn") && row.recommendation && (
+                <div
+                  className={[
+                    "mt-2 rounded-md border p-2 text-[11px]",
+                    row.status === "fail"
+                      ? "border-destructive/30 bg-destructive/5"
+                      : "border-warning/30 bg-warning/5",
+                  ].join(" ")}
+                >
+                  <div className="flex items-start gap-1.5">
+                    <Lightbulb
+                      className={[
+                        "mt-0.5 h-3.5 w-3.5 shrink-0",
+                        row.status === "fail" ? "text-destructive" : "text-warning",
+                      ].join(" ")}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground">Recommendation</p>
+                      <p className="mt-0.5 text-foreground/80">{row.recommendation}</p>
+                      {row.command && (
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <code className="flex-1 truncate rounded bg-muted px-1.5 py-1 text-[10px] font-mono text-foreground">
+                            {row.command}
+                          </code>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-[10px]"
+                            onClick={() => {
+                              navigator.clipboard
+                                .writeText(row.command!)
+                                .then(() =>
+                                  toast({ title: "Command copied", description: row.command })
+                                )
+                                .catch(() =>
+                                  toast({
+                                    title: "Copy failed",
+                                    description: "Select the command manually.",
+                                    variant: "destructive",
+                                  })
+                                );
+                            }}
+                            aria-label="Copy command"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ))}
       </Card>
 
       <Separator className="my-4" />
+
+      {/* Google Voice webhook shared-secret setup. Surfaced inline next to
+          the smoke checks because the Slack-callable WARN row is the most
+          common entry point — operators landing here usually need to wire
+          the same webhook for inbound Google Voice → Slack notifications. */}
+      <details className="mb-4 rounded-lg border border-border bg-muted/30 p-3 text-xs">
+        <summary className="flex cursor-pointer items-center gap-2 font-medium text-foreground">
+          <Webhook className="h-3.5 w-3.5 text-primary" />
+          Configure the Google Voice webhook shared secret
+        </summary>
+        <ol className="mt-3 list-decimal space-y-2 pl-5 text-foreground/80">
+          <li>
+            Generate a high-entropy secret locally:
+            <code className="ml-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+              openssl rand -hex 32
+            </code>
+          </li>
+          <li>
+            Store it as a Cloud Functions secret so the inbound handler can verify the signature:
+            <code className="ml-1 block mt-1 rounded bg-muted px-1.5 py-1 font-mono text-[10px]">
+              firebase functions:secrets:set GOOGLE_VOICE_WEBHOOK_SECRET
+            </code>
+          </li>
+          <li>
+            Redeploy the receiving function so it picks up the new secret binding:
+            <code className="ml-1 block mt-1 rounded bg-muted px-1.5 py-1 font-mono text-[10px]">
+              firebase deploy --only functions:googleVoiceInbound
+            </code>
+          </li>
+          <li>
+            In the Google Voice forwarder (Apps Script / Zapier / custom relay), add an
+            <code className="mx-1 rounded bg-muted px-1 font-mono text-[10px]">X-ConvoHub-Signature</code>
+            header containing
+            <code className="mx-1 rounded bg-muted px-1 font-mono text-[10px]">
+              HMAC-SHA256(body, GOOGLE_VOICE_WEBHOOK_SECRET)
+            </code>
+            (hex-encoded).
+          </li>
+          <li>
+            Send a test payload, then re-run the smoke test above — the
+            <span className="font-medium"> pingWebmasterSlack </span>
+            row should flip from <span className="font-medium text-warning">WARN</span> to
+            <span className="font-medium text-success"> PASS </span>.
+          </li>
+        </ol>
+      </details>
 
       <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
         <div className="rounded-lg border border-border p-3">
