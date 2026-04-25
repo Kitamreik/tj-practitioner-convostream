@@ -13,7 +13,11 @@ import {
   Loader2,
   PlayCircle,
   AlertCircle,
+  Lightbulb,
+  Copy,
+  Webhook,
 } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { db, functions } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
@@ -38,6 +42,82 @@ interface CheckRow {
   detail: string;
   status: CheckStatus;
   message?: string;
+  /** Concrete fix to apply when the row ends in warn/fail. */
+  recommendation?: string;
+  /** Optional copyable command (rendered as <code> + copy button). */
+  command?: string;
+}
+
+/**
+ * Per-row recommendation lookup. Keyed by check id × outcome so we can
+ * surface a precise next step (with copyable shell commands where useful)
+ * the moment a check ends in warn or fail. Kept out of the main run loop
+ * so it can be unit-tested independently.
+ */
+const RECOMMENDATIONS: Record<string, { fail?: { message: string; command?: string }; warn?: { message: string; command?: string } }> = {
+  auth: {
+    fail: {
+      message: "Sign in with the webmaster account, or have an existing webmaster promote you via the promoteToWebmaster callable.",
+    },
+  },
+  prefs: {
+    fail: {
+      message: "Firestore rules likely out of date — redeploy them so users/{uid}/prefs allows owner writes.",
+      command: "firebase deploy --only firestore:rules",
+    },
+  },
+  notifications: {
+    fail: {
+      message: "users/{uid}/notifications owner-read rule missing. Verify the rule block exists, then redeploy.",
+      command: "firebase deploy --only firestore:rules",
+    },
+    warn: {
+      message: "Read returned an unexpected error. Check the browser console for the raw Firestore error code.",
+    },
+  },
+  contactEvents: {
+    fail: {
+      message: "webmasterContactEvents collection rejected the heartbeat. Verify the create rule allows the current uid as agentUid.",
+      command: "firebase deploy --only firestore:rules",
+    },
+  },
+  slackFn: {
+    fail: {
+      message: "pingWebmasterSlack callable is unreachable. Confirm the function is deployed to the active project.",
+      command: "firebase deploy --only functions:pingWebmasterSlack",
+    },
+    warn: {
+      message: "Function is deployed but the Slack webhook secret is missing. Set it via the Functions secret manager.",
+      command: "firebase functions:secrets:set SLACK_WEBHOOK_URL",
+    },
+  },
+  promoteFn: {
+    fail: {
+      message: "promoteToWebmaster isn't deployed in the active project.",
+      command: "firebase deploy --only functions:promoteToWebmaster",
+    },
+    warn: {
+      message: "Callable returned an unexpected error — inspect Cloud Functions logs for the failing invocation.",
+      command: "firebase functions:log --only promoteToWebmaster",
+    },
+  },
+  cloneFn: {
+    fail: {
+      message: "cloneIntegrationsToSupport isn't deployed in the active project.",
+      command: "firebase deploy --only functions:cloneIntegrationsToSupport",
+    },
+    warn: {
+      message: "Callable returned an unexpected error — inspect Cloud Functions logs for the failing invocation.",
+      command: "firebase functions:log --only cloneIntegrationsToSupport",
+    },
+  },
+};
+
+function applyRecommendation(id: string, status: CheckStatus): Pick<CheckRow, "recommendation" | "command"> {
+  if (status !== "fail" && status !== "warn") return {};
+  const rec = RECOMMENDATIONS[id]?.[status];
+  if (!rec) return {};
+  return { recommendation: rec.message, command: rec.command };
 }
 
 const INITIAL: CheckRow[] = [
@@ -69,13 +149,26 @@ const SmokeTestPanel: React.FC<Props> = ({ embedded = false }) => {
   const [running, setRunning] = useState(false);
 
   const update = (id: string, patch: Partial<CheckRow>) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== id) return r;
+        // Auto-attach the recommendation/command for the resulting status
+        // unless the caller explicitly provided their own.
+        const next: CheckRow = { ...r, ...patch };
+        if (patch.recommendation === undefined && patch.command === undefined && patch.status) {
+          const rec = applyRecommendation(id, patch.status);
+          next.recommendation = rec.recommendation;
+          next.command = rec.command;
+        }
+        return next;
+      })
+    );
   };
 
   const runChecks = async () => {
     if (running) return;
     setRunning(true);
-    setRows(INITIAL.map((r) => ({ ...r, status: "running", message: undefined })));
+    setRows(INITIAL.map((r) => ({ ...r, status: "running", message: undefined, recommendation: undefined, command: undefined })));
 
     const uid = profile?.uid;
 
@@ -253,12 +346,111 @@ const SmokeTestPanel: React.FC<Props> = ({ embedded = false }) => {
                   {row.message}
                 </p>
               )}
+              {(row.status === "fail" || row.status === "warn") && row.recommendation && (
+                <div
+                  className={[
+                    "mt-2 rounded-md border p-2 text-[11px]",
+                    row.status === "fail"
+                      ? "border-destructive/30 bg-destructive/5"
+                      : "border-warning/30 bg-warning/5",
+                  ].join(" ")}
+                >
+                  <div className="flex items-start gap-1.5">
+                    <Lightbulb
+                      className={[
+                        "mt-0.5 h-3.5 w-3.5 shrink-0",
+                        row.status === "fail" ? "text-destructive" : "text-warning",
+                      ].join(" ")}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground">Recommendation</p>
+                      <p className="mt-0.5 text-foreground/80">{row.recommendation}</p>
+                      {row.command && (
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <code className="flex-1 truncate rounded bg-muted px-1.5 py-1 text-[10px] font-mono text-foreground">
+                            {row.command}
+                          </code>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-[10px]"
+                            onClick={() => {
+                              navigator.clipboard
+                                .writeText(row.command!)
+                                .then(() =>
+                                  toast({ title: "Command copied", description: row.command })
+                                )
+                                .catch(() =>
+                                  toast({
+                                    title: "Copy failed",
+                                    description: "Select the command manually.",
+                                    variant: "destructive",
+                                  })
+                                );
+                            }}
+                            aria-label="Copy command"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ))}
       </Card>
 
       <Separator className="my-4" />
+
+      {/* Google Voice webhook shared-secret setup. Surfaced inline next to
+          the smoke checks because the Slack-callable WARN row is the most
+          common entry point — operators landing here usually need to wire
+          the same webhook for inbound Google Voice → Slack notifications. */}
+      <details className="mb-4 rounded-lg border border-border bg-muted/30 p-3 text-xs">
+        <summary className="flex cursor-pointer items-center gap-2 font-medium text-foreground">
+          <Webhook className="h-3.5 w-3.5 text-primary" />
+          Configure the Google Voice webhook shared secret
+        </summary>
+        <ol className="mt-3 list-decimal space-y-2 pl-5 text-foreground/80">
+          <li>
+            Generate a high-entropy secret locally:
+            <code className="ml-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+              openssl rand -hex 32
+            </code>
+          </li>
+          <li>
+            Store it as a Cloud Functions secret so the inbound handler can verify the signature:
+            <code className="ml-1 block mt-1 rounded bg-muted px-1.5 py-1 font-mono text-[10px]">
+              firebase functions:secrets:set GOOGLE_VOICE_WEBHOOK_SECRET
+            </code>
+          </li>
+          <li>
+            Redeploy the receiving function so it picks up the new secret binding:
+            <code className="ml-1 block mt-1 rounded bg-muted px-1.5 py-1 font-mono text-[10px]">
+              firebase deploy --only functions:googleVoiceInbound
+            </code>
+          </li>
+          <li>
+            In the Google Voice forwarder (Apps Script / Zapier / custom relay), add an
+            <code className="mx-1 rounded bg-muted px-1 font-mono text-[10px]">X-ConvoHub-Signature</code>
+            header containing
+            <code className="mx-1 rounded bg-muted px-1 font-mono text-[10px]">
+              HMAC-SHA256(body, GOOGLE_VOICE_WEBHOOK_SECRET)
+            </code>
+            (hex-encoded).
+          </li>
+          <li>
+            Send a test payload, then re-run the smoke test above — the
+            <span className="font-medium"> pingWebmasterSlack </span>
+            row should flip from <span className="font-medium text-warning">WARN</span> to
+            <span className="font-medium text-success"> PASS </span>.
+          </li>
+        </ol>
+      </details>
 
       <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
         <div className="rounded-lg border border-border p-3">
