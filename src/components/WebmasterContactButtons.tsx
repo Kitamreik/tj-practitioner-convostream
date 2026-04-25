@@ -697,6 +697,26 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
                           <span>{limits.encoding}</span>
                           <span>·</span>
                           <span>{limits.perSegment}/seg</span>
+                          <span>·</span>
+                          <span
+                            className={
+                              limits.uriLength > SMS_URI_HARD_LIMIT
+                                ? "font-semibold text-destructive"
+                                : limits.uriLength > SMS_URI_SOFT_LIMIT
+                                ? "font-semibold text-warning"
+                                : ""
+                            }
+                            title="URL-encoded sms: URI length"
+                          >
+                            URI {limits.uriLength}/{SMS_URI_HARD_LIMIT}
+                          </span>
+                          <span>·</span>
+                          <span
+                            className={!limits.recipientValid ? "font-semibold text-destructive" : ""}
+                            title="Recipient phone number length (E.164 max 16 chars)"
+                          >
+                            To {limits.recipientLength}ch
+                          </span>
                         </div>
                       </div>
 
@@ -711,11 +731,13 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
                         >
                           <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                           <div>
-                            <p className="font-semibold">Carrier hard limit exceeded</p>
+                            <p className="font-semibold">Composer blocked — carrier could truncate</p>
                             <p className="mt-0.5 text-destructive/90">{limits.reason}</p>
-                            <p className="mt-1 text-destructive/80">
-                              Trim the body to ≤ {HARD_SEGMENT_LIMIT * limits.perSegment} chars before sending.
-                            </p>
+                            {limits.recommendation && (
+                              <p className="mt-1 text-destructive/80">
+                                <span className="font-medium">Fix:</span> {limits.recommendation}
+                              </p>
+                            )}
                           </div>
                         </div>
                       )}
@@ -729,6 +751,11 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
                             <div>
                               <p className="font-semibold">Exceeds typical carrier limit</p>
                               <p className="mt-0.5">{limits.reason}</p>
+                              {limits.recommendation && (
+                                <p className="mt-1 text-foreground/80">
+                                  <span className="font-medium">Suggestion:</span> {limits.recommendation}
+                                </p>
+                              )}
                             </div>
                           </div>
                           <label className="flex items-start gap-2 cursor-pointer pl-5">
@@ -739,7 +766,7 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
                               className="mt-0.5"
                             />
                             <span className="text-foreground">
-                              I understand this will be split into {limits.segments} segments and may incur extra charges or arrive out of order.
+                              I understand this may be split, truncated, or billed as {limits.segments} segments and want to send anyway.
                             </span>
                           </label>
                         </div>
