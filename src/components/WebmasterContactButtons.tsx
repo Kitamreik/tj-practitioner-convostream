@@ -533,7 +533,7 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
             )}
           </TooltipContent>
         </Tooltip>
-        <PopoverContent align="end" className="w-80 p-3 space-y-2">
+        <PopoverContent align="end" sideOffset={6} collisionPadding={12} className="w-[min(20rem,calc(100vw-1.5rem))] p-3 space-y-2">
           <div>
             <p className="text-xs font-medium text-foreground">Send Slack alert</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -662,7 +662,7 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
                 <div className="mt-1 text-muted-foreground">Pick a template, preview, then send.</div>
               </TooltipContent>
             </Tooltip>
-            <PopoverContent align="end" className="w-80 p-0">
+            <PopoverContent align="end" sideOffset={6} collisionPadding={12} className="w-[min(20rem,calc(100vw-1.5rem))] p-0">
               {smsPreview ? (
                 // Preview step — shows the fully substituted body before
                 // we launch the device SMS composer. Forces the agent to

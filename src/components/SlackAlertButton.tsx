@@ -206,7 +206,7 @@ const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
           )}
         </TooltipContent>
       </Tooltip>
-      <PopoverContent align="end" className="w-80 p-3 space-y-2">
+      <PopoverContent align="end" sideOffset={6} collisionPadding={12} className="w-[min(20rem,calc(100vw-1.5rem))] p-3 space-y-2">
         <div>
           <p className="text-xs font-medium text-foreground">Send Slack alert</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">
