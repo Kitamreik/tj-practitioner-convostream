@@ -145,13 +145,26 @@ const SmokeTestPanel: React.FC<Props> = ({ embedded = false }) => {
   const [running, setRunning] = useState(false);
 
   const update = (id: string, patch: Partial<CheckRow>) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== id) return r;
+        // Auto-attach the recommendation/command for the resulting status
+        // unless the caller explicitly provided their own.
+        const next: CheckRow = { ...r, ...patch };
+        if (patch.recommendation === undefined && patch.command === undefined && patch.status) {
+          const rec = applyRecommendation(id, patch.status);
+          next.recommendation = rec.recommendation;
+          next.command = rec.command;
+        }
+        return next;
+      })
+    );
   };
 
   const runChecks = async () => {
     if (running) return;
     setRunning(true);
-    setRows(INITIAL.map((r) => ({ ...r, status: "running", message: undefined })));
+    setRows(INITIAL.map((r) => ({ ...r, status: "running", message: undefined, recommendation: undefined, command: undefined })));
 
     const uid = profile?.uid;
 
