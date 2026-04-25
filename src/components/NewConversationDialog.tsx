@@ -102,7 +102,7 @@ const NewConversationDialog: React.FC = () => {
         status: "active",
         // Track entries made directly from the conversation page so audit
         // logs and analytics can distinguish in-app captures from inbound
-        // webhook traffic (Slack/Twilio/Gmail). The icon/key page reads
+        // webhook traffic (Slack/SMS/Gmail). The icon/key page reads
         // `source` to render the running-feet badge for "mobile" entries.
         source: "conversation-page",
         createdAt: serverTimestamp(),

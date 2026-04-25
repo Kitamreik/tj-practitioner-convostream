@@ -75,7 +75,7 @@ const ICON_ROWS: IconRow[] = [
     label: "SMS",
     group: "Channel",
     icon: <MessageSquare className="h-5 w-5" />,
-    defaultDescription: "Text-message conversation routed through Twilio or Google Voice.",
+    defaultDescription: "Text-message conversation routed through Google Voice.",
   },
   {
     key: "channel-phone",
@@ -122,7 +122,7 @@ const ICON_ROWS: IconRow[] = [
   { key: "nav-staff-updates", label: "Staff Updates", group: "Navigation", icon: <Megaphone className="h-5 w-5" />, defaultDescription: "Webmaster-authored announcements visible to the whole team." },
   { key: "nav-file-recordings", label: "File Recordings", group: "Navigation", icon: <FileVideo className="h-5 w-5" />, defaultDescription: "Shared screen captures and media drops." },
   { key: "nav-notifications", label: "Notifications", group: "Navigation", icon: <Bell className="h-5 w-5" />, defaultDescription: "Per-user notification feed; bell shows unread count." },
-  { key: "nav-integrations", label: "Integrations", group: "Navigation", icon: <Plug className="h-5 w-5" />, defaultDescription: "Webmaster panel for connecting Slack, Gmail, Twilio, Google Voice." },
+  { key: "nav-integrations", label: "Integrations", group: "Navigation", icon: <Plug className="h-5 w-5" />, defaultDescription: "Webmaster panel for connecting Slack, Gmail, and Google Voice." },
   { key: "nav-audit", label: "Audit Logs", group: "Navigation", icon: <Shield className="h-5 w-5" />, defaultDescription: "Webmaster-only access log of sign-ins and privileged actions." },
   { key: "nav-analytics", label: "Analytics", group: "Navigation", icon: <BarChart3 className="h-5 w-5" />, defaultDescription: "Volume and response-time charts across channels." },
   { key: "nav-archive", label: "Archive", group: "Navigation", icon: <ArchiveIcon className="h-5 w-5" />, defaultDescription: "Archived conversations kept out of the main inbox." },

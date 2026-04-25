@@ -28,7 +28,7 @@ import { notifyWebmasterOnContact, pingWebmasterSlackAlert } from "@/lib/notifyW
  * WebmasterContactButtons — direct call/SMS shortcuts to the on-call
  * webmaster. Surfaced for agents and admins (the webmaster doesn't need to
  * call themselves). Uses standard `tel:` / `sms:` URIs so the OS handles the
- * dial / compose action; no Twilio round-trip needed.
+ * dial / compose action; no carrier API round-trip needed.
  *
  * UX details:
  * - SMS body is prefilled with the sender's name and current route so the
