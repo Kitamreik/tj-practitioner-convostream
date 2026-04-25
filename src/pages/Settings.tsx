@@ -39,6 +39,7 @@ import { BG_GMAIL_INGEST_PREF } from "@/hooks/useBackgroundGmailPoller";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AccountActionsMenu } from "@/components/AccountActionsMenu";
+import EnvVarsPanel from "@/components/EnvVarsPanel";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -1215,6 +1216,7 @@ const SettingsPage: React.FC = () => {
   const navSections: { id: string; label: string }[] = [
     { id: "profile", label: "Profile" },
     { id: "appearance", label: "Appearance" },
+    { id: "env-vars", label: "Environment variables" },
     ...(isWebmaster
       ? [
           { id: "overview", label: "Overview" },
@@ -1353,6 +1355,11 @@ const SettingsPage: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Environment variables — read-only, masked diagnostics for VITE_* keys.
+            Visible to every signed-in user so anyone can verify .env.local
+            actually shipped without having to crack open devtools. */}
+        <EnvVarsPanel />
 
         {/* Webmaster-only: contact cooldown duration */}
         {isWebmaster && (

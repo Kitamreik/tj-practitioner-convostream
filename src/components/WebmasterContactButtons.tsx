@@ -28,7 +28,7 @@ import { notifyWebmasterOnContact, pingWebmasterSlackAlert } from "@/lib/notifyW
  * WebmasterContactButtons — direct call/SMS shortcuts to the on-call
  * webmaster. Surfaced for agents and admins (the webmaster doesn't need to
  * call themselves). Uses standard `tel:` / `sms:` URIs so the OS handles the
- * dial / compose action; no Twilio round-trip needed.
+ * dial / compose action; no carrier API round-trip needed.
  *
  * UX details:
  * - SMS body is prefilled with the sender's name and current route so the
@@ -517,23 +517,31 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
                 size="sm"
                 disabled={slackSending}
                 className="w-full justify-center gap-2 border-primary/40 text-primary hover:bg-primary/10"
-                aria-label="Open Slack alert composer"
+                aria-label="Notify the on-call webmaster in Slack"
               >
                 <Bell className="h-4 w-4" />
-                {compact ? null : <span>{slackSending ? "Sending…" : "Slack Alert"}</span>}
+                {compact ? null : <span>{slackSending ? "Sending…" : "Notify webmaster in Slack"}</span>}
               </Button>
             </PopoverTrigger>
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs max-w-[260px]">
-            Pings the team Slack channel. Add a custom message or send the default review request.
-            {!slackConfigured && (
-              <div className="mt-1 text-muted-foreground">
-                Webhook is managed server-side — the function will tell you if it's not configured.
-              </div>
-            )}
+            {profile.role === "admin"
+              ? "Admin shortcut — pings the on-call webmaster in Slack. Add a custom message or send the default review request."
+              : "Agent shortcut — pings the on-call webmaster in Slack. Add a custom message or send the default review request."}
+            <div className="mt-1 text-muted-foreground">
+              Rate-limited to one ping every 10 minutes per user.
+            </div>
           </TooltipContent>
         </Tooltip>
-        <PopoverContent align="end" sideOffset={6} collisionPadding={12} className="w-[min(20rem,calc(100vw-1.5rem))] p-3 space-y-2">
+        <PopoverContent
+          align="center"
+          side="top"
+          sideOffset={6}
+          collisionPadding={12}
+          avoidCollisions
+          sticky="always"
+          className="w-[min(22rem,calc(100vw-1rem))] max-h-[70vh] overflow-auto p-3 space-y-2"
+        >
           <div>
             <p className="text-xs font-medium text-foreground">Send Slack alert</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -662,7 +670,15 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
                 <div className="mt-1 text-muted-foreground">Pick a template, preview, then send.</div>
               </TooltipContent>
             </Tooltip>
-            <PopoverContent align="end" sideOffset={6} collisionPadding={12} className="w-[min(20rem,calc(100vw-1.5rem))] p-0">
+            <PopoverContent
+              align="center"
+              side="top"
+              sideOffset={6}
+              collisionPadding={12}
+              avoidCollisions
+              sticky="always"
+              className="w-[min(22rem,calc(100vw-1rem))] max-h-[80vh] overflow-auto p-0"
+            >
               {smsPreview ? (
                 // Preview step — shows the fully substituted body before
                 // we launch the device SMS composer. Forces the agent to
