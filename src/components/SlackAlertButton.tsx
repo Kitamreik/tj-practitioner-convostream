@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
-// Webhook config is now server-side; we no longer mirror it client-side.
+// Webhook config is managed server-side; no client mirror needed.
 import { pingWebmasterSlackAlert } from "@/lib/notifyWebmaster";
 
 /**

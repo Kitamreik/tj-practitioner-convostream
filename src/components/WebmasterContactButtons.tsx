@@ -670,7 +670,15 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
                 <div className="mt-1 text-muted-foreground">Pick a template, preview, then send.</div>
               </TooltipContent>
             </Tooltip>
-            <PopoverContent align="end" sideOffset={6} collisionPadding={12} className="w-[min(20rem,calc(100vw-1.5rem))] p-0">
+            <PopoverContent
+              align="center"
+              side="top"
+              sideOffset={6}
+              collisionPadding={12}
+              avoidCollisions
+              sticky="always"
+              className="w-[min(22rem,calc(100vw-1rem))] max-h-[80vh] overflow-auto p-0"
+            >
               {smsPreview ? (
                 // Preview step — shows the fully substituted body before
                 // we launch the device SMS composer. Forces the agent to
