@@ -13,7 +13,11 @@ import {
   Loader2,
   PlayCircle,
   AlertCircle,
+  Lightbulb,
+  Copy,
+  Webhook,
 } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { db, functions } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
