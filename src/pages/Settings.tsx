@@ -1215,6 +1215,7 @@ const SettingsPage: React.FC = () => {
   const navSections: { id: string; label: string }[] = [
     { id: "profile", label: "Profile" },
     { id: "appearance", label: "Appearance" },
+    { id: "env-vars", label: "Environment variables" },
     ...(isWebmaster
       ? [
           { id: "overview", label: "Overview" },
