@@ -1697,9 +1697,8 @@ export const replyToSlackChannel = onCall(async (request) => {
 //
 // We deliberately make a single, harmless read-only API call per provider:
 //   • Slack    → auth.test           (verifies SLACK_BOT_TOKEN)
-//   • Twilio   → GET /Accounts/{sid} (verifies TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN)
 //   • Gmail    → users/me/profile    (uses caller's OAuth access token)
-//   • Google   → Voice listing       (no public REST API — we surface whether
+//   • Google   → config presence    (no public REST API — we surface whether
 //     Voice          the per-user webhook secret + voice number are configured
 //                    in Firestore so the dashboard isn't silently empty)
 //
