@@ -22,10 +22,10 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
-import { beforeUserSignedIn } from "firebase-functions/v2/identity";
 import { logger } from "firebase-functions/v2";
 import * as admin from "firebase-admin";
-import * as nodemailer from "nodemailer";
+// (nodemailer import removed — SMTP-based escalations were replaced by the
+// in-app notifications fan-out via notifyWebmastersInApp.)
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -34,7 +34,6 @@ const db = admin.firestore();
 // Role management — callable functions
 // =============================================================================
 
-const ESCALATION_NOTIFY_EMAIL = "kit.tjclasses@gmail.com";
 
 /**
  * Webmaster-only: promote another user to a given role (typically "webmaster").
@@ -265,53 +264,61 @@ export const bootstrapSupportAccount = onCall(async (request) => {
   return { ok: true, uid, email: SUPPORT_EMAIL, created };
 });
 
-/**
- * Build a nodemailer transport from env vars, or return null if SMTP isn't
- * configured. Shared by all email-sending callables so we have one source of
- * truth for credentials and behavior.
- */
-function buildTransport(): nodemailer.Transporter | null {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null;
-  const port = Number(SMTP_PORT || 587);
-  return nodemailer.createTransport({
-    host: SMTP_HOST,
-    port,
-    secure: port === 465,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-  });
-}
+// (buildTransport removed — SMTP is no longer used by any callable.)
 
-async function sendEscalationEmail(opts: {
-  subject: string;
-  text: string;
-}): Promise<{ sent: boolean; error: string | null }> {
-  const transport = buildTransport();
-  if (!transport) return { sent: false, error: "SMTP not configured" };
+// (sendEscalationEmail removed — escalations now flow via notifyWebmastersInApp.)
+
+/**
+ * Fan-out an in-app notification into every webmaster's `notifications`
+ * subcollection. Used by escalation flows so webmasters see escalation
+ * requests in the bell instantly without depending on SMTP delivery.
+ *
+ * Best-effort: failures are logged but never block the originating action —
+ * the escalationRequests / investigationRequests doc remains the source of
+ * truth.
+ */
+async function notifyWebmastersInApp(opts: {
+  type: "alert" | "message" | "call";
+  title: string;
+  description: string;
+  link?: string | null;
+}): Promise<{ delivered: number; error: string | null }> {
   try {
-    await transport.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: ESCALATION_NOTIFY_EMAIL,
-      subject: opts.subject,
-      text: opts.text,
+    const wmSnap = await db.collection("users").where("role", "==", "webmaster").get();
+    const uids = wmSnap.docs.map((d) => d.id).filter(Boolean);
+    if (uids.length === 0) return { delivered: 0, error: "no webmasters" };
+    const batch = db.batch();
+    uids.forEach((uid) => {
+      const ref = db.collection("users").doc(uid).collection("notifications").doc();
+      batch.set(ref, {
+        type: opts.type,
+        title: opts.title.slice(0, 200),
+        description: opts.description.slice(0, 500),
+        link: opts.link ?? null,
+        read: false,
+        isNote: false,
+        broadcast: true,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
     });
-    return { sent: true, error: null };
-  } catch (err: unknown) {
-    const message = (err as Error).message;
-    logger.error("sendEscalationEmail failed", err);
-    return { sent: false, error: message };
+    await batch.commit();
+    return { delivered: uids.length, error: null };
+  } catch (err) {
+    logger.error("notifyWebmastersInApp failed", err);
+    return { delivered: 0, error: (err as Error).message };
   }
 }
 
 /**
- * Admin escalation request: any signed-in admin can request expanded access
- * (Integrations / Analytics / Gmail API). Persists a record in
- * `escalationRequests` and emails ESCALATION_NOTIFY_EMAIL via SMTP if creds
- * are configured (env: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM).
- * If SMTP is not configured the request is still recorded so a webmaster can
- * approve it manually from the audit trail.
+ * Admin / agent / support escalation request: any signed-in non-webmaster
+ * can request expanded access (Integrations / Analytics / Gmail API).
+ * Persists a record in `escalationRequests` AND fans out an in-app
+ * notification to every webmaster's bell. Email delivery has been
+ * intentionally removed in favor of the notifications queue so escalations
+ * are visible in-app immediately and don't depend on SMTP being configured.
  *
  * Request: { reason?: string }
+ * Response: { ok, requestId, notified, notifyError }
  */
 export const requestWebmasterEscalation = onCall(async (request) => {
   if (!request.auth) {
@@ -334,28 +341,38 @@ export const requestWebmasterEscalation = onCall(async (request) => {
     requesterRole: userData.role ?? "admin",
     reason,
     status: "pending",
-    notifiedEmail: ESCALATION_NOTIFY_EMAIL,
+    // Routing has moved off email — keep the field for back-compat readers
+    // but record the actual delivery channel below.
+    notifiedEmail: null,
     emailSent: false,
+    deliveryChannel: "in-app-notifications",
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  const { sent, error } = await sendEscalationEmail({
-    subject: `[ConvoHub] Webmaster escalation requested by ${userData.email ?? uid}`,
-    text:
-      `User ${userData.displayName ?? "(no name)"} <${userData.email ?? uid}> ` +
-      `(role: ${userData.role ?? "admin"}) is requesting webmaster escalation.\n\n` +
-      `Reason: ${reason || "(none provided)"}\n\n` +
-      `Request ID: ${requestRef.id}\n\n` +
-      `Approve by promoting them in the ConvoHub Settings page, or directly ` +
-      `via the promoteToWebmaster callable.`,
+  const requesterLabel = userData.displayName || userData.email || uid;
+  const { delivered, error } = await notifyWebmastersInApp({
+    type: "alert",
+    title: `Escalation requested by ${requesterLabel}`,
+    description:
+      (reason ? `Reason: ${reason}` : "No reason provided.") +
+      ` (role: ${userData.role ?? "admin"})`,
+    link: "/settings",
   });
 
   await requestRef.update({
-    emailSent: sent,
-    ...(error ? { emailError: error } : {}),
+    notifiedWebmasters: delivered,
+    ...(error ? { notifyError: error } : {}),
   });
 
-  return { ok: true, requestId: requestRef.id, emailSent: sent, emailError: error };
+  return {
+    ok: true,
+    requestId: requestRef.id,
+    notified: delivered,
+    notifyError: error,
+    // Legacy field kept so older clients don't crash on `res.data.emailSent`.
+    emailSent: false,
+    emailError: null,
+  };
 });
 
 /**
@@ -936,45 +953,10 @@ export const generateAgentSignupLink = onCall(async (request) => {
  * Every attempt is recorded on the investigationRequests row so the
  * webmaster can audit which hops actually delivered.
  */
-const ESCALATION_FALLBACK_EMAIL = "support@convohub.dev";
+// (ESCALATION_FALLBACK_EMAIL removed — failsafe SMTP path is gone.)
 
-async function postEscalationToSlack(opts: { body: string }): Promise<{ ok: boolean; error: string | null }> {
-  const url = await readSlackWebhookUrl();
-  if (!url) return { ok: false, error: "Slack webhook not configured" };
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: ":rotating_light: ConvoHub escalation",
-        blocks: [
-          { type: "section", text: { type: "mrkdwn", text: `:rotating_light: *ConvoHub escalation*\n${opts.body}` } },
-        ],
-      }),
-    });
-    if (!res.ok) return { ok: false, error: `Slack responded ${res.status}` };
-    return { ok: true, error: null };
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
-  }
-}
-
-async function postEscalationToFailsafeEmail(opts: { subject: string; body: string }): Promise<{ ok: boolean; error: string | null }> {
-  const transport = buildTransport();
-  if (!transport) return { ok: false, error: "SMTP not configured for failsafe inbox" };
-  try {
-    await transport.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: ESCALATION_FALLBACK_EMAIL,
-      subject: opts.subject,
-      text: opts.body,
-    });
-    return { ok: true, error: null };
-  } catch (err) {
-    logger.warn("postEscalationToFailsafeEmail: SMTP send failed", err);
-    return { ok: false, error: (err as Error).message };
-  }
-}
+// (postEscalationToSlack + postEscalationToFailsafeEmail removed —
+// escalations now flow exclusively into the in-app notifications queue.)
 
 export const requestConversationInvestigation = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
@@ -1001,58 +983,46 @@ export const requestConversationInvestigation = onCall(async (request) => {
     requesterUid: uid,
     requesterEmail: userData.email ?? null,
     requesterName: userData.displayName ?? null,
-    notifiedEmail: ESCALATION_NOTIFY_EMAIL,
+    notifiedEmail: null,
     emailSent: false,
+    deliveryChannel: "in-app-notifications",
     status: "open",
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  const subject = `[ConvoHub] Conversation investigation requested${customerName ? ` — ${customerName}` : ""}`;
-  const bodyText =
-    `${userData.displayName ?? "(no name)"} <${userData.email ?? uid}> is asking a webmaster ` +
-    `to investigate conversation ${conversationId}` +
-    `${customerName ? ` with ${customerName}` : ""}.\n\n` +
-    `Reason: ${reason || "(none provided)"}\n\n` +
-    `Request ID: ${ref.id}`;
+  // Email + failsafe SMTP path is gone — escalations now flow into the
+  // webmasters' in-app notifications queue exclusively. The bell badge +
+  // /notifications page surface them in real time without depending on SMTP.
+  const requesterLabel = userData.displayName || userData.email || uid;
+  const title = `Investigation requested${customerName ? ` — ${customerName}` : ""}`;
+  const description =
+    `${requesterLabel} is asking for review of conversation ${conversationId}` +
+    `${customerName ? ` with ${customerName}` : ""}.` +
+    (reason ? ` Reason: ${reason}` : "");
 
-  // 1. Primary path
-  const primary = await sendEscalationEmail({ subject, text: bodyText });
-
-  // 2. Failsafes — only when primary failed.
-  let slackResult: { ok: boolean; error: string | null } = { ok: false, error: "skipped" };
-  let failsafeEmailResult: { ok: boolean; error: string | null } = { ok: false, error: "skipped" };
-  if (!primary.sent) {
-    const slackBody =
-      `*Requester:* ${userData.displayName ?? "(no name)"} <${userData.email ?? uid}>\n` +
-      `*Conversation:* ${conversationId}${customerName ? ` (${customerName})` : ""}\n` +
-      `*Reason:* ${reason || "_none provided_"}\n` +
-      `*Request ID:* \`${ref.id}\`\n` +
-      `_Primary email failed: ${primary.error || "unknown"} — please check in or get Kit for scanning._`;
-    [slackResult, failsafeEmailResult] = await Promise.all([
-      postEscalationToSlack({ body: slackBody }),
-      postEscalationToFailsafeEmail({ subject, body: bodyText }),
-    ]);
-  }
-
-  await ref.update({
-    emailSent: primary.sent,
-    ...(primary.error ? { emailError: primary.error } : {}),
-    fallbackSlackSent: slackResult.ok,
-    ...(slackResult.error ? { fallbackSlackError: slackResult.error } : {}),
-    fallbackEmailSent: failsafeEmailResult.ok,
-    ...(failsafeEmailResult.error ? { fallbackEmailError: failsafeEmailResult.error } : {}),
-    fallbackEmailRecipient: ESCALATION_FALLBACK_EMAIL,
+  const { delivered, error } = await notifyWebmastersInApp({
+    type: "alert",
+    title,
+    description,
+    link: `/conversations?id=${encodeURIComponent(conversationId)}`,
   });
 
-  const anyDelivered = primary.sent || slackResult.ok || failsafeEmailResult.ok;
+  await ref.update({
+    notifiedWebmasters: delivered,
+    ...(error ? { notifyError: error } : {}),
+  });
+
   return {
     ok: true,
     requestId: ref.id,
-    emailSent: primary.sent,
-    emailError: primary.error,
-    fallbackSlackSent: slackResult.ok,
-    fallbackEmailSent: failsafeEmailResult.ok,
-    delivered: anyDelivered,
+    notified: delivered,
+    notifyError: error,
+    delivered: delivered > 0,
+    // Legacy fields kept so older browser bundles don't crash on missing keys.
+    emailSent: false,
+    emailError: null,
+    fallbackSlackSent: false,
+    fallbackEmailSent: false,
   };
 });
 
@@ -1243,7 +1213,7 @@ export const purgeArchivedHttp = onRequest({ cors: false }, async (req, res) => 
 });
 
 // =============================================================================
-// Inbound channel webhooks — Slack, Twilio (Voice/SMS)
+// Inbound channel webhooks — Slack, Gmail
 //
 // Each webhook validates the provider signature, dedupes on a stable external
 // id, and writes a Firestore `conversations` doc (creating one per customer)
@@ -1256,7 +1226,7 @@ export const purgeArchivedHttp = onRequest({ cors: false }, async (req, res) => 
 //     lastMessage, status: "active", unread: true, timestamp,
 //     externalId, externalSource, archived: false }
 //
-// Dedup key: `externalId` (Slack channel id or Twilio From number) so repeat
+// Dedup key: `externalId` (Slack channel id) so repeat
 // messages from the same customer append to the same thread instead of
 // creating new conversations.
 // =============================================================================
@@ -1269,7 +1239,7 @@ import * as crypto from "crypto";
  */
 async function findOrCreateConversation(opts: {
   externalId: string;
-  externalSource: "slack" | "twilio-sms" | "twilio-voice" | "gmail";
+  externalSource: "slack" | "gmail";
   channel: "slack" | "sms" | "phone" | "email";
   customerName: string;
   customerEmail?: string;
@@ -1441,139 +1411,8 @@ export const slackEvents = onRequest(
   }
 );
 
-// -----------------------------------------------------------------------------
-// Twilio inbound SMS + Voice webhook
-// Setup in Twilio Console → Phone Numbers → Active number → Messaging /
-// Voice → "A message comes in" / "A call comes in" → Webhook = function URL.
-// Required env var: TWILIO_AUTH_TOKEN (for X-Twilio-Signature validation).
-//
-// SMS payload (form-encoded): From, To, Body, MessageSid, ...
-// Voice payload (form-encoded): From, To, CallSid, CallStatus, ...
-// We respond with empty TwiML for SMS and a basic voicemail prompt for voice.
-// -----------------------------------------------------------------------------
-function validateTwilioSignature(opts: {
-  authToken: string;
-  signature: string;
-  url: string;
-  params: Record<string, string>;
-}): boolean {
-  // Twilio: HMAC-SHA1(authToken, url + sorted(k+v concatenated))
-  const sortedKeys = Object.keys(opts.params).sort();
-  let data = opts.url;
-  for (const k of sortedKeys) data += k + opts.params[k];
-  const expected = crypto.createHmac("sha1", opts.authToken).update(data).digest("base64");
-  const sigBuf = Buffer.from(opts.signature);
-  const expBuf = Buffer.from(expected);
-  return sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf);
-}
-
-export const twilioInbound = onRequest(
-  { cors: false, region: "us-central1" },
-  async (req, res): Promise<void> => {
-    if (req.method !== "POST") {
-      res.status(405).send("Method not allowed");
-      return;
-    }
-
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    if (!authToken) {
-      logger.error("twilioInbound: TWILIO_AUTH_TOKEN not configured");
-      res.status(500).send("Server not configured");
-      return;
-    }
-
-    // Twilio always sends application/x-www-form-urlencoded.
-    const params = (req.body ?? {}) as Record<string, string>;
-    const signature = req.header("x-twilio-signature") || "";
-    // Reconstruct the public URL Twilio used. Cloud Functions sets x-forwarded-proto.
-    const proto = (req.header("x-forwarded-proto") || "https").split(",")[0].trim();
-    const host = req.header("host") || "";
-    const url = `${proto}://${host}${req.originalUrl || req.url}`;
-
-    if (
-      !validateTwilioSignature({ authToken, signature, url, params: stringifyParams(params) })
-    ) {
-      logger.warn("twilioInbound: signature mismatch", { url });
-      res.status(403).send("Invalid signature");
-      return;
-    }
-
-    const from = params.From || "unknown";
-    const to = params.To || "";
-    const body = params.Body; // present for SMS only
-    const callSid = params.CallSid; // present for Voice only
-    const messageSid = params.MessageSid;
-
-    try {
-      if (body !== undefined) {
-        // ----- SMS -----
-        const externalId = `twilio-sms:${from}`;
-        const convoRef = await findOrCreateConversation({
-          externalId,
-          externalSource: "twilio-sms",
-          channel: "sms",
-          customerName: from,
-          customerPhone: from,
-          lastMessage: body.slice(0, 500),
-        });
-        await convoRef.collection("messages").add({
-          sender: "customer",
-          text: body,
-          channel: "sms",
-          externalSid: messageSid ?? null,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        // Empty TwiML — we don't auto-reply to inbound SMS.
-        res.set("Content-Type", "text/xml");
-        res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
-        return;
-      }
-
-      if (callSid) {
-        // ----- Voice -----
-        const externalId = `twilio-voice:${from}`;
-        const convoRef = await findOrCreateConversation({
-          externalId,
-          externalSource: "twilio-voice",
-          channel: "phone",
-          customerName: from,
-          customerPhone: from,
-          lastMessage: `Incoming call from ${from} → ${to}`,
-        });
-        await convoRef.collection("messages").add({
-          sender: "customer",
-          text: `Incoming voice call (${params.CallStatus || "ringing"})`,
-          channel: "phone",
-          externalSid: callSid,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        // TwiML: greet caller and record a 60-second voicemail.
-        res.set("Content-Type", "text/xml");
-        res.status(200).send(
-          `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="alice">Thanks for calling ConvoHub. Please leave a brief message after the beep.</Say>
-  <Record maxLength="60" playBeep="true" />
-  <Hangup/>
-</Response>`
-        );
-        return;
-      }
-
-      res.status(200).send("ok");
-    } catch (err) {
-      logger.error("twilioInbound: failed to write conversation", err);
-      res.status(500).send("error");
-    }
-  }
-);
-
-/** Coerce all values to strings for Twilio signature input. */
-function stringifyParams(p: Record<string, unknown>): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const k of Object.keys(p)) out[k] = String(p[k] ?? "");
-  return out;
-}
+// (Twilio inbound webhook + signature helpers removed — Google Voice is
+// the only SMS/Voice path now and it does not run through this backend.)
 
 // -----------------------------------------------------------------------------
 // Gmail → ConvoHub: callable used by /gmail-api 'Push to ConvoHub' button.
@@ -1828,9 +1667,8 @@ export const replyToSlackChannel = onCall(async (request) => {
 //
 // We deliberately make a single, harmless read-only API call per provider:
 //   • Slack    → auth.test           (verifies SLACK_BOT_TOKEN)
-//   • Twilio   → GET /Accounts/{sid} (verifies TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN)
 //   • Gmail    → users/me/profile    (uses caller's OAuth access token)
-//   • Google   → Voice listing       (no public REST API — we surface whether
+//   • Google   → config presence    (no public REST API — we surface whether
 //     Voice          the per-user webhook secret + voice number are configured
 //                    in Firestore so the dashboard isn't silently empty)
 //
@@ -1880,38 +1718,6 @@ async function runHealthChecks(opts: {
     results.slack = { ok: false, message: `Slack request failed: ${(err as Error).message}`, latencyMs: 0 };
   }
 
-  // ---------- Twilio ----------
-  try {
-    const sid = process.env.TWILIO_ACCOUNT_SID;
-    const token = process.env.TWILIO_AUTH_TOKEN;
-    if (!sid || !token) {
-      results.twilio = {
-        ok: false,
-        message: "TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN not configured",
-        latencyMs: 0,
-      };
-    } else {
-      const auth = Buffer.from(`${sid}:${token}`).toString("base64");
-      const { value: r, ms } = await time(() =>
-        fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}.json`, {
-          headers: { Authorization: `Basic ${auth}` },
-        })
-      );
-      const j = (await r.json()) as { friendly_name?: string; status?: string; message?: string };
-      if (r.ok && j.status === "active") {
-        results.twilio = { ok: true, message: `Account "${j.friendly_name}" is active`, latencyMs: ms };
-      } else {
-        results.twilio = {
-          ok: false,
-          message: `Twilio error: ${j.message || j.status || `HTTP ${r.status}`}`,
-          latencyMs: ms,
-        };
-      }
-    }
-  } catch (err) {
-    results.twilio = { ok: false, message: `Twilio request failed: ${(err as Error).message}`, latencyMs: 0 };
-  }
-
   // ---------- Gmail ----------
   try {
     if (!opts.gmailAccessToken) {
@@ -1942,18 +1748,11 @@ async function runHealthChecks(opts: {
   }
 
   // ---------- Google Voice ----------
-  // Google never released a public Voice REST API. The closest thing the
-  // workspace owner controls is the Twilio number that proxies Voice
-  // (calls + SMS) to ConvoHub via the existing webhook. So a "live ping"
-  // for Voice means: (a) the Twilio creds work, AND (b) at least one
-  // IncomingPhoneNumber on the account has Voice OR SMS capability AND
-  // matches the number stored on the webmaster's integrations doc.
-  // This catches both "Twilio creds revoked" and "the configured number was
-  // released" — exactly the failures that would leave the Voice channel
-  // silently dark for users.
+  // Google does not expose a public Voice REST API, so the live ping is
+  // limited to confirming a webmaster has stored a Voice number on their
+  // integrations doc. Surface that presence so the dashboard isn't silently
+  // empty; deeper liveness checks would require Google Workspace admin SDK.
   try {
-    const sid = process.env.TWILIO_ACCOUNT_SID;
-    const token = process.env.TWILIO_AUTH_TOKEN;
     let configuredNumber: string | null = null;
     if (opts.voiceConfigUid) {
       const integSnap = await db
@@ -1965,67 +1764,17 @@ async function runHealthChecks(opts: {
         ]) || null;
       configuredNumber = gv?.connected && gv.fields?.voiceNumber ? gv.fields.voiceNumber : null;
     }
-    if (!configuredNumber) {
-      results["google-voice"] = {
-        ok: false,
-        message: "No Google Voice number configured on any webmaster account.",
-        latencyMs: 0,
-      };
-    } else if (!sid || !token) {
-      results["google-voice"] = {
-        ok: false,
-        message: "Twilio credentials missing — cannot verify Voice number is live.",
-        latencyMs: 0,
-      };
-    } else {
-      const auth = Buffer.from(`${sid}:${token}`).toString("base64");
-      const phoneFilter = encodeURIComponent(configuredNumber);
-      const { value: r, ms } = await time(() =>
-        fetch(
-          `https://api.twilio.com/2010-04-01/Accounts/${sid}/IncomingPhoneNumbers.json?PhoneNumber=${phoneFilter}`,
-          { headers: { Authorization: `Basic ${auth}` } }
-        )
-      );
-      const j = (await r.json()) as {
-        incoming_phone_numbers?: Array<{
-          phone_number?: string;
-          capabilities?: { voice?: boolean; sms?: boolean };
-          friendly_name?: string;
-        }>;
-        message?: string;
-      };
-      if (!r.ok) {
-        results["google-voice"] = {
-          ok: false,
-          message: `Twilio Voice lookup failed: ${j.message || `HTTP ${r.status}`}`,
-          latencyMs: ms,
-        };
-      } else {
-        const match = j.incoming_phone_numbers?.[0];
-        if (!match) {
-          results["google-voice"] = {
-            ok: false,
-            message: `Number ${configuredNumber} is configured but not present on the Twilio account.`,
-            latencyMs: ms,
-          };
-        } else {
-          const caps: string[] = [];
-          if (match.capabilities?.voice) caps.push("voice");
-          if (match.capabilities?.sms) caps.push("SMS");
-          results["google-voice"] = caps.length
-            ? {
-                ok: true,
-                message: `${configuredNumber} live on Twilio (${caps.join(" + ")}).`,
-                latencyMs: ms,
-              }
-            : {
-                ok: false,
-                message: `${configuredNumber} exists on Twilio but has no Voice or SMS capability.`,
-                latencyMs: ms,
-              };
+    results["google-voice"] = configuredNumber
+      ? {
+          ok: true,
+          message: `Voice number ${configuredNumber} configured on a webmaster account.`,
+          latencyMs: 0,
         }
-      }
-    }
+      : {
+          ok: false,
+          message: "No Google Voice number configured on any webmaster account.",
+          latencyMs: 0,
+        };
   } catch (err) {
     results["google-voice"] = {
       ok: false,
@@ -2202,7 +1951,12 @@ export const triggerScheduledHealthCheckNow = onCall(async (request) => {
 
 const SLACK_ALERT_RATE_LIMIT_MS = 10 * 60 * 1000; // 10 minutes
 const FIXED_SLACK_ALERT_MESSAGE =
-  "An agent has pinged this channel for review of the ConvoHub app. Please review or get Kit for scanning.";
+  "Someone on the ConvoHub team has pinged this channel for review. Please review or grab Kit for scanning.";
+
+/** Slack mrkdwn requires &, <, > to be escaped before interpolation. */
+function escapeSlackMrkdwn(s: string): string {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
 function safeForSlack(s: string): string {
   return String(s).replace(/[\u0000-\u001F\u007F]/g, " ").slice(0, 240);
@@ -2353,16 +2107,27 @@ export const pingWebmasterSlack = onCall(async (request) => {
   }
 
   // ---- POST to Slack ---------------------------------------------------------
-  const agentName = safeForSlack(userData.displayName || userData.email?.split("@")[0] || "a teammate");
-  const headline = customMessage ?? FIXED_SLACK_ALERT_MESSAGE;
+  // Render the sender role honestly so a webmaster ping doesn't read as
+  // "an agent has pinged" — that mismatch was the long-standing bug. We
+  // also escape Slack mrkdwn meta-characters in every interpolated value
+  // so a bracket in a route or display name can't break the layout.
+  const senderRole = role === "webmaster" ? "webmaster" : role === "admin" ? "admin" : "agent";
+  const senderLabel = escapeSlackMrkdwn(
+    safeForSlack(userData.displayName || userData.email?.split("@")[0] || "a teammate")
+  );
+  const safeRoute = escapeSlackMrkdwn(route);
+  const headline = escapeSlackMrkdwn(customMessage ?? FIXED_SLACK_ALERT_MESSAGE);
+  // Plaintext fallback used by Slack notifications and screen readers — must
+  // mirror the block content but stay free of mrkdwn so it reads cleanly.
+  const fallbackText = `:rotating_light: ${headline} — from ${senderLabel} (${senderRole}) on ${safeRoute}`;
   const slackBody = {
-    text: `:rotating_light: ${headline} (from ${agentName} · ${route})`,
+    text: fallbackText,
     blocks: [
       {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `:rotating_light: *${headline}*\n>From *${agentName}* on \`${route}\``,
+          text: `:rotating_light: *${headline}*\n>From *${senderLabel}* (_${senderRole}_) on \`${safeRoute}\``,
         },
       },
     ],

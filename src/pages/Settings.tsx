@@ -105,7 +105,8 @@ import {
   type WebmasterContactEvent,
 } from "@/lib/webmasterContactEvents";
 
-const ESCALATION_NOTIFY_EMAIL = "kit.tjclasses@gmail.com";
+// (Email-based escalation routing was removed — escalations now flow into
+// the in-app notifications queue via requestWebmasterEscalation.)
 
 interface PendingEscalation {
   id: string;
@@ -361,20 +362,23 @@ const SettingsPage: React.FC = () => {
   const handleEscalate = async () => {
     setRequesting(true);
     try {
-      const fn = httpsCallable<{ reason: string }, { ok: boolean; emailSent: boolean; emailError: string | null }>(
-        functions,
-        "requestWebmasterEscalation"
-      );
+      const fn = httpsCallable<
+        { reason: string },
+        { ok: boolean; notified?: number; notifyError?: string | null; emailSent?: boolean }
+      >(functions, "requestWebmasterEscalation");
       const res = await fn({ reason });
-      if (res.data.emailSent) {
+      const notified = res.data.notified ?? 0;
+      if (notified > 0) {
         toast({
-          title: "Escalation requested",
-          description: `Email sent to ${ESCALATION_NOTIFY_EMAIL}. A webmaster will review shortly.`,
+          title: "Escalation sent to webmaster",
+          description: `Posted to ${notified} webmaster bell${notified === 1 ? "" : "s"}. They'll review shortly.`,
         });
       } else {
         toast({
           title: "Request recorded",
-          description: `Email delivery is not configured yet, but your request was logged for the webmaster.`,
+          description:
+            res.data.notifyError ||
+            "No webmasters were online to notify, but your request is logged for review.",
         });
       }
       setReason("");
@@ -2496,8 +2500,8 @@ const SettingsPage: React.FC = () => {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mb-4">
-              Conversations flagged by admins for webmaster review. Each entry is also emailed to
-              {" "}<code className="rounded bg-muted px-1 py-0.5">{ESCALATION_NOTIFY_EMAIL}</code>.
+              Conversations flagged by admins for webmaster review. Each entry is fanned out to every
+              webmaster's in-app notification bell in real time.
             </p>
             {visibleInvestigations.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
@@ -2581,7 +2585,7 @@ const SettingsPage: React.FC = () => {
             <p className="text-xs text-muted-foreground mb-4">
               {hasEscalatedAccess
                 ? `You currently have escalated access to Integrations, Analytics, and the Gmail API. A webmaster can revoke this at any time.`
-                : `Your admin account doesn't have access to Integrations, Analytics, or the Gmail API. Request escalation to notify a webmaster (${ESCALATION_NOTIFY_EMAIL}).`}
+                : `Your admin account doesn't have access to Integrations, Analytics, or the Gmail API. Request escalation and every webmaster will see it in their in-app notifications.`}
             </p>
 
             {latestRevoke && !hasEscalatedAccess && (
@@ -2627,9 +2631,7 @@ const SettingsPage: React.FC = () => {
                   Last request: <span className="capitalize">{latestRequest.status}</span>
                 </div>
                 <div className="mt-1 text-muted-foreground">
-                  {latestRequest.emailSent
-                    ? `Notification email delivered to ${ESCALATION_NOTIFY_EMAIL}.`
-                    : `Request logged. Email will go out once SMTP is configured on the Cloud Function.`}
+                  Posted to every webmaster's notifications bell — they'll see it on next sign-in if they're offline now.
                 </div>
               </div>
             )}

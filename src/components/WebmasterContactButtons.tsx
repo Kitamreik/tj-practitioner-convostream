@@ -56,10 +56,12 @@ const LONG_PRESS_MS = 500;
 // initial fallback used before the Firestore subscription delivers a value.
 
 /**
- * SMS templates shown in the Text button's picker. We mirror the starter
- * SMS rows from ConversationTemplates so this list works offline and
- * before the Firestore listener resolves. Custom templates added by the
- * team via the templates collection are merged on top via onSnapshot.
+ * SMS templates shown in the Text-the-webmaster picker. These are scoped
+ * specifically to internal consulting workflows — review, escalate, or
+ * connect with a client — NOT the general customer-facing SMS roster the
+ * Conversations page uses. Custom templates from the `templates` collection
+ * are merged in on top via onSnapshot so the team can extend the list
+ * without a code change.
  *
  * Each template body supports {{name}}, {{agent}}, {{company}} variables
  * — we substitute the webmaster as {{name}}, the current user as {{agent}},
@@ -73,13 +75,48 @@ interface SmsTemplate {
 }
 
 const STARTER_SMS_TEMPLATES: SmsTemplate[] = [
-  { id: "wm-sms-acknowledge", locked: true, name: "Quick Acknowledgement", body: "Hi {{name}}, this is {{agent}} from {{company}}. Got your message — I'll have a full response within the next few hours. Thanks!" },
-  { id: "wm-sms-reminder", locked: true, name: "Appointment Reminder", body: "Hi {{name}}, friendly reminder of your call with {{agent}} tomorrow. Reply YES to confirm or RESCHEDULE to pick a new time." },
-  { id: "wm-sms-confirm", locked: true, name: "Meeting Confirmation", body: "Hi {{name}}, confirming our meeting today. I'll send the call link 10 minutes beforehand. See you soon — {{agent}}" },
-  { id: "wm-sms-late", locked: true, name: "Running Late", body: "Hi {{name}}, {{agent}} here — running about 5 minutes late to our call. Apologies and thanks for your patience." },
-  { id: "wm-sms-doc", locked: true, name: "Document Sent Notice", body: "Hi {{name}}, I just emailed over the document we discussed. Let me know once you've had a chance to review. — {{agent}}" },
-  { id: "wm-sms-payment", locked: true, name: "Payment Reminder", body: "Hi {{name}}, a friendly reminder that invoice [#####] is due in 3 days. Reply if you need a copy resent. Thanks — {{company}}" },
-  { id: "wm-sms-checkin", locked: true, name: "Thank You / Check-in", body: "Hi {{name}}, just checking in after our recent work together. Anything we can help with? Always glad to hear from you. — {{agent}}" },
+  {
+    id: "wm-sms-review",
+    locked: true,
+    name: "Request review",
+    body: "Hi {{name}}, {{agent}} here at {{company}}. When you have a moment, can you review a conversation I'm working on? I'll send the link in the next message. Thanks.",
+  },
+  {
+    id: "wm-sms-escalate-urgent",
+    locked: true,
+    name: "Escalate (urgent)",
+    body: "Hi {{name}}, {{agent}} at {{company}} — urgent escalation. A client is waiting on a call back and I need a webmaster to step in. Available in the next 15 min?",
+  },
+  {
+    id: "wm-sms-escalate-policy",
+    locked: true,
+    name: "Escalate (policy question)",
+    body: "Hi {{name}}, {{agent}} here. Hit a policy/scope question on a client engagement at {{company}} that's above my access level. Can we sync briefly today?",
+  },
+  {
+    id: "wm-sms-connect-client",
+    locked: true,
+    name: "Connect with client",
+    body: "Hi {{name}}, {{agent}} from {{company}}. A client is asking to speak with a webmaster directly — can I loop you in via call or email? I'll send their context first.",
+  },
+  {
+    id: "wm-sms-handoff",
+    locked: true,
+    name: "Hand off engagement",
+    body: "Hi {{name}}, {{agent}} at {{company}}. I need to hand off a client engagement to you — notes are in ConvoHub under their thread. Let me know when you've picked it up.",
+  },
+  {
+    id: "wm-sms-second-opinion",
+    locked: true,
+    name: "Second opinion",
+    body: "Hi {{name}}, {{agent}} here. Looking for a quick second opinion on a recommendation before I send it to the client. Got 5 minutes today?",
+  },
+  {
+    id: "wm-sms-blocked",
+    locked: true,
+    name: "Blocked — need access",
+    body: "Hi {{name}}, {{agent}} at {{company}}. I'm blocked on a consulting deliverable and need elevated access (Integrations / Analytics / Gmail) to continue. Can you approve in Settings?",
+  },
 ];
 
 function applyTemplateVars(body: string, agentName: string): string {
