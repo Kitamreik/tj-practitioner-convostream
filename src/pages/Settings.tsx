@@ -361,20 +361,23 @@ const SettingsPage: React.FC = () => {
   const handleEscalate = async () => {
     setRequesting(true);
     try {
-      const fn = httpsCallable<{ reason: string }, { ok: boolean; emailSent: boolean; emailError: string | null }>(
-        functions,
-        "requestWebmasterEscalation"
-      );
+      const fn = httpsCallable<
+        { reason: string },
+        { ok: boolean; notified?: number; notifyError?: string | null; emailSent?: boolean }
+      >(functions, "requestWebmasterEscalation");
       const res = await fn({ reason });
-      if (res.data.emailSent) {
+      const notified = res.data.notified ?? 0;
+      if (notified > 0) {
         toast({
-          title: "Escalation requested",
-          description: `Email sent to ${ESCALATION_NOTIFY_EMAIL}. A webmaster will review shortly.`,
+          title: "Escalation sent to webmaster",
+          description: `Posted to ${notified} webmaster bell${notified === 1 ? "" : "s"}. They'll review shortly.`,
         });
       } else {
         toast({
           title: "Request recorded",
-          description: `Email delivery is not configured yet, but your request was logged for the webmaster.`,
+          description:
+            res.data.notifyError ||
+            "No webmasters were online to notify, but your request is logged for review.",
         });
       }
       setReason("");
