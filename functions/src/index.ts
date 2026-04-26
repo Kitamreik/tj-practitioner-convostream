@@ -2137,16 +2137,27 @@ export const pingWebmasterSlack = onCall(async (request) => {
   }
 
   // ---- POST to Slack ---------------------------------------------------------
-  const agentName = safeForSlack(userData.displayName || userData.email?.split("@")[0] || "a teammate");
-  const headline = customMessage ?? FIXED_SLACK_ALERT_MESSAGE;
+  // Render the sender role honestly so a webmaster ping doesn't read as
+  // "an agent has pinged" — that mismatch was the long-standing bug. We
+  // also escape Slack mrkdwn meta-characters in every interpolated value
+  // so a bracket in a route or display name can't break the layout.
+  const senderRole = role === "webmaster" ? "webmaster" : role === "admin" ? "admin" : "agent";
+  const senderLabel = escapeSlackMrkdwn(
+    safeForSlack(userData.displayName || userData.email?.split("@")[0] || "a teammate")
+  );
+  const safeRoute = escapeSlackMrkdwn(route);
+  const headline = escapeSlackMrkdwn(customMessage ?? FIXED_SLACK_ALERT_MESSAGE);
+  // Plaintext fallback used by Slack notifications and screen readers — must
+  // mirror the block content but stay free of mrkdwn so it reads cleanly.
+  const fallbackText = `:rotating_light: ${headline} — from ${senderLabel} (${senderRole}) on ${safeRoute}`;
   const slackBody = {
-    text: `:rotating_light: ${headline} (from ${agentName} · ${route})`,
+    text: fallbackText,
     blocks: [
       {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `:rotating_light: *${headline}*\n>From *${agentName}* on \`${route}\``,
+          text: `:rotating_light: *${headline}*\n>From *${senderLabel}* (_${senderRole}_) on \`${safeRoute}\``,
         },
       },
     ],
