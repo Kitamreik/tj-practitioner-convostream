@@ -293,9 +293,8 @@ const Conversations: React.FC = () => {
         { conversationId: string; customerName: string; reason: string },
         {
           ok: boolean;
-          emailSent: boolean;
-          fallbackSlackSent?: boolean;
-          fallbackEmailSent?: boolean;
+          notified?: number;
+          notifyError?: string | null;
           delivered?: boolean;
         }
       >(functions, "requestConversationInvestigation");
@@ -304,26 +303,18 @@ const Conversations: React.FC = () => {
         customerName: selected.customerName,
         reason: elevateReason,
       });
-      // Build a precise toast based on which channels actually delivered so
-      // the agent knows whether the webmaster will see this in their inbox,
-      // in Slack, or via the support@convohub.dev failsafe inbox.
-      const d = res.data;
-      let title = "Investigation request logged";
-      let description = "Request recorded — webmaster notifications could not be delivered.";
-      if (d.emailSent) {
-        title = "Webmaster notified";
-        description = "Email sent to kit.tjclasses@gmail.com asking for investigation.";
-      } else if (d.fallbackSlackSent && d.fallbackEmailSent) {
-        title = "Webmaster pinged via Slack + support inbox";
-        description = "Primary email failed; we pinged the team Slack channel AND emailed support@convohub.dev as a failsafe.";
-      } else if (d.fallbackSlackSent) {
-        title = "Webmaster pinged via Slack";
-        description = "Primary email failed; we posted the request to the team Slack channel for review.";
-      } else if (d.fallbackEmailSent) {
-        title = "Failsafe email sent";
-        description = "Primary email failed; we emailed support@convohub.dev as a backup.";
-      }
-      toast({ title, description, variant: d.delivered === false ? "destructive" : undefined });
+      const notified = res.data.notified ?? 0;
+      const title = notified > 0 ? "Webmaster notified" : "Investigation request logged";
+      const description =
+        notified > 0
+          ? `Posted to ${notified} webmaster bell${notified === 1 ? "" : "s"} — they'll review shortly.`
+          : res.data.notifyError ||
+            "Request recorded; no webmasters were online to notify just now.";
+      toast({
+        title,
+        description,
+        variant: notified === 0 ? "destructive" : undefined,
+      });
       setElevateOpen(false);
       setElevateReason("");
     } catch (e: any) {
