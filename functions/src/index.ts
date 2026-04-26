@@ -1981,7 +1981,12 @@ export const triggerScheduledHealthCheckNow = onCall(async (request) => {
 
 const SLACK_ALERT_RATE_LIMIT_MS = 10 * 60 * 1000; // 10 minutes
 const FIXED_SLACK_ALERT_MESSAGE =
-  "An agent has pinged this channel for review of the ConvoHub app. Please review or get Kit for scanning.";
+  "Someone on the ConvoHub team has pinged this channel for review. Please review or grab Kit for scanning.";
+
+/** Slack mrkdwn requires &, <, > to be escaped before interpolation. */
+function escapeSlackMrkdwn(s: string): string {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
 function safeForSlack(s: string): string {
   return String(s).replace(/[\u0000-\u001F\u007F]/g, " ").slice(0, 240);
