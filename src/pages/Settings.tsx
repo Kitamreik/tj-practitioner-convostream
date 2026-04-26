@@ -105,7 +105,8 @@ import {
   type WebmasterContactEvent,
 } from "@/lib/webmasterContactEvents";
 
-const ESCALATION_NOTIFY_EMAIL = "kit.tjclasses@gmail.com";
+// (Email-based escalation routing was removed — escalations now flow into
+// the in-app notifications queue via requestWebmasterEscalation.)
 
 interface PendingEscalation {
   id: string;
