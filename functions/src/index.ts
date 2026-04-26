@@ -1053,58 +1053,46 @@ export const requestConversationInvestigation = onCall(async (request) => {
     requesterUid: uid,
     requesterEmail: userData.email ?? null,
     requesterName: userData.displayName ?? null,
-    notifiedEmail: ESCALATION_NOTIFY_EMAIL,
+    notifiedEmail: null,
     emailSent: false,
+    deliveryChannel: "in-app-notifications",
     status: "open",
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  const subject = `[ConvoHub] Conversation investigation requested${customerName ? ` — ${customerName}` : ""}`;
-  const bodyText =
-    `${userData.displayName ?? "(no name)"} <${userData.email ?? uid}> is asking a webmaster ` +
-    `to investigate conversation ${conversationId}` +
-    `${customerName ? ` with ${customerName}` : ""}.\n\n` +
-    `Reason: ${reason || "(none provided)"}\n\n` +
-    `Request ID: ${ref.id}`;
+  // Email + failsafe SMTP path is gone — escalations now flow into the
+  // webmasters' in-app notifications queue exclusively. The bell badge +
+  // /notifications page surface them in real time without depending on SMTP.
+  const requesterLabel = userData.displayName || userData.email || uid;
+  const title = `Investigation requested${customerName ? ` — ${customerName}` : ""}`;
+  const description =
+    `${requesterLabel} is asking for review of conversation ${conversationId}` +
+    `${customerName ? ` with ${customerName}` : ""}.` +
+    (reason ? ` Reason: ${reason}` : "");
 
-  // 1. Primary path
-  const primary = await sendEscalationEmail({ subject, text: bodyText });
-
-  // 2. Failsafes — only when primary failed.
-  let slackResult: { ok: boolean; error: string | null } = { ok: false, error: "skipped" };
-  let failsafeEmailResult: { ok: boolean; error: string | null } = { ok: false, error: "skipped" };
-  if (!primary.sent) {
-    const slackBody =
-      `*Requester:* ${userData.displayName ?? "(no name)"} <${userData.email ?? uid}>\n` +
-      `*Conversation:* ${conversationId}${customerName ? ` (${customerName})` : ""}\n` +
-      `*Reason:* ${reason || "_none provided_"}\n` +
-      `*Request ID:* \`${ref.id}\`\n` +
-      `_Primary email failed: ${primary.error || "unknown"} — please check in or get Kit for scanning._`;
-    [slackResult, failsafeEmailResult] = await Promise.all([
-      postEscalationToSlack({ body: slackBody }),
-      postEscalationToFailsafeEmail({ subject, body: bodyText }),
-    ]);
-  }
-
-  await ref.update({
-    emailSent: primary.sent,
-    ...(primary.error ? { emailError: primary.error } : {}),
-    fallbackSlackSent: slackResult.ok,
-    ...(slackResult.error ? { fallbackSlackError: slackResult.error } : {}),
-    fallbackEmailSent: failsafeEmailResult.ok,
-    ...(failsafeEmailResult.error ? { fallbackEmailError: failsafeEmailResult.error } : {}),
-    fallbackEmailRecipient: ESCALATION_FALLBACK_EMAIL,
+  const { delivered, error } = await notifyWebmastersInApp({
+    type: "alert",
+    title,
+    description,
+    link: `/conversations?id=${encodeURIComponent(conversationId)}`,
   });
 
-  const anyDelivered = primary.sent || slackResult.ok || failsafeEmailResult.ok;
+  await ref.update({
+    notifiedWebmasters: delivered,
+    ...(error ? { notifyError: error } : {}),
+  });
+
   return {
     ok: true,
     requestId: ref.id,
-    emailSent: primary.sent,
-    emailError: primary.error,
-    fallbackSlackSent: slackResult.ok,
-    fallbackEmailSent: failsafeEmailResult.ok,
-    delivered: anyDelivered,
+    notified: delivered,
+    notifyError: error,
+    delivered: delivered > 0,
+    // Legacy fields kept so older browser bundles don't crash on missing keys.
+    emailSent: false,
+    emailError: null,
+    fallbackSlackSent: false,
+    fallbackEmailSent: false,
   };
 });
 
