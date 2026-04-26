@@ -1243,7 +1243,7 @@ export const purgeArchivedHttp = onRequest({ cors: false }, async (req, res) => 
 });
 
 // =============================================================================
-// Inbound channel webhooks — Slack, Twilio (Voice/SMS)
+// Inbound channel webhooks — Slack, Gmail
 //
 // Each webhook validates the provider signature, dedupes on a stable external
 // id, and writes a Firestore `conversations` doc (creating one per customer)
@@ -1256,7 +1256,7 @@ export const purgeArchivedHttp = onRequest({ cors: false }, async (req, res) => 
 //     lastMessage, status: "active", unread: true, timestamp,
 //     externalId, externalSource, archived: false }
 //
-// Dedup key: `externalId` (Slack channel id or Twilio From number) so repeat
+// Dedup key: `externalId` (Slack channel id) so repeat
 // messages from the same customer append to the same thread instead of
 // creating new conversations.
 // =============================================================================
@@ -1269,7 +1269,7 @@ import * as crypto from "crypto";
  */
 async function findOrCreateConversation(opts: {
   externalId: string;
-  externalSource: "slack" | "twilio-sms" | "twilio-voice" | "gmail";
+  externalSource: "slack" | "gmail";
   channel: "slack" | "sms" | "phone" | "email";
   customerName: string;
   customerEmail?: string;
