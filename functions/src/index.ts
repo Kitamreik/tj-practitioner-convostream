@@ -953,7 +953,7 @@ export const generateAgentSignupLink = onCall(async (request) => {
  * Every attempt is recorded on the investigationRequests row so the
  * webmaster can audit which hops actually delivered.
  */
-const ESCALATION_FALLBACK_EMAIL = "support@convohub.dev";
+// (ESCALATION_FALLBACK_EMAIL removed — failsafe SMTP path is gone.)
 
 // (postEscalationToSlack + postEscalationToFailsafeEmail removed —
 // escalations now flow exclusively into the in-app notifications queue.)
