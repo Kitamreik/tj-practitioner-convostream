@@ -1748,38 +1748,6 @@ async function runHealthChecks(opts: {
     results.slack = { ok: false, message: `Slack request failed: ${(err as Error).message}`, latencyMs: 0 };
   }
 
-  // ---------- Twilio ----------
-  try {
-    const sid = process.env.TWILIO_ACCOUNT_SID;
-    const token = process.env.TWILIO_AUTH_TOKEN;
-    if (!sid || !token) {
-      results.twilio = {
-        ok: false,
-        message: "TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN not configured",
-        latencyMs: 0,
-      };
-    } else {
-      const auth = Buffer.from(`${sid}:${token}`).toString("base64");
-      const { value: r, ms } = await time(() =>
-        fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}.json`, {
-          headers: { Authorization: `Basic ${auth}` },
-        })
-      );
-      const j = (await r.json()) as { friendly_name?: string; status?: string; message?: string };
-      if (r.ok && j.status === "active") {
-        results.twilio = { ok: true, message: `Account "${j.friendly_name}" is active`, latencyMs: ms };
-      } else {
-        results.twilio = {
-          ok: false,
-          message: `Twilio error: ${j.message || j.status || `HTTP ${r.status}`}`,
-          latencyMs: ms,
-        };
-      }
-    }
-  } catch (err) {
-    results.twilio = { ok: false, message: `Twilio request failed: ${(err as Error).message}`, latencyMs: 0 };
-  }
-
   // ---------- Gmail ----------
   try {
     if (!opts.gmailAccessToken) {
@@ -1810,18 +1778,11 @@ async function runHealthChecks(opts: {
   }
 
   // ---------- Google Voice ----------
-  // Google never released a public Voice REST API. The closest thing the
-  // workspace owner controls is the Twilio number that proxies Voice
-  // (calls + SMS) to ConvoHub via the existing webhook. So a "live ping"
-  // for Voice means: (a) the Twilio creds work, AND (b) at least one
-  // IncomingPhoneNumber on the account has Voice OR SMS capability AND
-  // matches the number stored on the webmaster's integrations doc.
-  // This catches both "Twilio creds revoked" and "the configured number was
-  // released" — exactly the failures that would leave the Voice channel
-  // silently dark for users.
+  // Google does not expose a public Voice REST API, so the live ping is
+  // limited to confirming a webmaster has stored a Voice number on their
+  // integrations doc. Surface that presence so the dashboard isn't silently
+  // empty; deeper liveness checks would require Google Workspace admin SDK.
   try {
-    const sid = process.env.TWILIO_ACCOUNT_SID;
-    const token = process.env.TWILIO_AUTH_TOKEN;
     let configuredNumber: string | null = null;
     if (opts.voiceConfigUid) {
       const integSnap = await db
@@ -1833,67 +1794,17 @@ async function runHealthChecks(opts: {
         ]) || null;
       configuredNumber = gv?.connected && gv.fields?.voiceNumber ? gv.fields.voiceNumber : null;
     }
-    if (!configuredNumber) {
-      results["google-voice"] = {
-        ok: false,
-        message: "No Google Voice number configured on any webmaster account.",
-        latencyMs: 0,
-      };
-    } else if (!sid || !token) {
-      results["google-voice"] = {
-        ok: false,
-        message: "Twilio credentials missing — cannot verify Voice number is live.",
-        latencyMs: 0,
-      };
-    } else {
-      const auth = Buffer.from(`${sid}:${token}`).toString("base64");
-      const phoneFilter = encodeURIComponent(configuredNumber);
-      const { value: r, ms } = await time(() =>
-        fetch(
-          `https://api.twilio.com/2010-04-01/Accounts/${sid}/IncomingPhoneNumbers.json?PhoneNumber=${phoneFilter}`,
-          { headers: { Authorization: `Basic ${auth}` } }
-        )
-      );
-      const j = (await r.json()) as {
-        incoming_phone_numbers?: Array<{
-          phone_number?: string;
-          capabilities?: { voice?: boolean; sms?: boolean };
-          friendly_name?: string;
-        }>;
-        message?: string;
-      };
-      if (!r.ok) {
-        results["google-voice"] = {
-          ok: false,
-          message: `Twilio Voice lookup failed: ${j.message || `HTTP ${r.status}`}`,
-          latencyMs: ms,
-        };
-      } else {
-        const match = j.incoming_phone_numbers?.[0];
-        if (!match) {
-          results["google-voice"] = {
-            ok: false,
-            message: `Number ${configuredNumber} is configured but not present on the Twilio account.`,
-            latencyMs: ms,
-          };
-        } else {
-          const caps: string[] = [];
-          if (match.capabilities?.voice) caps.push("voice");
-          if (match.capabilities?.sms) caps.push("SMS");
-          results["google-voice"] = caps.length
-            ? {
-                ok: true,
-                message: `${configuredNumber} live on Twilio (${caps.join(" + ")}).`,
-                latencyMs: ms,
-              }
-            : {
-                ok: false,
-                message: `${configuredNumber} exists on Twilio but has no Voice or SMS capability.`,
-                latencyMs: ms,
-              };
+    results["google-voice"] = configuredNumber
+      ? {
+          ok: true,
+          message: `Voice number ${configuredNumber} configured on a webmaster account.`,
+          latencyMs: 0,
         }
-      }
-    }
+      : {
+          ok: false,
+          message: "No Google Voice number configured on any webmaster account.",
+          latencyMs: 0,
+        };
   } catch (err) {
     results["google-voice"] = {
       ok: false,
