@@ -633,7 +633,7 @@ const AuditLogs: React.FC = () => {
       </div>
 
       <Tabs defaultValue="logins" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="logins" className="gap-2">
             <LogIn className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Login Attempts</span>
@@ -643,16 +643,6 @@ const AuditLogs: React.FC = () => {
             <Bell className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Notification Changes</span>
             <span className="sm:hidden">Notes</span>
-          </TabsTrigger>
-          <TabsTrigger value="people" className="gap-2">
-            <UserPlus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Agent Activity</span>
-            <span className="sm:hidden">Agents</span>
-          </TabsTrigger>
-          <TabsTrigger value="support" className="gap-2">
-            <LifeBuoy className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Support Access</span>
-            <span className="sm:hidden">Support</span>
           </TabsTrigger>
           <TabsTrigger value="smoke" className="gap-2">
             <Activity className="h-3.5 w-3.5" />
