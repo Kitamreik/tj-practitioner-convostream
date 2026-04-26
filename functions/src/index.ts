@@ -22,10 +22,12 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
-import { beforeUserSignedIn } from "firebase-functions/v2/identity";
 import { logger } from "firebase-functions/v2";
 import * as admin from "firebase-admin";
-import * as nodemailer from "nodemailer";
+// nodemailer is retained for any future SMTP needs but no longer used by
+// the escalation flow (which now writes to the in-app notifications queue).
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import * as _nodemailer from "nodemailer";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -34,7 +36,6 @@ const db = admin.firestore();
 // Role management — callable functions
 // =============================================================================
 
-const ESCALATION_NOTIFY_EMAIL = "kit.tjclasses@gmail.com";
 
 /**
  * Webmaster-only: promote another user to a given role (typically "webmaster").
