@@ -266,22 +266,7 @@ export const bootstrapSupportAccount = onCall(async (request) => {
   return { ok: true, uid, email: SUPPORT_EMAIL, created };
 });
 
-/**
- * Build a nodemailer transport from env vars, or return null if SMTP isn't
- * configured. Shared by all email-sending callables so we have one source of
- * truth for credentials and behavior.
- */
-function buildTransport(): nodemailer.Transporter | null {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null;
-  const port = Number(SMTP_PORT || 587);
-  return nodemailer.createTransport({
-    host: SMTP_HOST,
-    port,
-    secure: port === 465,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-  });
-}
+// (buildTransport removed — SMTP is no longer used by any callable.)
 
 // (sendEscalationEmail removed — escalations now flow via notifyWebmastersInApp.)
 
