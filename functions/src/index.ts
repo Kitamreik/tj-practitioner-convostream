@@ -304,6 +304,47 @@ async function sendEscalationEmail(opts: {
 }
 
 /**
+ * Fan-out an in-app notification into every webmaster's `notifications`
+ * subcollection. Used by escalation flows so webmasters see escalation
+ * requests in the bell instantly without depending on SMTP delivery.
+ *
+ * Best-effort: failures are logged but never block the originating action —
+ * the escalationRequests / investigationRequests doc remains the source of
+ * truth.
+ */
+async function notifyWebmastersInApp(opts: {
+  type: "alert" | "message" | "call";
+  title: string;
+  description: string;
+  link?: string | null;
+}): Promise<{ delivered: number; error: string | null }> {
+  try {
+    const wmSnap = await db.collection("users").where("role", "==", "webmaster").get();
+    const uids = wmSnap.docs.map((d) => d.id).filter(Boolean);
+    if (uids.length === 0) return { delivered: 0, error: "no webmasters" };
+    const batch = db.batch();
+    uids.forEach((uid) => {
+      const ref = db.collection("users").doc(uid).collection("notifications").doc();
+      batch.set(ref, {
+        type: opts.type,
+        title: opts.title.slice(0, 200),
+        description: opts.description.slice(0, 500),
+        link: opts.link ?? null,
+        read: false,
+        isNote: false,
+        broadcast: true,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+    await batch.commit();
+    return { delivered: uids.length, error: null };
+  } catch (err) {
+    logger.error("notifyWebmastersInApp failed", err);
+    return { delivered: 0, error: (err as Error).message };
+  }
+}
+
+/**
  * Admin escalation request: any signed-in admin can request expanded access
  * (Integrations / Analytics / Gmail API). Persists a record in
  * `escalationRequests` and emails ESCALATION_NOTIFY_EMAIL via SMTP if creds
