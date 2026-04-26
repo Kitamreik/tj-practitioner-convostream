@@ -2584,7 +2584,7 @@ const SettingsPage: React.FC = () => {
             <p className="text-xs text-muted-foreground mb-4">
               {hasEscalatedAccess
                 ? `You currently have escalated access to Integrations, Analytics, and the Gmail API. A webmaster can revoke this at any time.`
-                : `Your admin account doesn't have access to Integrations, Analytics, or the Gmail API. Request escalation to notify a webmaster (${ESCALATION_NOTIFY_EMAIL}).`}
+                : `Your admin account doesn't have access to Integrations, Analytics, or the Gmail API. Request escalation and every webmaster will see it in their in-app notifications.`}
             </p>
 
             {latestRevoke && !hasEscalatedAccess && (
