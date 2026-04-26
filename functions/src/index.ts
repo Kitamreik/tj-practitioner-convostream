@@ -24,10 +24,8 @@ import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
 import * as admin from "firebase-admin";
-// nodemailer is retained for any future SMTP needs but no longer used by
-// the escalation flow (which now writes to the in-app notifications queue).
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import * as _nodemailer from "nodemailer";
+// (nodemailer import removed — SMTP-based escalations were replaced by the
+// in-app notifications fan-out via notifyWebmastersInApp.)
 
 admin.initializeApp();
 const db = admin.firestore();
