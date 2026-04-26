@@ -282,26 +282,7 @@ function buildTransport(): nodemailer.Transporter | null {
   });
 }
 
-async function sendEscalationEmail(opts: {
-  subject: string;
-  text: string;
-}): Promise<{ sent: boolean; error: string | null }> {
-  const transport = buildTransport();
-  if (!transport) return { sent: false, error: "SMTP not configured" };
-  try {
-    await transport.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: ESCALATION_NOTIFY_EMAIL,
-      subject: opts.subject,
-      text: opts.text,
-    });
-    return { sent: true, error: null };
-  } catch (err: unknown) {
-    const message = (err as Error).message;
-    logger.error("sendEscalationEmail failed", err);
-    return { sent: false, error: message };
-  }
-}
+// (sendEscalationEmail removed — escalations now flow via notifyWebmastersInApp.)
 
 /**
  * Fan-out an in-app notification into every webmaster's `notifications`
