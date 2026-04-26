@@ -971,43 +971,8 @@ export const generateAgentSignupLink = onCall(async (request) => {
  */
 const ESCALATION_FALLBACK_EMAIL = "support@convohub.dev";
 
-async function postEscalationToSlack(opts: { body: string }): Promise<{ ok: boolean; error: string | null }> {
-  const url = await readSlackWebhookUrl();
-  if (!url) return { ok: false, error: "Slack webhook not configured" };
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: ":rotating_light: ConvoHub escalation",
-        blocks: [
-          { type: "section", text: { type: "mrkdwn", text: `:rotating_light: *ConvoHub escalation*\n${opts.body}` } },
-        ],
-      }),
-    });
-    if (!res.ok) return { ok: false, error: `Slack responded ${res.status}` };
-    return { ok: true, error: null };
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
-  }
-}
-
-async function postEscalationToFailsafeEmail(opts: { subject: string; body: string }): Promise<{ ok: boolean; error: string | null }> {
-  const transport = buildTransport();
-  if (!transport) return { ok: false, error: "SMTP not configured for failsafe inbox" };
-  try {
-    await transport.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: ESCALATION_FALLBACK_EMAIL,
-      subject: opts.subject,
-      text: opts.body,
-    });
-    return { ok: true, error: null };
-  } catch (err) {
-    logger.warn("postEscalationToFailsafeEmail: SMTP send failed", err);
-    return { ok: false, error: (err as Error).message };
-  }
-}
+// (postEscalationToSlack + postEscalationToFailsafeEmail removed —
+// escalations now flow exclusively into the in-app notifications queue.)
 
 export const requestConversationInvestigation = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
