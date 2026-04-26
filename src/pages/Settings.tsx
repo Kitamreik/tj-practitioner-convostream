@@ -2630,9 +2630,7 @@ const SettingsPage: React.FC = () => {
                   Last request: <span className="capitalize">{latestRequest.status}</span>
                 </div>
                 <div className="mt-1 text-muted-foreground">
-                  {latestRequest.emailSent
-                    ? `Notification email delivered to ${ESCALATION_NOTIFY_EMAIL}.`
-                    : `Request logged. Email will go out once SMTP is configured on the Cloud Function.`}
+                  Posted to every webmaster's notifications bell — they'll see it on next sign-in if they're offline now.
                 </div>
               </div>
             )}
