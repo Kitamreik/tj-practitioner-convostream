@@ -2499,8 +2499,8 @@ const SettingsPage: React.FC = () => {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mb-4">
-              Conversations flagged by admins for webmaster review. Each entry is also emailed to
-              {" "}<code className="rounded bg-muted px-1 py-0.5">{ESCALATION_NOTIFY_EMAIL}</code>.
+              Conversations flagged by admins for webmaster review. Each entry is fanned out to every
+              webmaster's in-app notification bell in real time.
             </p>
             {visibleInvestigations.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
