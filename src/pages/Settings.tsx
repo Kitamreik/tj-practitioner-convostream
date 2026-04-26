@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AccountActionsMenu } from "@/components/AccountActionsMenu";
 import EnvVarsPanel from "@/components/EnvVarsPanel";
+import CallRecordingSettings from "@/components/CallRecordingSettings";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -1364,6 +1365,11 @@ const SettingsPage: React.FC = () => {
             Visible to every signed-in user so anyone can verify .env.local
             actually shipped without having to crack open devtools. */}
         <EnvVarsPanel />
+
+        {/* Call recording & retention policy — admin/webmaster editable;
+            agents see read-only. Drives the consent banner and auto-purge
+            behavior surfaced on /call-analytics. */}
+        <CallRecordingSettings />
 
         {/* Webmaster-only: contact cooldown duration */}
         {isWebmaster && (
