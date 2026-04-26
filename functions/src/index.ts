@@ -345,14 +345,15 @@ async function notifyWebmastersInApp(opts: {
 }
 
 /**
- * Admin escalation request: any signed-in admin can request expanded access
- * (Integrations / Analytics / Gmail API). Persists a record in
- * `escalationRequests` and emails ESCALATION_NOTIFY_EMAIL via SMTP if creds
- * are configured (env: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM).
- * If SMTP is not configured the request is still recorded so a webmaster can
- * approve it manually from the audit trail.
+ * Admin / agent / support escalation request: any signed-in non-webmaster
+ * can request expanded access (Integrations / Analytics / Gmail API).
+ * Persists a record in `escalationRequests` AND fans out an in-app
+ * notification to every webmaster's bell. Email delivery has been
+ * intentionally removed in favor of the notifications queue so escalations
+ * are visible in-app immediately and don't depend on SMTP being configured.
  *
  * Request: { reason?: string }
+ * Response: { ok, requestId, notified, notifyError }
  */
 export const requestWebmasterEscalation = onCall(async (request) => {
   if (!request.auth) {
@@ -375,28 +376,38 @@ export const requestWebmasterEscalation = onCall(async (request) => {
     requesterRole: userData.role ?? "admin",
     reason,
     status: "pending",
-    notifiedEmail: ESCALATION_NOTIFY_EMAIL,
+    // Routing has moved off email — keep the field for back-compat readers
+    // but record the actual delivery channel below.
+    notifiedEmail: null,
     emailSent: false,
+    deliveryChannel: "in-app-notifications",
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  const { sent, error } = await sendEscalationEmail({
-    subject: `[ConvoHub] Webmaster escalation requested by ${userData.email ?? uid}`,
-    text:
-      `User ${userData.displayName ?? "(no name)"} <${userData.email ?? uid}> ` +
-      `(role: ${userData.role ?? "admin"}) is requesting webmaster escalation.\n\n` +
-      `Reason: ${reason || "(none provided)"}\n\n` +
-      `Request ID: ${requestRef.id}\n\n` +
-      `Approve by promoting them in the ConvoHub Settings page, or directly ` +
-      `via the promoteToWebmaster callable.`,
+  const requesterLabel = userData.displayName || userData.email || uid;
+  const { delivered, error } = await notifyWebmastersInApp({
+    type: "alert",
+    title: `Escalation requested by ${requesterLabel}`,
+    description:
+      (reason ? `Reason: ${reason}` : "No reason provided.") +
+      ` (role: ${userData.role ?? "admin"})`,
+    link: "/settings",
   });
 
   await requestRef.update({
-    emailSent: sent,
-    ...(error ? { emailError: error } : {}),
+    notifiedWebmasters: delivered,
+    ...(error ? { notifyError: error } : {}),
   });
 
-  return { ok: true, requestId: requestRef.id, emailSent: sent, emailError: error };
+  return {
+    ok: true,
+    requestId: requestRef.id,
+    notified: delivered,
+    notifyError: error,
+    // Legacy field kept so older clients don't crash on `res.data.emailSent`.
+    emailSent: false,
+    emailError: null,
+  };
 });
 
 /**
