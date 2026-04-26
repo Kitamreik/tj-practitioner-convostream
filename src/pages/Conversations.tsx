@@ -90,6 +90,7 @@ import { httpsCallable } from "firebase/functions";
 import { useSearchParams, useParams, useNavigate } from "react-router-dom";
 import { functions } from "@/lib/firebase";
 import ConversationNotes from "@/components/ConversationNotes";
+import CallRecorder from "@/components/CallRecorder";
 import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 import { StickyNote } from "lucide-react";
 import SlackAlertButton from "@/components/SlackAlertButton";
@@ -1337,6 +1338,13 @@ const Conversations: React.FC = () => {
                     )}
                   </PopoverContent>
                 </Popover>
+                <CallRecorder
+                  conversationId={selected.id}
+                  conversationStatus={selected.status}
+                  conversationStartedAt={
+                    selected.timestamp?.toMillis ? selected.timestamp.toMillis() : undefined
+                  }
+                />
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="outline" size="sm" onClick={handleToggleResolved} className="gap-1.5 px-2 sm:px-3" aria-label={selected.status === "resolved" ? "Reopen" : "Resolve"}>

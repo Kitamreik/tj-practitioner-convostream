@@ -342,6 +342,18 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
       allow delete: if isWebmaster();
     }
+      allow delete: if isWebmaster();
+    }
+    // Call recording retention policy — admins + webmasters can edit.
+    // Everyone signed in needs to read so the consent banner renders.
+    match /appSettings/callRecordings {
+      allow read: if isSignedIn();
+      allow create, update: if isWebmaster()
+        || (isSignedIn()
+            && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow delete: if isWebmaster();
+    }
     // Catch-all for any other appSettings docs we add later — webmaster only.
     match /appSettings/{docId} {
       allow read: if isSignedIn();
@@ -445,6 +457,27 @@ service cloud.firestore {
         // Hard delete: forbidden — soft-delete via the update path above.
         allow delete: if false;
       }
+    }
+
+    // -------- callRecordings/{id} — call recording metadata --------
+    // Storage objects live in Firebase Storage at call_recordings/{convoId}/*.
+    // Firestore docs hold the metadata used by the analytics dashboard.
+    // Reads: any signed-in teammate (call analytics is team-wide).
+    // Create: signed-in user creating their own row (agentUid match).
+    // Update/Delete: own recording, OR admin/webmaster.
+    match /callRecordings/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.agentUid == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && (
+          resource.data.agentUid == request.auth.uid
+          || isWebmaster()
+          || (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+          )
+        );
     }
   }
 }

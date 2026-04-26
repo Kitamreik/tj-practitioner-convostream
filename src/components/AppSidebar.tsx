@@ -21,6 +21,7 @@ import {
   KeyRound,
   Eye,
   MessagesSquare,
+  Mic,
 } from "lucide-react";
 import WebmasterContactButtons from "@/components/WebmasterContactButtons";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ const navItems: NavItem[] = [
   { label: "Team Chat", icon: <MessagesSquare className="h-5 w-5" />, path: "/chat", badgeKey: "chat" },
   { label: "Agent Logs", icon: <ScrollText className="h-5 w-5" />, path: "/agent-logs" },
   { label: "File Recordings", icon: <FileVideo className="h-5 w-5" />, path: "/file-recordings", badgeKey: "recordings" },
+  { label: "Call Analytics", icon: <Mic className="h-5 w-5" />, path: "/call-analytics" },
   { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations", webmasterOrEscalated: true },
   { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit", roles: ["webmaster"] },
   { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail", webmasterOrEscalated: true },

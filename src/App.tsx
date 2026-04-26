@@ -26,6 +26,7 @@ import IconKey from "./pages/IconKey";
 import Chat from "./pages/Chat";
 import Bootstrap from "./pages/Bootstrap";
 import SmokeTest from "./pages/SmokeTest";
+import CallAnalytics from "./pages/CallAnalytics";
 import NotFound from "./pages/NotFound";
 import FirestoreErrorBoundary from "./components/FirestoreErrorBoundary";
 
@@ -110,6 +111,7 @@ const App = () => (
                   <Route path="/file-recordings" element={<FileRecordings />} />
                   <Route path="/icon-key" element={<IconKey />} />
                   <Route path="/smoke-test" element={<ProtectedRoute roles={["webmaster"]}><SmokeTest /></ProtectedRoute>} />
+                  <Route path="/call-analytics" element={<CallAnalytics />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
