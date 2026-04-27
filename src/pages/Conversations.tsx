@@ -30,6 +30,7 @@ import {
   Users as UsersIcon,
   Footprints,
   CheckCircle2,
+  Mic,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -95,6 +96,8 @@ import CallRecorder from "@/components/CallRecorder";
 import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 import { StickyNote } from "lucide-react";
 import SlackAlertButton from "@/components/SlackAlertButton";
+import RecordingPlayerDialog from "@/components/RecordingPlayerDialog";
+import { listConversationRecordings, type CallRecordingDoc } from "@/lib/callRecordings";
 import {
   buildSlackSlugIndex,
   slugifyConversationName,
@@ -288,6 +291,24 @@ const Conversations: React.FC = () => {
   const [elevateOpen, setElevateOpen] = useState(false);
   const [elevateReason, setElevateReason] = useState("");
   const [elevating, setElevating] = useState(false);
+  const [recordingsList, setRecordingsList] = useState<CallRecordingDoc[]>([]);
+  const [recordingsLoading, setRecordingsLoading] = useState(false);
+  const [recordingsListOpen, setRecordingsListOpen] = useState(false);
+  const [playerRecording, setPlayerRecording] = useState<CallRecordingDoc | null>(null);
+
+  // Role-based permission helpers used to enable/disable & explain header actions.
+  const role = profile?.role ?? "agent";
+  const isPrivileged = role === "admin" || role === "webmaster";
+  const perms = {
+    canAssignAgent: isPrivileged,
+    canArchive: isPrivileged,
+    canRestore: isPrivileged,
+    // Everyone can view recordings of conversations they can access (server-side
+    // signed-URL function still enforces ownership/role).
+    canViewRecordings: true,
+  };
+  const denyTip = (action: string) =>
+    `${action} is restricted to admins and webmasters. Ask your team lead for elevated access.`;
 
   const submitElevation = async () => {
     if (!selected) return;
@@ -1209,35 +1230,57 @@ const Conversations: React.FC = () => {
               </div>
             </div>
             <div className="flex flex-shrink-0 flex-nowrap items-center justify-end gap-1.5 sm:gap-2">
-              {/* === Always-visible primary actions === */}
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 w-8 p-0"
-                aria-label="Call customer"
-                onClick={() => {
-                  if (selected?.customerPhone) {
-                    window.open(`tel:${selected.customerPhone}`, "_self");
-                  } else {
-                    toast({ title: "No phone number", description: "This customer has no phone number on file.", variant: "destructive" });
-                  }
-                }}
-              >
-                <Phone className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 w-8 p-0"
-                aria-label="Email customer"
-                onClick={() => {
-                  if (selected?.customerEmail) {
-                    window.open(`mailto:${selected.customerEmail}`, "_blank");
-                  }
-                }}
-              >
-                <Mail className="h-3.5 w-3.5" />
-              </Button>
+              {/* === Always-visible primary actions ===
+                  Tooltips are present for all icons so the desktop view is
+                  self-describing. */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    aria-label="Call customer"
+                    disabled={!selected?.customerPhone}
+                    onClick={() => {
+                      if (selected?.customerPhone) {
+                        window.open(`tel:${selected.customerPhone}`, "_self");
+                      } else {
+                        toast({ title: "No phone number", description: "This customer has no phone number on file.", variant: "destructive" });
+                      }
+                    }}
+                  >
+                    <Phone className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {selected?.customerPhone
+                    ? `Call ${selected.customerPhone}`
+                    : "No phone number on file"}
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    aria-label="Email customer"
+                    disabled={!selected?.customerEmail}
+                    onClick={() => {
+                      if (selected?.customerEmail) {
+                        window.open(`mailto:${selected.customerEmail}`, "_blank");
+                      }
+                    }}
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {selected?.customerEmail
+                    ? `Email ${selected.customerEmail}`
+                    : "No email on file"}
+                </TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -1255,91 +1298,129 @@ const Conversations: React.FC = () => {
 
               {/* === Secondary actions: visible on md+ === */}
               <div className="hidden md:contents">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Export transcript">
-                      <FileText className="h-3.5 w-3.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={handleCopyTranscript} className="gap-2">
-                      <Copy className="h-3.5 w-3.5" /> Copy to Clipboard
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleDownloadTXT} className="gap-2">
-                      <Download className="h-3.5 w-3.5" /> Download TXT
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2">
-                      <FileSpreadsheet className="h-3.5 w-3.5" /> Download CSV
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleDownloadPDF} className="gap-2">
-                      <FileText className="h-3.5 w-3.5" /> Download PDF
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Export transcript">
+                          <FileText className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={handleCopyTranscript} className="gap-2">
+                          <Copy className="h-3.5 w-3.5" /> Copy to Clipboard
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={handleDownloadTXT} className="gap-2">
+                          <Download className="h-3.5 w-3.5" /> Download TXT
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2">
+                          <FileSpreadsheet className="h-3.5 w-3.5" /> Download CSV
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleDownloadPDF} className="gap-2">
+                          <FileText className="h-3.5 w-3.5" /> Download PDF
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TooltipTrigger>
+                  <TooltipContent>Export transcript (TXT, CSV, PDF)</TooltipContent>
+                </Tooltip>
                 <ConversationTemplates onInsertTemplate={handleInsertTemplate} />
-                <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Open profile" onClick={() => setProfileOpen(true)}>
-                  <User className="h-3.5 w-3.5" />
-                </Button>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Assign agent">
-                      <UserCheck className="h-3.5 w-3.5" />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Open profile" onClick={() => setProfileOpen(true)}>
+                      <User className="h-3.5 w-3.5" />
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-56 p-2" align="end">
-                    <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">
-                      Assign to agent
-                    </p>
-                    {agents.map((agent) => {
-                      const load = agentLoad.get(agent) ?? 0;
-                      const overloaded = load >= 3;
-                      return (
-                        <button
-                          key={agent}
-                          onClick={() => handleAssignAgent(selected.id, agent)}
-                          className={cn(
-                            "w-full flex items-center gap-2 text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors",
-                            selected.assignedAgent === agent && "bg-accent font-medium"
-                          )}
-                        >
-                          <span className="flex-1 truncate">{agent}</span>
-                          {load > 0 && (
-                            <span
-                              className={cn(
-                                "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-                                overloaded
-                                  ? "bg-destructive/15 text-destructive"
-                                  : "bg-primary/10 text-primary"
-                              )}
-                              aria-label={`${load} open conversation${load === 1 ? "" : "s"} assigned`}
-                              title={`${load} open conversation${load === 1 ? "" : "s"} assigned`}
-                            >
+                  </TooltipTrigger>
+                  <TooltipContent>View customer profile</TooltipContent>
+                </Tooltip>
+                {/* Assign agent — admin/webmaster only. Agents see a disabled
+                    button with an explanatory tooltip instead of the popover. */}
+                {perms.canAssignAgent ? (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Assign agent">
+                            <UserCheck className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Assign or reassign this conversation</TooltipContent>
+                      </Tooltip>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-56 p-2" align="end">
+                      <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">
+                        Assign to agent
+                      </p>
+                      {agents.map((agent) => {
+                        const load = agentLoad.get(agent) ?? 0;
+                        const overloaded = load >= 3;
+                        return (
+                          <button
+                            key={agent}
+                            onClick={() => handleAssignAgent(selected.id, agent)}
+                            className={cn(
+                              "w-full flex items-center gap-2 text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors",
+                              selected.assignedAgent === agent && "bg-accent font-medium"
+                            )}
+                          >
+                            <span className="flex-1 truncate">{agent}</span>
+                            {load > 0 && (
                               <span
                                 className={cn(
-                                  "h-1.5 w-1.5 rounded-full",
-                                  overloaded ? "bg-destructive" : "bg-primary"
+                                  "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                                  overloaded
+                                    ? "bg-destructive/15 text-destructive"
+                                    : "bg-primary/10 text-primary"
                                 )}
-                              />
-                              {load}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                    {selected.assignedAgent && (
-                      <>
-                        <div className="my-1 h-px bg-border" />
-                        <button
-                          onClick={() => handleAssignAgent(selected.id, null)}
-                          className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors flex items-center gap-2"
+                                aria-label={`${load} open conversation${load === 1 ? "" : "s"} assigned`}
+                                title={`${load} open conversation${load === 1 ? "" : "s"} assigned`}
+                              >
+                                <span
+                                  className={cn(
+                                    "h-1.5 w-1.5 rounded-full",
+                                    overloaded ? "bg-destructive" : "bg-primary"
+                                  )}
+                                />
+                                {load}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                      {selected.assignedAgent && (
+                        <>
+                          <div className="my-1 h-px bg-border" />
+                          <button
+                            onClick={() => handleAssignAgent(selected.id, null)}
+                            className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors flex items-center gap-2"
+                          >
+                            <X className="h-3.5 w-3.5" /> Unassign
+                          </button>
+                        </>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {/* Wrapper span so the tooltip still fires on a disabled button. */}
+                      <span tabIndex={0}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 pointer-events-none opacity-50"
+                          aria-label="Assign agent (restricted)"
+                          aria-disabled="true"
+                          disabled
                         >
-                          <X className="h-3.5 w-3.5" /> Unassign
-                        </button>
-                      </>
-                    )}
-                  </PopoverContent>
-                </Popover>
+                          <UserCheck className="h-3.5 w-3.5" />
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>{denyTip("Assigning agents")}</TooltipContent>
+                  </Tooltip>
+                )}
                 <CallRecorder
                   conversationId={selected.id}
                   conversationStatus={selected.status}
@@ -1347,6 +1428,38 @@ const Conversations: React.FC = () => {
                     selected.timestamp?.toMillis ? selected.timestamp.toMillis() : undefined
                   }
                 />
+                {/* View past recordings for this conversation. */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      aria-label="View call recordings"
+                      onClick={async () => {
+                        setRecordingsListOpen(true);
+                        setRecordingsLoading(true);
+                        try {
+                          const list = await listConversationRecordings(selected.id);
+                          setRecordingsList(list);
+                        } catch (e) {
+                          console.warn("Failed to load recordings:", e);
+                          setRecordingsList([]);
+                          toast({
+                            title: "Could not load recordings",
+                            description: e instanceof Error ? e.message : "Try again later.",
+                            variant: "destructive",
+                          });
+                        } finally {
+                          setRecordingsLoading(false);
+                        }
+                      }}
+                    >
+                      <Mic className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>View call recordings (preview & download)</TooltipContent>
+                </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="outline" size="sm" onClick={handleToggleResolved} className="h-8 w-8 p-0" aria-label={selected.status === "resolved" ? "Reopen" : "Resolve"}>
@@ -1362,39 +1475,51 @@ const Conversations: React.FC = () => {
                 {selected.archived ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            await restoreItem("conversations", selected.id);
-                            toast({ title: "Restored", description: "Conversation moved back to active." });
-                          } catch {
-                            toast({ title: "Restore failed", variant: "destructive" });
-                          }
-                        }}
-                        className="h-8 w-8 p-0"
-                        aria-label="Restore conversation"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                      </Button>
+                      <span tabIndex={perms.canRestore ? -1 : 0}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!perms.canRestore}
+                          onClick={async () => {
+                            try {
+                              await restoreItem("conversations", selected.id);
+                              toast({ title: "Restored", description: "Conversation moved back to active." });
+                            } catch {
+                              toast({ title: "Restore failed", variant: "destructive" });
+                            }
+                          }}
+                          className={cn("h-8 w-8 p-0", !perms.canRestore && "pointer-events-none opacity-50")}
+                          aria-label="Restore conversation"
+                          aria-disabled={!perms.canRestore}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </Button>
+                      </span>
                     </TooltipTrigger>
-                    <TooltipContent>Restore from archive</TooltipContent>
+                    <TooltipContent>
+                      {perms.canRestore ? "Restore from archive" : denyTip("Restoring archived conversations")}
+                    </TooltipContent>
                   </Tooltip>
                 ) : (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setConfirmDeleteOpen(true)}
-                        className="h-8 w-8 p-0"
-                        aria-label="Archive conversation"
-                      >
-                        <ArchiveIcon className="h-3.5 w-3.5" />
-                      </Button>
+                      <span tabIndex={perms.canArchive ? -1 : 0}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!perms.canArchive}
+                          onClick={() => setConfirmDeleteOpen(true)}
+                          className={cn("h-8 w-8 p-0", !perms.canArchive && "pointer-events-none opacity-50")}
+                          aria-label="Archive conversation"
+                          aria-disabled={!perms.canArchive}
+                        >
+                          <ArchiveIcon className="h-3.5 w-3.5" />
+                        </Button>
+                      </span>
                     </TooltipTrigger>
-                    <TooltipContent>Archive conversation</TooltipContent>
+                    <TooltipContent>
+                      {perms.canArchive ? "Archive conversation" : denyTip("Archiving conversations")}
+                    </TooltipContent>
                   </Tooltip>
                 )}
                 <Tooltip>
@@ -1791,6 +1916,54 @@ const Conversations: React.FC = () => {
             }
           }
         }}
+      />
+
+      {/* Recordings list for the selected conversation. */}
+      <Dialog open={recordingsListOpen} onOpenChange={setRecordingsListOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mic className="h-4 w-4 text-primary" /> Call recordings
+            </DialogTitle>
+          </DialogHeader>
+          {recordingsLoading ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
+          ) : recordingsList.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No recordings for this conversation yet.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {recordingsList.map((r) => (
+                <li key={r.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{r.agentName}</div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {new Date(r.startedAt).toLocaleString()} • {Math.round((r.durationMs || 0) / 1000)}s
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1"
+                    onClick={() => {
+                      setRecordingsListOpen(false);
+                      setPlayerRecording(r);
+                    }}
+                  >
+                    <Mic className="h-3.5 w-3.5" /> Play
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <RecordingPlayerDialog
+        recording={playerRecording}
+        open={!!playerRecording}
+        onOpenChange={(o) => { if (!o) setPlayerRecording(null); }}
       />
     </div>
   );

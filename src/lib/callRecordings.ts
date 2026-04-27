@@ -294,6 +294,23 @@ export async function listRecentRecordings(opts: {
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<CallRecordingDoc, "id">) }));
 }
 
+/** List all recordings for a given conversation, newest first. */
+export async function listConversationRecordings(
+  conversationId: string,
+  max = 50
+): Promise<CallRecordingDoc[]> {
+  const q = query(
+    collection(db, "callRecordings"),
+    where("conversationId", "==", conversationId),
+    orderBy("startedAt", "desc"),
+    fbLimit(max)
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Omit<CallRecordingDoc, "id">) }))
+    .filter((r) => !r.deletedAt);
+}
+
 export async function deleteRecording(rec: CallRecordingDoc): Promise<void> {
   const storage = getStorage();
   try {

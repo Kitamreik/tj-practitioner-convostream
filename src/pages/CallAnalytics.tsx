@@ -63,11 +63,11 @@ import {
   listRecentRecordings,
   subscribeRetentionPolicy,
   deleteRecording,
-  getCallRecordingDownloadUrl,
   type CallRecordingDoc,
   type RetentionPolicy,
   DEFAULT_RETENTION,
 } from "@/lib/callRecordings";
+import RecordingPlayerDialog from "@/components/RecordingPlayerDialog";
 
 type WindowDays = 7 | 30 | 90;
 
@@ -85,7 +85,7 @@ const CallAnalytics: React.FC = () => {
   const [agents, setAgents] = useState<AgentOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [policy, setPolicy] = useState<RetentionPolicy>(DEFAULT_RETENTION);
-  const [openingId, setOpeningId] = useState<string | null>(null);
+  const [playerRecording, setPlayerRecording] = useState<CallRecordingDoc | null>(null);
   const canViewAll = profile?.role === "admin" || profile?.role === "webmaster";
 
   useEffect(() => subscribeRetentionPolicy(setPolicy), []);
@@ -250,17 +250,8 @@ const CallAnalytics: React.FC = () => {
     }
   };
 
-  const onOpenRecording = async (rec: CallRecordingDoc) => {
-    setOpeningId(rec.id);
-    try {
-      const url = await getCallRecordingDownloadUrl(rec.id);
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Access denied";
-      toast({ title: "Recording unavailable", description: msg, variant: "destructive" });
-    } finally {
-      setOpeningId(null);
-    }
+  const onOpenRecording = (rec: CallRecordingDoc) => {
+    setPlayerRecording(rec);
   };
 
   const canPurge = profile?.role === "admin" || profile?.role === "webmaster";
@@ -492,10 +483,10 @@ const CallAnalytics: React.FC = () => {
                             size="sm"
                             className="h-7 px-2"
                             onClick={() => onOpenRecording(r)}
-                            disabled={openingId === r.id}
-                            aria-label="Open recording"
+                            aria-label="Play recording"
+                            title="Play recording"
                           >
-                            <Download className="h-3.5 w-3.5" />
+                            <Mic className="h-3.5 w-3.5" />
                           </Button>
                           {canPurge && (
                             <Button
@@ -523,6 +514,12 @@ const CallAnalytics: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      <RecordingPlayerDialog
+        recording={playerRecording}
+        open={!!playerRecording}
+        onOpenChange={(o) => { if (!o) setPlayerRecording(null); }}
+      />
     </div>
   );
 };
