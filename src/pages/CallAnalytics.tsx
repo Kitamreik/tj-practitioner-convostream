@@ -250,6 +250,19 @@ const CallAnalytics: React.FC = () => {
     }
   };
 
+  const onOpenRecording = async (rec: CallRecordingDoc) => {
+    setOpeningId(rec.id);
+    try {
+      const url = await getCallRecordingDownloadUrl(rec.id);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Access denied";
+      toast({ title: "Recording unavailable", description: msg, variant: "destructive" });
+    } finally {
+      setOpeningId(null);
+    }
+  };
+
   const canPurge = profile?.role === "admin" || profile?.role === "webmaster";
 
   return (
@@ -275,12 +288,12 @@ const CallAnalytics: React.FC = () => {
               <SelectItem value="90">Last 90 days</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={agentFilter} onValueChange={setAgentFilter}>
+          <Select value={agentFilter} onValueChange={setAgentFilter} disabled={!canViewAll}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="All agents" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All agents</SelectItem>
+              <SelectItem value="all">{canViewAll ? "All agents" : "My recordings"}</SelectItem>
               {agents.map((a) => (
                 <SelectItem key={a.uid} value={a.uid}>
                   {a.name}
