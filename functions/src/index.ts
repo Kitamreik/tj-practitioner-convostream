@@ -335,6 +335,7 @@ export const requestWebmasterEscalation = onCall(async (request) => {
   const reason = typeof data.reason === "string" ? data.reason.slice(0, 500) : "";
 
   const requestRef = await db.collection("escalationRequests").add({
+    requestType: "access",
     requesterUid: uid,
     requesterEmail: userData.email ?? null,
     requesterName: userData.displayName ?? null,
@@ -346,6 +347,14 @@ export const requestWebmasterEscalation = onCall(async (request) => {
     notifiedEmail: null,
     emailSent: false,
     deliveryChannel: "in-app-notifications",
+    log: [
+      {
+        action: "created",
+        channel: "pending-escalation-queue",
+        at: admin.firestore.Timestamp.now(),
+        byUid: uid,
+      },
+    ],
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
@@ -417,9 +426,16 @@ export const decideEscalationRequest = onCall(async (request) => {
     decidedAt: admin.firestore.FieldValue.serverTimestamp(),
     decidedByUid: request.auth.uid,
     decidedByEmail: callerSnap.data()?.email ?? null,
+    log: admin.firestore.FieldValue.arrayUnion({
+      action: newStatus,
+      at: admin.firestore.Timestamp.now(),
+      byUid: request.auth.uid,
+      byEmail: callerSnap.data()?.email ?? null,
+    }),
   });
 
-  if (decision === "approve") {
+  const reqType = (reqSnap.data() as { requestType?: string }).requestType ?? "access";
+  if (decision === "approve" && reqType === "access") {
     await db.doc(`users/${reqData.requesterUid}`).update({
       escalatedAccess: true,
       _serverRoleWrite: true,
