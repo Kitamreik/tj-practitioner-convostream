@@ -2112,15 +2112,8 @@ export const pingWebmasterSlack = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Account role is not authorized to send Slack alerts.");
   }
 
-  const data = (request.data ?? {}) as { route?: unknown; message?: unknown };
+  const data = (request.data ?? {}) as { route?: unknown };
   const route = typeof data.route === "string" ? safeForSlack(data.route) : "/";
-  // Optional free-form message body. Sanitised (strip control chars) and
-  // capped to 800 chars so the Slack block stays readable. Empty/whitespace
-  // collapses to null and we fall back to the fixed review message.
-  const rawMessage = typeof data.message === "string" ? data.message.trim() : "";
-  const customMessage = rawMessage
-    ? rawMessage.replace(/[\u0000-\u001F\u007F]/g, " ").slice(0, 800)
-    : null;
 
   // ---- Rate limit (transactional read-modify-write) --------------------------
   const rateLimitRef = db.doc(`slackAlertRateLimits/${uid}`);
@@ -2164,31 +2157,7 @@ export const pingWebmasterSlack = onCall(async (request) => {
   }
 
   // ---- POST to Slack ---------------------------------------------------------
-  // Render the sender role honestly so a webmaster ping doesn't read as
-  // "an agent has pinged" — that mismatch was the long-standing bug. We
-  // also escape Slack mrkdwn meta-characters in every interpolated value
-  // so a bracket in a route or display name can't break the layout.
-  const senderRole = role === "webmaster" ? "webmaster" : role === "admin" ? "admin" : "agent";
-  const senderLabel = escapeSlackMrkdwn(
-    safeForSlack(userData.displayName || userData.email?.split("@")[0] || "a teammate")
-  );
-  const safeRoute = escapeSlackMrkdwn(route);
-  const headline = escapeSlackMrkdwn(customMessage ?? FIXED_SLACK_ALERT_MESSAGE);
-  // Plaintext fallback used by Slack notifications and screen readers — must
-  // mirror the block content but stay free of mrkdwn so it reads cleanly.
-  const fallbackText = `:rotating_light: ${headline} — from ${senderLabel} (${senderRole}) on ${safeRoute}`;
-  const slackBody = {
-    text: fallbackText,
-    blocks: [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `:rotating_light: *${headline}*\n>From *${senderLabel}* (_${senderRole}_) on \`${safeRoute}\``,
-        },
-      },
-    ],
-  };
+  const slackBody = { text: FIXED_SLACK_ALERT_MESSAGE };
 
   let slackOk = true;
   let slackError: string | null = null;
