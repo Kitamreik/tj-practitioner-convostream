@@ -1230,35 +1230,57 @@ const Conversations: React.FC = () => {
               </div>
             </div>
             <div className="flex flex-shrink-0 flex-nowrap items-center justify-end gap-1.5 sm:gap-2">
-              {/* === Always-visible primary actions === */}
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 w-8 p-0"
-                aria-label="Call customer"
-                onClick={() => {
-                  if (selected?.customerPhone) {
-                    window.open(`tel:${selected.customerPhone}`, "_self");
-                  } else {
-                    toast({ title: "No phone number", description: "This customer has no phone number on file.", variant: "destructive" });
-                  }
-                }}
-              >
-                <Phone className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 w-8 p-0"
-                aria-label="Email customer"
-                onClick={() => {
-                  if (selected?.customerEmail) {
-                    window.open(`mailto:${selected.customerEmail}`, "_blank");
-                  }
-                }}
-              >
-                <Mail className="h-3.5 w-3.5" />
-              </Button>
+              {/* === Always-visible primary actions ===
+                  Tooltips are present for all icons so the desktop view is
+                  self-describing. */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    aria-label="Call customer"
+                    disabled={!selected?.customerPhone}
+                    onClick={() => {
+                      if (selected?.customerPhone) {
+                        window.open(`tel:${selected.customerPhone}`, "_self");
+                      } else {
+                        toast({ title: "No phone number", description: "This customer has no phone number on file.", variant: "destructive" });
+                      }
+                    }}
+                  >
+                    <Phone className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {selected?.customerPhone
+                    ? `Call ${selected.customerPhone}`
+                    : "No phone number on file"}
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    aria-label="Email customer"
+                    disabled={!selected?.customerEmail}
+                    onClick={() => {
+                      if (selected?.customerEmail) {
+                        window.open(`mailto:${selected.customerEmail}`, "_blank");
+                      }
+                    }}
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {selected?.customerEmail
+                    ? `Email ${selected.customerEmail}`
+                    : "No email on file"}
+                </TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
