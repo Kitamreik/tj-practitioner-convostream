@@ -35,6 +35,12 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'webmaster';
     }
 
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // True when the incoming write does NOT touch the `role` field, OR the
     // value being written matches what's already there.
     function roleUnchanged() {
@@ -340,8 +346,6 @@ service cloud.firestore {
         || (isSignedIn()
             && exists(/databases/$(database)/documents/users/$(request.auth.uid))
             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-      allow delete: if isWebmaster();
-    }
       allow delete: if isWebmaster();
     }
     // Call recording retention policy — admins + webmasters can edit.
