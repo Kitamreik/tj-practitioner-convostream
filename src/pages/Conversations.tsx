@@ -1813,6 +1813,54 @@ const Conversations: React.FC = () => {
           }
         }}
       />
+
+      {/* Recordings list for the selected conversation. */}
+      <Dialog open={recordingsListOpen} onOpenChange={setRecordingsListOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mic className="h-4 w-4 text-primary" /> Call recordings
+            </DialogTitle>
+          </DialogHeader>
+          {recordingsLoading ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
+          ) : recordingsList.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No recordings for this conversation yet.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {recordingsList.map((r) => (
+                <li key={r.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{r.agentName}</div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {new Date(r.startedAt).toLocaleString()} • {Math.round((r.durationMs || 0) / 1000)}s
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1"
+                    onClick={() => {
+                      setRecordingsListOpen(false);
+                      setPlayerRecording(r);
+                    }}
+                  >
+                    <Mic className="h-3.5 w-3.5" /> Play
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <RecordingPlayerDialog
+        recording={playerRecording}
+        open={!!playerRecording}
+        onOpenChange={(o) => { if (!o) setPlayerRecording(null); }}
+      />
     </div>
   );
 };
