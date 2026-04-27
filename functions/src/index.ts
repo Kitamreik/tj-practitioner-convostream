@@ -952,7 +952,7 @@ export const generateAgentSignupLink = onCall(async (request) => {
 
 /**
  * Any signed-in user can flag a conversation for webmaster investigation.
- * Persists to `investigationRequests` and emails ESCALATION_NOTIFY_EMAIL.
+ * Persists to the pending `escalationRequests` queue. Email delivery is not used.
  *
  * Request: { conversationId: string, customerName?: string, reason?: string }
  */
@@ -992,7 +992,8 @@ export const requestConversationInvestigation = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "conversationId is required.");
   }
 
-  const ref = await db.collection("investigationRequests").add({
+  const ref = await db.collection("escalationRequests").add({
+    requestType: "conversation-investigation",
     conversationId,
     customerName,
     reason,
@@ -1002,7 +1003,15 @@ export const requestConversationInvestigation = onCall(async (request) => {
     notifiedEmail: null,
     emailSent: false,
     deliveryChannel: "in-app-notifications",
-    status: "open",
+    status: "pending",
+    log: [
+      {
+        action: "created",
+        channel: "pending-escalation-queue",
+        at: admin.firestore.Timestamp.now(),
+        byUid: uid,
+      },
+    ],
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
@@ -1025,6 +1034,12 @@ export const requestConversationInvestigation = onCall(async (request) => {
 
   await ref.update({
     notifiedWebmasters: delivered,
+    log: admin.firestore.FieldValue.arrayUnion({
+      action: "notified-webmasters",
+      channel: "in-app-notifications",
+      delivered,
+      at: admin.firestore.Timestamp.now(),
+    }),
     ...(error ? { notifyError: error } : {}),
   });
 
