@@ -37,7 +37,8 @@ import {
   getDownloadURL,
   deleteObject,
 } from "firebase/storage";
-import { db } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "@/lib/firebase";
 
 export interface CallRecordingDoc {
   id: string;
@@ -45,7 +46,8 @@ export interface CallRecordingDoc {
   agentUid: string;
   agentName: string;
   storagePath: string;
-  downloadUrl: string;
+  /** Deprecated: old public signed URL. New reads go through getCallRecordingDownloadUrl. */
+  downloadUrl?: string;
   durationMs: number;
   /** Capture started (Date.now() ms). */
   startedAt: number;
@@ -244,14 +246,13 @@ export async function uploadRecording(opts: UploadOpts): Promise<CallRecordingDo
   const path = `call_recordings/${opts.conversationId}/${id}.${ext}`;
   const ref = storageRef(storage, path);
   await uploadBytes(ref, opts.blob, { contentType: opts.blob.type || "audio/webm" });
-  const url = await getDownloadURL(ref);
 
   const meta: Omit<CallRecordingDoc, "id" | "createdAt"> & { createdAt: ReturnType<typeof serverTimestamp> } = {
     conversationId: opts.conversationId,
     agentUid: opts.agentUid,
     agentName: opts.agentName,
     storagePath: path,
-    downloadUrl: url,
+    downloadUrl: "",
     durationMs: Math.max(0, opts.endedAt - opts.startedAt),
     startedAt: opts.startedAt,
     endedAt: opts.endedAt,
@@ -304,4 +305,13 @@ export async function deleteRecording(rec: CallRecordingDoc): Promise<void> {
     deletedAt: serverTimestamp(),
     downloadUrl: "",
   });
+}
+
+export async function getCallRecordingDownloadUrl(recordingId: string): Promise<string> {
+  const fn = httpsCallable<{ recordingId: string }, { url: string }>(
+    functions,
+    "getCallRecordingDownloadUrl"
+  );
+  const res = await fn({ recordingId });
+  return res.data.url;
 }
