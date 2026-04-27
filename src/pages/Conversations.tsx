@@ -30,6 +30,7 @@ import {
   Users as UsersIcon,
   Footprints,
   CheckCircle2,
+  Mic,
 } from "lucide-react";
 import {
   AlertDialog,
