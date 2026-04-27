@@ -64,6 +64,7 @@ export interface CallRecordingDoc {
   /** ISO mime type returned by MediaRecorder. */
   mimeType: string;
   createdAt: Timestamp | null;
+  deletedAt?: Timestamp | null;
 }
 
 export interface RetentionPolicy {
