@@ -25,7 +25,7 @@ interface NavItem {
   roles?: ("agent" | "admin" | "webmaster")[];
 }
 
-const chatsItem: NavItem = { label: "Chats", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" };
+const chatsItem: NavItem = { label: "Chats", icon: <MessageCircle className="h-5 w-5" />, path: "/conversations", badgeKey: "conversations" };
 const teamChatItem: NavItem = { label: "Team", icon: <MessagesSquare className="h-5 w-5" />, path: "/chat", badgeKey: "chat" };
 const alertsItem: NavItem = { label: "Alerts", icon: <Bell className="h-5 w-5" />, path: "/notifications", badgeKey: "notifications" };
 const archiveItem: NavItem = { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" };
