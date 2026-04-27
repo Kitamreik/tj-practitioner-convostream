@@ -85,7 +85,7 @@ const CallAnalytics: React.FC = () => {
   const [agents, setAgents] = useState<AgentOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [policy, setPolicy] = useState<RetentionPolicy>(DEFAULT_RETENTION);
-  const [openingId, setOpeningId] = useState<string | null>(null);
+  const [playerRecording, setPlayerRecording] = useState<CallRecordingDoc | null>(null);
   const canViewAll = profile?.role === "admin" || profile?.role === "webmaster";
 
   useEffect(() => subscribeRetentionPolicy(setPolicy), []);
