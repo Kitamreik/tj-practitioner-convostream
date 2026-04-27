@@ -649,6 +649,32 @@ export const resolveInvestigationRequest = onCall(async (request) => {
   return { ok: true };
 });
 
+export const getCallRecordingDownloadUrl = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const uid = request.auth.uid;
+  const data = (request.data ?? {}) as { recordingId?: unknown };
+  const recordingId = typeof data.recordingId === "string" ? data.recordingId.trim() : "";
+  if (!recordingId) throw new HttpsError("invalid-argument", "recordingId is required.");
+
+  const [userSnap, recSnap] = await Promise.all([
+    db.doc(`users/${uid}`).get(),
+    db.doc(`callRecordings/${recordingId}`).get(),
+  ]);
+  if (!recSnap.exists) throw new HttpsError("not-found", "Recording not found.");
+  const userData = userSnap.data() as { role?: string } | undefined;
+  const rec = recSnap.data() as { agentUid?: string; storagePath?: string; deletedAt?: unknown };
+  const canAccess = rec.agentUid === uid || userData?.role === "admin" || userData?.role === "webmaster";
+  if (!canAccess) throw new HttpsError("permission-denied", "You are not authorized to access this recording.");
+  if (rec.deletedAt || !rec.storagePath) throw new HttpsError("not-found", "Recording is unavailable.");
+
+  const [url] = await admin.storage().bucket().file(rec.storagePath).getSignedUrl({
+    action: "read",
+    expires: Date.now() + 15 * 60 * 1000,
+  });
+  await recSnap.ref.update({ lastAccessedAt: admin.firestore.FieldValue.serverTimestamp(), lastAccessedByUid: uid });
+  return { url, expiresAt: Date.now() + 15 * 60 * 1000 };
+});
+
 /**
  * Webmaster-only: rename an agent (update displayName on users/{uid}).
  * Used by the Settings → Agents tab. Recorded in `roleGrants` with
