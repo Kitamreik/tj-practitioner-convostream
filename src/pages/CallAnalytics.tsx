@@ -488,14 +488,14 @@ const CallAnalytics: React.FC = () => {
                       <td className="py-2 pr-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <Button
-                            asChild
                             variant="ghost"
                             size="sm"
                             className="h-7 px-2"
+                            onClick={() => onOpenRecording(r)}
+                            disabled={openingId === r.id}
+                            aria-label="Open recording"
                           >
-                            <a href={r.downloadUrl} target="_blank" rel="noreferrer" aria-label="Open recording">
-                              <Download className="h-3.5 w-3.5" />
-                            </a>
+                            <Download className="h-3.5 w-3.5" />
                           </Button>
                           {canPurge && (
                             <Button
