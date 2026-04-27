@@ -96,6 +96,8 @@ import CallRecorder from "@/components/CallRecorder";
 import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 import { StickyNote } from "lucide-react";
 import SlackAlertButton from "@/components/SlackAlertButton";
+import RecordingPlayerDialog from "@/components/RecordingPlayerDialog";
+import { listConversationRecordings, type CallRecordingDoc } from "@/lib/callRecordings";
 import {
   buildSlackSlugIndex,
   slugifyConversationName,
