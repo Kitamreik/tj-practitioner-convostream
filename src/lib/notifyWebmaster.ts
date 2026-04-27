@@ -60,7 +60,9 @@ export interface PingResult {
 }
 
 export async function pingWebmasterSlackAlert(input: {
+  agentName?: string;
   route: string;
+  message?: string;
 }): Promise<PingResult> {
   try {
     const fn = httpsCallable<
