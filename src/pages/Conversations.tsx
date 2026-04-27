@@ -1475,39 +1475,51 @@ const Conversations: React.FC = () => {
                 {selected.archived ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            await restoreItem("conversations", selected.id);
-                            toast({ title: "Restored", description: "Conversation moved back to active." });
-                          } catch {
-                            toast({ title: "Restore failed", variant: "destructive" });
-                          }
-                        }}
-                        className="h-8 w-8 p-0"
-                        aria-label="Restore conversation"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                      </Button>
+                      <span tabIndex={perms.canRestore ? -1 : 0}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!perms.canRestore}
+                          onClick={async () => {
+                            try {
+                              await restoreItem("conversations", selected.id);
+                              toast({ title: "Restored", description: "Conversation moved back to active." });
+                            } catch {
+                              toast({ title: "Restore failed", variant: "destructive" });
+                            }
+                          }}
+                          className={cn("h-8 w-8 p-0", !perms.canRestore && "pointer-events-none opacity-50")}
+                          aria-label="Restore conversation"
+                          aria-disabled={!perms.canRestore}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </Button>
+                      </span>
                     </TooltipTrigger>
-                    <TooltipContent>Restore from archive</TooltipContent>
+                    <TooltipContent>
+                      {perms.canRestore ? "Restore from archive" : denyTip("Restoring archived conversations")}
+                    </TooltipContent>
                   </Tooltip>
                 ) : (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setConfirmDeleteOpen(true)}
-                        className="h-8 w-8 p-0"
-                        aria-label="Archive conversation"
-                      >
-                        <ArchiveIcon className="h-3.5 w-3.5" />
-                      </Button>
+                      <span tabIndex={perms.canArchive ? -1 : 0}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!perms.canArchive}
+                          onClick={() => setConfirmDeleteOpen(true)}
+                          className={cn("h-8 w-8 p-0", !perms.canArchive && "pointer-events-none opacity-50")}
+                          aria-label="Archive conversation"
+                          aria-disabled={!perms.canArchive}
+                        >
+                          <ArchiveIcon className="h-3.5 w-3.5" />
+                        </Button>
+                      </span>
                     </TooltipTrigger>
-                    <TooltipContent>Archive conversation</TooltipContent>
+                    <TooltipContent>
+                      {perms.canArchive ? "Archive conversation" : denyTip("Archiving conversations")}
+                    </TooltipContent>
                   </Tooltip>
                 )}
                 <Tooltip>
