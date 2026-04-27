@@ -291,6 +291,24 @@ const Conversations: React.FC = () => {
   const [elevateOpen, setElevateOpen] = useState(false);
   const [elevateReason, setElevateReason] = useState("");
   const [elevating, setElevating] = useState(false);
+  const [recordingsList, setRecordingsList] = useState<CallRecordingDoc[]>([]);
+  const [recordingsLoading, setRecordingsLoading] = useState(false);
+  const [recordingsListOpen, setRecordingsListOpen] = useState(false);
+  const [playerRecording, setPlayerRecording] = useState<CallRecordingDoc | null>(null);
+
+  // Role-based permission helpers used to enable/disable & explain header actions.
+  const role = profile?.role ?? "agent";
+  const isPrivileged = role === "admin" || role === "webmaster";
+  const perms = {
+    canAssignAgent: isPrivileged,
+    canArchive: isPrivileged,
+    canRestore: isPrivileged,
+    // Everyone can view recordings of conversations they can access (server-side
+    // signed-URL function still enforces ownership/role).
+    canViewRecordings: true,
+  };
+  const denyTip = (action: string) =>
+    `${action} is restricted to admins and webmasters. Ask your team lead for elevated access.`;
 
   const submitElevation = async () => {
     if (!selected) return;
