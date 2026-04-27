@@ -470,9 +470,11 @@ service cloud.firestore {
     // Create: signed-in user creating their own row (agentUid match).
     // Update/Delete: own recording, OR admin/webmaster.
     match /callRecordings/{id} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn()
+        && (resource.data.agentUid == request.auth.uid || isAdmin() || isWebmaster());
       allow create: if isSignedIn()
-        && request.resource.data.agentUid == request.auth.uid;
+        && request.resource.data.agentUid == request.auth.uid
+        && (!('downloadUrl' in request.resource.data) || request.resource.data.downloadUrl == '');
       allow update, delete: if isSignedIn()
         && (
           resource.data.agentUid == request.auth.uid
