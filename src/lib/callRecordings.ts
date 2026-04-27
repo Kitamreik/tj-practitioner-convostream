@@ -34,7 +34,6 @@ import {
   getStorage,
   ref as storageRef,
   uploadBytes,
-  getDownloadURL,
   deleteObject,
 } from "firebase/storage";
 import { httpsCallable } from "firebase/functions";
