@@ -29,6 +29,7 @@ import {
   Share2,
   Users as UsersIcon,
   Footprints,
+  CheckCircle2,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -136,6 +137,8 @@ const channelIcons = {
   // "someone running" feel without needing a custom asset.
   mobile: <Footprints className="h-3.5 w-3.5" />,
 };
+
+const CheckIcon = () => <CheckCircle2 className="h-3.5 w-3.5" />;
 
 const statusColors = {
   active: "bg-success text-success-foreground",
@@ -578,7 +581,7 @@ const Conversations: React.FC = () => {
   // (we want the index route to remain "/", not "/conversations/").
   useEffect(() => {
     if (!selectedId) {
-      if (routeId) navigate("/", { replace: true });
+      if (routeId) navigate("/conversations", { replace: true });
       return;
     }
     if (selectedId !== routeId) {
@@ -1210,7 +1213,7 @@ const Conversations: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 px-2 sm:px-3"
+                className="h-8 w-8 p-0"
                 aria-label="Call customer"
                 onClick={() => {
                   if (selected?.customerPhone) {
@@ -1220,12 +1223,12 @@ const Conversations: React.FC = () => {
                   }
                 }}
               >
-                <Phone className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Call</span>
+                <Phone className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 px-2 sm:px-3"
+                className="h-8 w-8 p-0"
                 aria-label="Email customer"
                 onClick={() => {
                   if (selected?.customerEmail) {
@@ -1233,18 +1236,18 @@ const Conversations: React.FC = () => {
                   }
                 }}
               >
-                <Mail className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Email</span>
+                <Mail className="h-3.5 w-3.5" />
               </Button>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="gap-1.5 px-2 sm:px-3"
+                    className="h-8 w-8 p-0"
                     aria-label="Share conversation link"
                     onClick={handleCopyLink}
                   >
-                    <Share2 className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Share</span>
+                    <Share2 className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Share via system sheet (mobile) or copy link (desktop)</TooltipContent>
@@ -1254,8 +1257,8 @@ const Conversations: React.FC = () => {
               <div className="hidden md:contents">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Export transcript">
-                      <FileText className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Export</span>
+                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Export transcript">
+                      <FileText className="h-3.5 w-3.5" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -1275,14 +1278,13 @@ const Conversations: React.FC = () => {
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <ConversationTemplates onInsertTemplate={handleInsertTemplate} />
-                <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Open profile" onClick={() => setProfileOpen(true)}>
-                  <User className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Profile</span>
+                <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Open profile" onClick={() => setProfileOpen(true)}>
+                  <User className="h-3.5 w-3.5" />
                 </Button>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-1.5 px-2 sm:px-3" aria-label="Assign agent">
+                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Assign agent">
                       <UserCheck className="h-3.5 w-3.5" />
-                      <span className="hidden lg:inline">{selected.assignedAgent ? selected.assignedAgent.split(" ")[0] : "Assign"}</span>
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-56 p-2" align="end">
@@ -1347,11 +1349,11 @@ const Conversations: React.FC = () => {
                 />
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="outline" size="sm" onClick={handleToggleResolved} className="gap-1.5 px-2 sm:px-3" aria-label={selected.status === "resolved" ? "Reopen" : "Resolve"}>
+                    <Button variant="outline" size="sm" onClick={handleToggleResolved} className="h-8 w-8 p-0" aria-label={selected.status === "resolved" ? "Reopen" : "Resolve"}>
                       {selected.status === "resolved" ? (
-                        <><RotateCcw className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Reopen</span></>
+                        <RotateCcw className="h-3.5 w-3.5" />
                       ) : (
-                        <>✓ <span className="hidden lg:inline">Resolve</span></>
+                        <CheckIcon />
                       )}
                     </Button>
                   </TooltipTrigger>
@@ -1371,10 +1373,10 @@ const Conversations: React.FC = () => {
                             toast({ title: "Restore failed", variant: "destructive" });
                           }
                         }}
-                        className="gap-1.5 px-2 sm:px-3"
+                        className="h-8 w-8 p-0"
                         aria-label="Restore conversation"
                       >
-                        <RotateCcw className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Restore</span>
+                        <RotateCcw className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Restore from archive</TooltipContent>
@@ -1386,11 +1388,10 @@ const Conversations: React.FC = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => setConfirmDeleteOpen(true)}
-                        className="gap-1.5 px-2 sm:px-3"
+                        className="h-8 w-8 p-0"
                         aria-label="Archive conversation"
                       >
                         <ArchiveIcon className="h-3.5 w-3.5" />
-                        <span className="hidden lg:inline">Archive</span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Archive conversation</TooltipContent>

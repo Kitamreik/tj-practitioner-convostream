@@ -317,15 +317,10 @@ const Home: React.FC = () => {
 
   // ---- Slack quick-ping ---------------------------------------------------
   const [slackSending, setSlackSending] = useState(false);
-  const [slackMessage, setSlackMessage] = useState("");
   const handleSlackPing = async () => {
     setSlackSending(true);
     try {
-      const res = await pingWebmasterSlackAlert({
-        agentName: profile?.displayName || "Support",
-        route: "/",
-        message: slackMessage.trim() || undefined,
-      });
+      const res = await pingWebmasterSlackAlert({ route: "/" });
       if (!res.ok) {
         toast({
           title: res.rateLimited ? "Cooldown active" : "Slack ping failed",
@@ -337,9 +332,8 @@ const Home: React.FC = () => {
       const next = new Date(res.nextAllowedAt ?? Date.now() + 10 * 60 * 1000);
       toast({
         title: "Slack alert sent",
-        description: `${slackMessage.trim() ? "Custom message delivered. " : ""}Next ping allowed after ${next.toLocaleTimeString()}.`,
+        description: `Next ping allowed after ${next.toLocaleTimeString()}.`,
       });
-      setSlackMessage("");
     } catch (e: any) {
       toast({
         title: "Slack ping failed",
@@ -463,30 +457,17 @@ const Home: React.FC = () => {
               </p>
             </div>
           </div>
-          <div className="space-y-2">
-            <Textarea
-              value={slackMessage}
-              onChange={(e) => setSlackMessage(e.target.value.slice(0, 800))}
-              placeholder="Optional message body — leave blank to send the default review request…"
-              rows={3}
-              className="text-sm resize-none"
-              disabled={slackSending}
-            />
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground">{slackMessage.length}/800</span>
-              <Button onClick={handleSlackPing} disabled={slackSending} className="gap-1.5">
-                {slackSending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Sending…
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4" /> Ping Slack
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
+          <Button onClick={handleSlackPing} disabled={slackSending} className="gap-1.5">
+            {slackSending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Sending…
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4" /> Ping Slack
+              </>
+            )}
+          </Button>
         </motion.div>
       </div>
 

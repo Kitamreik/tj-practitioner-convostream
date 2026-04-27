@@ -50,7 +50,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Staff Updates", icon: <Megaphone className="h-5 w-5" />, path: "/staff-updates", badgeKey: "staff" },
   { label: "Notifications", icon: <Bell className="h-5 w-5" />, path: "/notifications", badgeKey: "notifications" },
-  { label: "Conversations", icon: <MessageCircle className="h-5 w-5" />, path: "/", badgeKey: "conversations" },
+  { label: "Conversations", icon: <MessageCircle className="h-5 w-5" />, path: "/conversations", badgeKey: "conversations" },
   { label: "Team Chat", icon: <MessagesSquare className="h-5 w-5" />, path: "/chat", badgeKey: "chat" },
   { label: "Agent Logs", icon: <ScrollText className="h-5 w-5" />, path: "/agent-logs" },
   { label: "File Recordings", icon: <FileVideo className="h-5 w-5" />, path: "/file-recordings", badgeKey: "recordings" },

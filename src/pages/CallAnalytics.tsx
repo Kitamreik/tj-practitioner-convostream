@@ -63,6 +63,7 @@ import {
   listRecentRecordings,
   subscribeRetentionPolicy,
   deleteRecording,
+  getCallRecordingDownloadUrl,
   type CallRecordingDoc,
   type RetentionPolicy,
   DEFAULT_RETENTION,
@@ -84,6 +85,8 @@ const CallAnalytics: React.FC = () => {
   const [agents, setAgents] = useState<AgentOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [policy, setPolicy] = useState<RetentionPolicy>(DEFAULT_RETENTION);
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  const canViewAll = profile?.role === "admin" || profile?.role === "webmaster";
 
   useEffect(() => subscribeRetentionPolicy(setPolicy), []);
 
@@ -115,12 +118,12 @@ const CallAnalytics: React.FC = () => {
     const sinceMs = Date.now() - windowDays * 24 * 60 * 60 * 1000;
     listRecentRecordings({
       sinceMs,
-      agentUid: agentFilter === "all" ? undefined : agentFilter,
+      agentUid: canViewAll ? (agentFilter === "all" ? undefined : agentFilter) : profile?.uid,
       max: 1000,
     })
       .then((rows) => {
         if (cancelled) return;
-        setRecordings(rows.filter((r) => !!r.downloadUrl)); // exclude deleted
+        setRecordings(rows.filter((r) => !r.deletedAt));
       })
       .catch((e) => {
         console.warn("Failed to load recordings:", e);
@@ -132,7 +135,7 @@ const CallAnalytics: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [windowDays, agentFilter]);
+  }, [windowDays, agentFilter, canViewAll, profile?.uid]);
 
   // ---------- Aggregates ----------
   const stats = useMemo(() => {
@@ -247,6 +250,19 @@ const CallAnalytics: React.FC = () => {
     }
   };
 
+  const onOpenRecording = async (rec: CallRecordingDoc) => {
+    setOpeningId(rec.id);
+    try {
+      const url = await getCallRecordingDownloadUrl(rec.id);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Access denied";
+      toast({ title: "Recording unavailable", description: msg, variant: "destructive" });
+    } finally {
+      setOpeningId(null);
+    }
+  };
+
   const canPurge = profile?.role === "admin" || profile?.role === "webmaster";
 
   return (
@@ -272,12 +288,12 @@ const CallAnalytics: React.FC = () => {
               <SelectItem value="90">Last 90 days</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={agentFilter} onValueChange={setAgentFilter}>
+          <Select value={agentFilter} onValueChange={setAgentFilter} disabled={!canViewAll}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="All agents" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All agents</SelectItem>
+              <SelectItem value="all">{canViewAll ? "All agents" : "My recordings"}</SelectItem>
               {agents.map((a) => (
                 <SelectItem key={a.uid} value={a.uid}>
                   {a.name}
@@ -472,14 +488,14 @@ const CallAnalytics: React.FC = () => {
                       <td className="py-2 pr-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <Button
-                            asChild
                             variant="ghost"
                             size="sm"
                             className="h-7 px-2"
+                            onClick={() => onOpenRecording(r)}
+                            disabled={openingId === r.id}
+                            aria-label="Open recording"
                           >
-                            <a href={r.downloadUrl} target="_blank" rel="noreferrer" aria-label="Open recording">
-                              <Download className="h-3.5 w-3.5" />
-                            </a>
+                            <Download className="h-3.5 w-3.5" />
                           </Button>
                           {canPurge && (
                             <Button

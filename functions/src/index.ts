@@ -335,6 +335,7 @@ export const requestWebmasterEscalation = onCall(async (request) => {
   const reason = typeof data.reason === "string" ? data.reason.slice(0, 500) : "";
 
   const requestRef = await db.collection("escalationRequests").add({
+    requestType: "access",
     requesterUid: uid,
     requesterEmail: userData.email ?? null,
     requesterName: userData.displayName ?? null,
@@ -346,6 +347,14 @@ export const requestWebmasterEscalation = onCall(async (request) => {
     notifiedEmail: null,
     emailSent: false,
     deliveryChannel: "in-app-notifications",
+    log: [
+      {
+        action: "created",
+        channel: "pending-escalation-queue",
+        at: admin.firestore.Timestamp.now(),
+        byUid: uid,
+      },
+    ],
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
@@ -417,9 +426,16 @@ export const decideEscalationRequest = onCall(async (request) => {
     decidedAt: admin.firestore.FieldValue.serverTimestamp(),
     decidedByUid: request.auth.uid,
     decidedByEmail: callerSnap.data()?.email ?? null,
+    log: admin.firestore.FieldValue.arrayUnion({
+      action: newStatus,
+      at: admin.firestore.Timestamp.now(),
+      byUid: request.auth.uid,
+      byEmail: callerSnap.data()?.email ?? null,
+    }),
   });
 
-  if (decision === "approve") {
+  const reqType = (reqSnap.data() as { requestType?: string }).requestType ?? "access";
+  if (decision === "approve" && reqType === "access") {
     await db.doc(`users/${reqData.requesterUid}`).update({
       escalatedAccess: true,
       _serverRoleWrite: true,
@@ -631,6 +647,32 @@ export const resolveInvestigationRequest = onCall(async (request) => {
 
   logger.info("resolveInvestigationRequest: resolved", { requestId, by: request.auth.uid });
   return { ok: true };
+});
+
+export const getCallRecordingDownloadUrl = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const uid = request.auth.uid;
+  const data = (request.data ?? {}) as { recordingId?: unknown };
+  const recordingId = typeof data.recordingId === "string" ? data.recordingId.trim() : "";
+  if (!recordingId) throw new HttpsError("invalid-argument", "recordingId is required.");
+
+  const [userSnap, recSnap] = await Promise.all([
+    db.doc(`users/${uid}`).get(),
+    db.doc(`callRecordings/${recordingId}`).get(),
+  ]);
+  if (!recSnap.exists) throw new HttpsError("not-found", "Recording not found.");
+  const userData = userSnap.data() as { role?: string } | undefined;
+  const rec = recSnap.data() as { agentUid?: string; storagePath?: string; deletedAt?: unknown };
+  const canAccess = rec.agentUid === uid || userData?.role === "admin" || userData?.role === "webmaster";
+  if (!canAccess) throw new HttpsError("permission-denied", "You are not authorized to access this recording.");
+  if (rec.deletedAt || !rec.storagePath) throw new HttpsError("not-found", "Recording is unavailable.");
+
+  const [url] = await admin.storage().bucket().file(rec.storagePath).getSignedUrl({
+    action: "read",
+    expires: Date.now() + 15 * 60 * 1000,
+  });
+  await recSnap.ref.update({ lastAccessedAt: admin.firestore.FieldValue.serverTimestamp(), lastAccessedByUid: uid });
+  return { url, expiresAt: Date.now() + 15 * 60 * 1000 };
 });
 
 /**
@@ -936,7 +978,7 @@ export const generateAgentSignupLink = onCall(async (request) => {
 
 /**
  * Any signed-in user can flag a conversation for webmaster investigation.
- * Persists to `investigationRequests` and emails ESCALATION_NOTIFY_EMAIL.
+ * Persists to the pending `escalationRequests` queue. Email delivery is not used.
  *
  * Request: { conversationId: string, customerName?: string, reason?: string }
  */
@@ -976,7 +1018,8 @@ export const requestConversationInvestigation = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "conversationId is required.");
   }
 
-  const ref = await db.collection("investigationRequests").add({
+  const ref = await db.collection("escalationRequests").add({
+    requestType: "conversation-investigation",
     conversationId,
     customerName,
     reason,
@@ -986,7 +1029,15 @@ export const requestConversationInvestigation = onCall(async (request) => {
     notifiedEmail: null,
     emailSent: false,
     deliveryChannel: "in-app-notifications",
-    status: "open",
+    status: "pending",
+    log: [
+      {
+        action: "created",
+        channel: "pending-escalation-queue",
+        at: admin.firestore.Timestamp.now(),
+        byUid: uid,
+      },
+    ],
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
@@ -1009,6 +1060,12 @@ export const requestConversationInvestigation = onCall(async (request) => {
 
   await ref.update({
     notifiedWebmasters: delivered,
+    log: admin.firestore.FieldValue.arrayUnion({
+      action: "notified-webmasters",
+      channel: "in-app-notifications",
+      delivered,
+      at: admin.firestore.Timestamp.now(),
+    }),
     ...(error ? { notifyError: error } : {}),
   });
 
@@ -1953,11 +2010,6 @@ const SLACK_ALERT_RATE_LIMIT_MS = 10 * 60 * 1000; // 10 minutes
 const FIXED_SLACK_ALERT_MESSAGE =
   "Someone on the ConvoHub team has pinged this channel for review. Please review or grab Kit for scanning.";
 
-/** Slack mrkdwn requires &, <, > to be escaped before interpolation. */
-function escapeSlackMrkdwn(s: string): string {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 function safeForSlack(s: string): string {
   return String(s).replace(/[\u0000-\u001F\u007F]/g, " ").slice(0, 240);
 }
@@ -2055,15 +2107,8 @@ export const pingWebmasterSlack = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Account role is not authorized to send Slack alerts.");
   }
 
-  const data = (request.data ?? {}) as { route?: unknown; message?: unknown };
+  const data = (request.data ?? {}) as { route?: unknown };
   const route = typeof data.route === "string" ? safeForSlack(data.route) : "/";
-  // Optional free-form message body. Sanitised (strip control chars) and
-  // capped to 800 chars so the Slack block stays readable. Empty/whitespace
-  // collapses to null and we fall back to the fixed review message.
-  const rawMessage = typeof data.message === "string" ? data.message.trim() : "";
-  const customMessage = rawMessage
-    ? rawMessage.replace(/[\u0000-\u001F\u007F]/g, " ").slice(0, 800)
-    : null;
 
   // ---- Rate limit (transactional read-modify-write) --------------------------
   const rateLimitRef = db.doc(`slackAlertRateLimits/${uid}`);
@@ -2107,31 +2152,7 @@ export const pingWebmasterSlack = onCall(async (request) => {
   }
 
   // ---- POST to Slack ---------------------------------------------------------
-  // Render the sender role honestly so a webmaster ping doesn't read as
-  // "an agent has pinged" — that mismatch was the long-standing bug. We
-  // also escape Slack mrkdwn meta-characters in every interpolated value
-  // so a bracket in a route or display name can't break the layout.
-  const senderRole = role === "webmaster" ? "webmaster" : role === "admin" ? "admin" : "agent";
-  const senderLabel = escapeSlackMrkdwn(
-    safeForSlack(userData.displayName || userData.email?.split("@")[0] || "a teammate")
-  );
-  const safeRoute = escapeSlackMrkdwn(route);
-  const headline = escapeSlackMrkdwn(customMessage ?? FIXED_SLACK_ALERT_MESSAGE);
-  // Plaintext fallback used by Slack notifications and screen readers — must
-  // mirror the block content but stay free of mrkdwn so it reads cleanly.
-  const fallbackText = `:rotating_light: ${headline} — from ${senderLabel} (${senderRole}) on ${safeRoute}`;
-  const slackBody = {
-    text: fallbackText,
-    blocks: [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `:rotating_light: *${headline}*\n>From *${senderLabel}* (_${senderRole}_) on \`${safeRoute}\``,
-        },
-      },
-    ],
-  };
+  const slackBody = { text: FIXED_SLACK_ALERT_MESSAGE };
 
   let slackOk = true;
   let slackError: string | null = null;
