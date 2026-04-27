@@ -63,11 +63,11 @@ import {
   listRecentRecordings,
   subscribeRetentionPolicy,
   deleteRecording,
-  getCallRecordingDownloadUrl,
   type CallRecordingDoc,
   type RetentionPolicy,
   DEFAULT_RETENTION,
 } from "@/lib/callRecordings";
+import RecordingPlayerDialog from "@/components/RecordingPlayerDialog";
 
 type WindowDays = 7 | 30 | 90;
 
