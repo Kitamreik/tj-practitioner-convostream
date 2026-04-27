@@ -514,6 +514,12 @@ const CallAnalytics: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      <RecordingPlayerDialog
+        recording={playerRecording}
+        open={!!playerRecording}
+        onOpenChange={(o) => { if (!o) setPlayerRecording(null); }}
+      />
     </div>
   );
 };
