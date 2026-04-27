@@ -1298,91 +1298,129 @@ const Conversations: React.FC = () => {
 
               {/* === Secondary actions: visible on md+ === */}
               <div className="hidden md:contents">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Export transcript">
-                      <FileText className="h-3.5 w-3.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={handleCopyTranscript} className="gap-2">
-                      <Copy className="h-3.5 w-3.5" /> Copy to Clipboard
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleDownloadTXT} className="gap-2">
-                      <Download className="h-3.5 w-3.5" /> Download TXT
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2">
-                      <FileSpreadsheet className="h-3.5 w-3.5" /> Download CSV
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleDownloadPDF} className="gap-2">
-                      <FileText className="h-3.5 w-3.5" /> Download PDF
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Export transcript">
+                          <FileText className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={handleCopyTranscript} className="gap-2">
+                          <Copy className="h-3.5 w-3.5" /> Copy to Clipboard
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={handleDownloadTXT} className="gap-2">
+                          <Download className="h-3.5 w-3.5" /> Download TXT
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2">
+                          <FileSpreadsheet className="h-3.5 w-3.5" /> Download CSV
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleDownloadPDF} className="gap-2">
+                          <FileText className="h-3.5 w-3.5" /> Download PDF
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TooltipTrigger>
+                  <TooltipContent>Export transcript (TXT, CSV, PDF)</TooltipContent>
+                </Tooltip>
                 <ConversationTemplates onInsertTemplate={handleInsertTemplate} />
-                <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Open profile" onClick={() => setProfileOpen(true)}>
-                  <User className="h-3.5 w-3.5" />
-                </Button>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Assign agent">
-                      <UserCheck className="h-3.5 w-3.5" />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Open profile" onClick={() => setProfileOpen(true)}>
+                      <User className="h-3.5 w-3.5" />
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-56 p-2" align="end">
-                    <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">
-                      Assign to agent
-                    </p>
-                    {agents.map((agent) => {
-                      const load = agentLoad.get(agent) ?? 0;
-                      const overloaded = load >= 3;
-                      return (
-                        <button
-                          key={agent}
-                          onClick={() => handleAssignAgent(selected.id, agent)}
-                          className={cn(
-                            "w-full flex items-center gap-2 text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors",
-                            selected.assignedAgent === agent && "bg-accent font-medium"
-                          )}
-                        >
-                          <span className="flex-1 truncate">{agent}</span>
-                          {load > 0 && (
-                            <span
-                              className={cn(
-                                "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-                                overloaded
-                                  ? "bg-destructive/15 text-destructive"
-                                  : "bg-primary/10 text-primary"
-                              )}
-                              aria-label={`${load} open conversation${load === 1 ? "" : "s"} assigned`}
-                              title={`${load} open conversation${load === 1 ? "" : "s"} assigned`}
-                            >
+                  </TooltipTrigger>
+                  <TooltipContent>View customer profile</TooltipContent>
+                </Tooltip>
+                {/* Assign agent — admin/webmaster only. Agents see a disabled
+                    button with an explanatory tooltip instead of the popover. */}
+                {perms.canAssignAgent ? (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="Assign agent">
+                            <UserCheck className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Assign or reassign this conversation</TooltipContent>
+                      </Tooltip>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-56 p-2" align="end">
+                      <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">
+                        Assign to agent
+                      </p>
+                      {agents.map((agent) => {
+                        const load = agentLoad.get(agent) ?? 0;
+                        const overloaded = load >= 3;
+                        return (
+                          <button
+                            key={agent}
+                            onClick={() => handleAssignAgent(selected.id, agent)}
+                            className={cn(
+                              "w-full flex items-center gap-2 text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors",
+                              selected.assignedAgent === agent && "bg-accent font-medium"
+                            )}
+                          >
+                            <span className="flex-1 truncate">{agent}</span>
+                            {load > 0 && (
                               <span
                                 className={cn(
-                                  "h-1.5 w-1.5 rounded-full",
-                                  overloaded ? "bg-destructive" : "bg-primary"
+                                  "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                                  overloaded
+                                    ? "bg-destructive/15 text-destructive"
+                                    : "bg-primary/10 text-primary"
                                 )}
-                              />
-                              {load}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                    {selected.assignedAgent && (
-                      <>
-                        <div className="my-1 h-px bg-border" />
-                        <button
-                          onClick={() => handleAssignAgent(selected.id, null)}
-                          className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors flex items-center gap-2"
+                                aria-label={`${load} open conversation${load === 1 ? "" : "s"} assigned`}
+                                title={`${load} open conversation${load === 1 ? "" : "s"} assigned`}
+                              >
+                                <span
+                                  className={cn(
+                                    "h-1.5 w-1.5 rounded-full",
+                                    overloaded ? "bg-destructive" : "bg-primary"
+                                  )}
+                                />
+                                {load}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                      {selected.assignedAgent && (
+                        <>
+                          <div className="my-1 h-px bg-border" />
+                          <button
+                            onClick={() => handleAssignAgent(selected.id, null)}
+                            className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors flex items-center gap-2"
+                          >
+                            <X className="h-3.5 w-3.5" /> Unassign
+                          </button>
+                        </>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {/* Wrapper span so the tooltip still fires on a disabled button. */}
+                      <span tabIndex={0}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 pointer-events-none opacity-50"
+                          aria-label="Assign agent (restricted)"
+                          aria-disabled="true"
+                          disabled
                         >
-                          <X className="h-3.5 w-3.5" /> Unassign
-                        </button>
-                      </>
-                    )}
-                  </PopoverContent>
-                </Popover>
+                          <UserCheck className="h-3.5 w-3.5" />
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>{denyTip("Assigning agents")}</TooltipContent>
+                  </Tooltip>
+                )}
                 <CallRecorder
                   conversationId={selected.id}
                   conversationStatus={selected.status}
@@ -1390,6 +1428,38 @@ const Conversations: React.FC = () => {
                     selected.timestamp?.toMillis ? selected.timestamp.toMillis() : undefined
                   }
                 />
+                {/* View past recordings for this conversation. */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      aria-label="View call recordings"
+                      onClick={async () => {
+                        setRecordingsListOpen(true);
+                        setRecordingsLoading(true);
+                        try {
+                          const list = await listConversationRecordings(selected.id);
+                          setRecordingsList(list);
+                        } catch (e) {
+                          console.warn("Failed to load recordings:", e);
+                          setRecordingsList([]);
+                          toast({
+                            title: "Could not load recordings",
+                            description: e instanceof Error ? e.message : "Try again later.",
+                            variant: "destructive",
+                          });
+                        } finally {
+                          setRecordingsLoading(false);
+                        }
+                      }}
+                    >
+                      <Mic className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>View call recordings (preview & download)</TooltipContent>
+                </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="outline" size="sm" onClick={handleToggleResolved} className="h-8 w-8 p-0" aria-label={selected.status === "resolved" ? "Reopen" : "Resolve"}>
