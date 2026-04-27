@@ -63,6 +63,7 @@ import {
   listRecentRecordings,
   subscribeRetentionPolicy,
   deleteRecording,
+  getCallRecordingDownloadUrl,
   type CallRecordingDoc,
   type RetentionPolicy,
   DEFAULT_RETENTION,
@@ -84,6 +85,8 @@ const CallAnalytics: React.FC = () => {
   const [agents, setAgents] = useState<AgentOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [policy, setPolicy] = useState<RetentionPolicy>(DEFAULT_RETENTION);
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  const canViewAll = profile?.role === "admin" || profile?.role === "webmaster";
 
   useEffect(() => subscribeRetentionPolicy(setPolicy), []);
 
@@ -115,12 +118,12 @@ const CallAnalytics: React.FC = () => {
     const sinceMs = Date.now() - windowDays * 24 * 60 * 60 * 1000;
     listRecentRecordings({
       sinceMs,
-      agentUid: agentFilter === "all" ? undefined : agentFilter,
+      agentUid: canViewAll ? (agentFilter === "all" ? undefined : agentFilter) : profile?.uid,
       max: 1000,
     })
       .then((rows) => {
         if (cancelled) return;
-        setRecordings(rows.filter((r) => !!r.downloadUrl)); // exclude deleted
+        setRecordings(rows.filter((r) => !r.deletedAt));
       })
       .catch((e) => {
         console.warn("Failed to load recordings:", e);
@@ -132,7 +135,7 @@ const CallAnalytics: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [windowDays, agentFilter]);
+  }, [windowDays, agentFilter, canViewAll, profile?.uid]);
 
   // ---------- Aggregates ----------
   const stats = useMemo(() => {
