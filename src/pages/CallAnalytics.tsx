@@ -250,17 +250,8 @@ const CallAnalytics: React.FC = () => {
     }
   };
 
-  const onOpenRecording = async (rec: CallRecordingDoc) => {
-    setOpeningId(rec.id);
-    try {
-      const url = await getCallRecordingDownloadUrl(rec.id);
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Access denied";
-      toast({ title: "Recording unavailable", description: msg, variant: "destructive" });
-    } finally {
-      setOpeningId(null);
-    }
+  const onOpenRecording = (rec: CallRecordingDoc) => {
+    setPlayerRecording(rec);
   };
 
   const canPurge = profile?.role === "admin" || profile?.role === "webmaster";
