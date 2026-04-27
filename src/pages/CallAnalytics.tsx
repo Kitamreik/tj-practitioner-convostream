@@ -483,10 +483,10 @@ const CallAnalytics: React.FC = () => {
                             size="sm"
                             className="h-7 px-2"
                             onClick={() => onOpenRecording(r)}
-                            disabled={openingId === r.id}
-                            aria-label="Open recording"
+                            aria-label="Play recording"
+                            title="Play recording"
                           >
-                            <Download className="h-3.5 w-3.5" />
+                            <Mic className="h-3.5 w-3.5" />
                           </Button>
                           {canPurge && (
                             <Button
