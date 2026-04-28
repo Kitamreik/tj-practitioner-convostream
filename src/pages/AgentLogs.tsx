@@ -273,7 +273,33 @@ const AgentLogs: React.FC = () => {
     }
   };
 
-  const handleRefresh = async () => {
+  /**
+   * Admin/webmaster reassignment for resolved conversations. Useful when the
+   * Unassigned group needs cleanup so weekly metrics and per-agent rollups
+   * attribute the work correctly.
+   */
+  const handleReassign = async (convo: ResolvedConvo, agent: string | null) => {
+    if (!isStaff) return;
+    try {
+      await updateDoc(doc(db, "conversations", convo.id), {
+        assignedAgent: agent ?? null,
+      });
+      toast({
+        title: agent ? "Reassigned" : "Unassigned",
+        description: agent
+          ? `${convo.customerName} now attributed to ${agent}.`
+          : `${convo.customerName} marked unassigned.`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Could not reassign",
+        description: e?.message || "Try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+
     await new Promise((r) => setTimeout(r, 400));
     toast({ title: "Refreshed" });
   };
