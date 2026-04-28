@@ -1284,8 +1284,33 @@ const SettingsPage: React.FC = () => {
       <div className={cn(showSideNav ? "flex-1 min-w-0 overflow-y-auto p-6 md:p-8" : "")}>
       <div className="mb-6 md:mb-8">
         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground mt-1">Manage your account and preferences</p>
+        <p className="text-muted-foreground mt-1 text-sm md:text-base">Manage your account and preferences</p>
       </div>
+
+      {/* Mobile-only quick jump nav for webmasters — the desktop sidebar is
+          hidden on phones, so without this they'd have to scroll the entire
+          long settings page to reach Pending escalations / Agents / etc. */}
+      {isWebmaster && isMobile && (
+        <div className="mb-4 sm:mb-6">
+          <Label className="text-xs text-muted-foreground">Jump to section</Label>
+          <Select
+            onValueChange={(id) => {
+              document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+          >
+            <SelectTrigger className="mt-1 h-9 text-sm">
+              <SelectValue placeholder="Select a section…" />
+            </SelectTrigger>
+            <SelectContent>
+              {navSections.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="space-y-6 md:space-y-8">
         {/* Profile */}
