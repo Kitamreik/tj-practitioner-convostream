@@ -91,7 +91,13 @@ import { cn } from "@/lib/utils";
 import { httpsCallable } from "firebase/functions";
 import { useSearchParams, useParams, useNavigate } from "react-router-dom";
 import { functions } from "@/lib/firebase";
-import ConversationNotes from "@/components/ConversationNotes";
+import ConversationNotes, { useConversationNotes } from "@/components/ConversationNotes";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import CallRecorder from "@/components/CallRecorder";
 import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 import { StickyNote } from "lucide-react";
