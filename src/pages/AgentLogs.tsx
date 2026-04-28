@@ -102,7 +102,12 @@ const AgentLogs: React.FC = () => {
       (snap) => {
         const names = snap.docs
           .map((d) => d.data() as any)
-          .filter((u) => u && (u.role === "agent" || u.role === "admin") && (u.displayName || u.email))
+          .filter(
+            (u) =>
+              u &&
+              (u.role === "agent" || u.role === "admin" || u.role === "webmaster") &&
+              (u.displayName || u.email)
+          )
           .map((u) => (u.displayName || u.email) as string);
         setKnownAgents(Array.from(new Set(names)));
       },
@@ -268,6 +273,32 @@ const AgentLogs: React.FC = () => {
     }
   };
 
+  /**
+   * Admin/webmaster reassignment for resolved conversations. Useful when the
+   * Unassigned group needs cleanup so weekly metrics and per-agent rollups
+   * attribute the work correctly.
+   */
+  const handleReassign = async (convo: ResolvedConvo, agent: string | null) => {
+    if (!isStaff) return;
+    try {
+      await updateDoc(doc(db, "conversations", convo.id), {
+        assignedAgent: agent ?? null,
+      });
+      toast({
+        title: agent ? "Reassigned" : "Unassigned",
+        description: agent
+          ? `${convo.customerName} now attributed to ${agent}.`
+          : `${convo.customerName} marked unassigned.`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Could not reassign",
+        description: e?.message || "Try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleRefresh = async () => {
     await new Promise((r) => setTimeout(r, 400));
     toast({ title: "Refreshed" });
@@ -398,6 +429,13 @@ const AgentLogs: React.FC = () => {
                     })()}
                   </div>
                 </div>
+                {agentName === "Unassigned" && isStaff && (
+                  <div className="border-b border-border bg-warning/5 px-4 py-2 text-[11px] text-muted-foreground">
+                    These resolved conversations have no assigned agent. Use the
+                    per-row picker to attribute them to a teammate so weekly
+                    metrics stay accurate.
+                  </div>
+                )}
                 <ul className="divide-y divide-border">
                   {rows.map((r) => (
                     <li key={r.id} className="flex items-start gap-3 px-4 py-3 hover:bg-muted/20 transition-colors">
@@ -445,24 +483,52 @@ const AgentLogs: React.FC = () => {
                           />
                         </div>
                       </div>
-                      {/* Reopen is allowed for staff or for the agent who owns the thread. */}
-                      {(isStaff || (r.assignedAgent || "").toLowerCase() === myAgentName) && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={reopeningId === r.id}
-                          onClick={() => handleReopen(r)}
-                          className="gap-1.5 h-8 flex-shrink-0"
-                          aria-label={`Reopen ${r.customerName}`}
-                        >
-                          {reopeningId === r.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <RotateCcw className="h-3.5 w-3.5" />
-                          )}
-                          <span className="hidden sm:inline">Reopen</span>
-                        </Button>
-                      )}
+                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                        {/* Reopen is allowed for staff or for the agent who owns the thread. */}
+                        {(isStaff || (r.assignedAgent || "").toLowerCase() === myAgentName) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={reopeningId === r.id}
+                            onClick={() => handleReopen(r)}
+                            className="gap-1.5 h-8"
+                            aria-label={`Reopen ${r.customerName}`}
+                          >
+                            {reopeningId === r.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            )}
+                            <span className="hidden sm:inline">Reopen</span>
+                          </Button>
+                        )}
+                        {/* Admin/webmaster reassignment — fixes attribution on
+                            Unassigned rows so weekly per-agent metrics are
+                            accurate without needing to reopen the thread. */}
+                        {isStaff && (
+                          <Select
+                            value={r.assignedAgent || "__unassigned__"}
+                            onValueChange={(v) =>
+                              handleReassign(r, v === "__unassigned__" ? null : v)
+                            }
+                          >
+                            <SelectTrigger
+                              className="h-7 w-[150px] text-[11px]"
+                              aria-label={`Reassign ${r.customerName}`}
+                            >
+                              <SelectValue placeholder="Reassign…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                              {allAgentNames.map((n) => (
+                                <SelectItem key={n} value={n}>
+                                  {n}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>

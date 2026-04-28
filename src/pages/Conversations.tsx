@@ -91,7 +91,13 @@ import { cn } from "@/lib/utils";
 import { httpsCallable } from "firebase/functions";
 import { useSearchParams, useParams, useNavigate } from "react-router-dom";
 import { functions } from "@/lib/firebase";
-import ConversationNotes from "@/components/ConversationNotes";
+import ConversationNotes, { useConversationNotes } from "@/components/ConversationNotes";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import CallRecorder from "@/components/CallRecorder";
 import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 import { StickyNote } from "lucide-react";
@@ -277,6 +283,42 @@ function downloadPDF(html: string, filename: string) {
   }, 400);
 }
 
+/**
+ * Collapsible accordion wrapper around the shared notes thread. Defaults to
+ * open when the conversation has notes (so context isn't hidden) and to
+ * closed when there are none (so the composer doesn't push the status bar
+ * down for threads that don't use notes). Trigger label includes the live
+ * note count.
+ */
+const NotesAccordionSection: React.FC<{ conversationId: string }> = ({ conversationId }) => {
+  const { notes } = useConversationNotes(conversationId);
+  const count = notes.length;
+  const defaultValue = count > 0 ? "notes" : undefined;
+  return (
+    <div
+      id="conversation-notes-section"
+      className="border-t border-border bg-warning/5 scroll-mt-20"
+    >
+      <Accordion type="single" collapsible defaultValue={defaultValue} key={conversationId}>
+        <AccordionItem value="notes" className="border-b-0">
+          <AccordionTrigger className="px-4 py-2 text-xs font-medium text-muted-foreground hover:no-underline hover:bg-warning/10">
+            <span className="flex items-center gap-2">
+              <StickyNote className="h-3.5 w-3.5 text-warning" />
+              Conversation notes
+              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                {count}
+              </Badge>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="px-4 pb-3 pt-0">
+            <ConversationNotes conversationId={conversationId} notes={notes} />
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </div>
+  );
+};
+
 const Conversations: React.FC = () => {
   const { profile, user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -387,7 +429,12 @@ const Conversations: React.FC = () => {
       (snap) => {
         const names = snap.docs
           .map((d) => d.data() as any)
-          .filter((u) => u && (u.role === "agent" || u.role === "admin") && (u.displayName || u.email))
+          .filter(
+            (u) =>
+              u &&
+              (u.role === "agent" || u.role === "admin" || u.role === "webmaster") &&
+              (u.displayName || u.email)
+          )
           .map((u) => (u.displayName || u.email) as string)
           .filter((v, i, arr) => arr.indexOf(v) === i);
         setFirestoreAgents(names);
@@ -1694,9 +1741,7 @@ const Conversations: React.FC = () => {
           {/* Conversation notes — shared annotations visible to every teammate.
               Sits above the status bar so notes are part of the thread context
               without being mistaken for messages sent to the customer. */}
-          <div id="conversation-notes-section" className="border-t border-border bg-warning/5 px-4 py-3 scroll-mt-20">
-            <ConversationNotes conversationId={selected.id} />
-          </div>
+          <NotesAccordionSection conversationId={selected.id} />
 
           {/* Mid-conversation status & channel quick-change */}
           <div className="border-t border-border bg-muted/20 px-4 py-2 flex flex-wrap items-center gap-3 text-xs">
