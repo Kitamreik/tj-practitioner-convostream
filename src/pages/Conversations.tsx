@@ -1705,9 +1705,7 @@ const Conversations: React.FC = () => {
           {/* Conversation notes — shared annotations visible to every teammate.
               Sits above the status bar so notes are part of the thread context
               without being mistaken for messages sent to the customer. */}
-          <div id="conversation-notes-section" className="border-t border-border bg-warning/5 px-4 py-3 scroll-mt-20">
-            <ConversationNotes conversationId={selected.id} />
-          </div>
+          <NotesAccordionSection conversationId={selected.id} />
 
           {/* Mid-conversation status & channel quick-change */}
           <div className="border-t border-border bg-muted/20 px-4 py-2 flex flex-wrap items-center gap-3 text-xs">
