@@ -57,17 +57,14 @@ const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 /**
- * The `/` route renders the Support call-center home for any account that has
- * been granted Support access — either by being the legacy support@convohub.dev
- * account, or by a webmaster flipping `profile.supportAccess = true` from
- * Settings → Accounts. Everyone else lands on the full Conversations inbox.
+ * The `/` route renders the Support call-center home for every signed-in
+ * role. The Home page is role-aware (greeting, KPIs, quick actions) so an
+ * agent, admin, or webmaster all get the same call-center landing experience
+ * mirrored from the original Support UI. The legacy support@convohub.dev /
+ * `supportAccess` flag is no longer required to see this view.
  */
-const SUPPORT_EMAIL = "support@convohub.dev";
 const SupportHomeOrConversations: React.FC = () => {
-  const { profile } = useAuth();
-  const isSupportEmail = (profile?.email || "").trim().toLowerCase() === SUPPORT_EMAIL;
-  const hasSupportAccess = profile?.supportAccess === true;
-  return isSupportEmail || hasSupportAccess ? <Home /> : <Conversations />;
+  return <Home />;
 };
 
 const App = () => (
