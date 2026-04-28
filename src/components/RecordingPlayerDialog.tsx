@@ -161,14 +161,15 @@ const RecordingPlayerDialog: React.FC<Props> = ({ recording, open, onOpenChange 
               key={url}
               src={url}
               controls
-              autoPlay
               className="w-full"
               preload="metadata"
             />
           )}
 
           <p className="text-[11px] text-muted-foreground">
-            This link is signed for 15 minutes. Reopen the dialog to refresh access.
+            {refreshing
+              ? "Refreshing secure link…"
+              : "Secure link auto-refreshes every ~15 minutes while this dialog stays open."}
           </p>
         </div>
 
