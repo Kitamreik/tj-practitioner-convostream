@@ -102,7 +102,12 @@ const AgentLogs: React.FC = () => {
       (snap) => {
         const names = snap.docs
           .map((d) => d.data() as any)
-          .filter((u) => u && (u.role === "agent" || u.role === "admin") && (u.displayName || u.email))
+          .filter(
+            (u) =>
+              u &&
+              (u.role === "agent" || u.role === "admin" || u.role === "webmaster") &&
+              (u.displayName || u.email)
+          )
           .map((u) => (u.displayName || u.email) as string);
         setKnownAgents(Array.from(new Set(names)));
       },
