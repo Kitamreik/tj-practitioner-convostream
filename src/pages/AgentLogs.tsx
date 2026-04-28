@@ -299,7 +299,7 @@ const AgentLogs: React.FC = () => {
     }
   };
 
-
+  const handleRefresh = async () => {
     await new Promise((r) => setTimeout(r, 400));
     toast({ title: "Refreshed" });
   };
