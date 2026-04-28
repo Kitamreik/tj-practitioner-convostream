@@ -40,11 +40,24 @@ const RecordingPlayerDialog: React.FC<Props> = ({ recording, open, onOpenChange 
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Track when the current signed URL was minted so we can proactively
+  // refresh it ~30s before the 15-minute server-side expiry. Without this
+  // a long-paused player would suddenly fail to seek/resume because the
+  // underlying signed URL had quietly expired.
+  const [mintedAt, setMintedAt] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
+  // Server signs URLs for 15 minutes; refresh ~30s before that to give the
+  // browser slack for in-flight range requests.
+  const SIGNED_URL_TTL_MS = 15 * 60 * 1000;
+  const REFRESH_LEAD_MS = 30 * 1000;
+
+  // Initial fetch when the dialog opens / recording changes.
   useEffect(() => {
     if (!open || !recording) {
       setUrl(null);
       setError(null);
+      setMintedAt(null);
       return;
     }
     let cancelled = false;
@@ -54,6 +67,7 @@ const RecordingPlayerDialog: React.FC<Props> = ({ recording, open, onOpenChange 
       .then((u) => {
         if (cancelled) return;
         setUrl(u);
+        setMintedAt(Date.now());
       })
       .catch((e) => {
         if (cancelled) return;
@@ -67,6 +81,32 @@ const RecordingPlayerDialog: React.FC<Props> = ({ recording, open, onOpenChange 
       cancelled = true;
     };
   }, [open, recording]);
+
+  // Auto-refresh the signed URL just before it expires so the user never
+  // hits a 403 mid-playback. We re-mint, then swap the <audio src> — the
+  // `key={url}` on the <audio> remounts the element so the new URL is used
+  // without leaking media state. We avoid autoplay so a stale fallback can
+  // never play silently if the refresh fails.
+  useEffect(() => {
+    if (!open || !recording || !mintedAt) return;
+    const elapsed = Date.now() - mintedAt;
+    const delay = Math.max(5_000, SIGNED_URL_TTL_MS - REFRESH_LEAD_MS - elapsed);
+    const timer = window.setTimeout(async () => {
+      setRefreshing(true);
+      try {
+        const fresh = await getCallRecordingDownloadUrl(recording.id);
+        setUrl(fresh);
+        setMintedAt(Date.now());
+        setError(null);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Could not refresh access link.";
+        setError(msg);
+      } finally {
+        setRefreshing(false);
+      }
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [open, recording, mintedAt]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -121,14 +161,15 @@ const RecordingPlayerDialog: React.FC<Props> = ({ recording, open, onOpenChange 
               key={url}
               src={url}
               controls
-              autoPlay
               className="w-full"
               preload="metadata"
             />
           )}
 
           <p className="text-[11px] text-muted-foreground">
-            This link is signed for 15 minutes. Reopen the dialog to refresh access.
+            {refreshing
+              ? "Refreshing secure link…"
+              : "Secure link auto-refreshes every ~15 minutes while this dialog stays open."}
           </p>
         </div>
 
