@@ -283,6 +283,42 @@ function downloadPDF(html: string, filename: string) {
   }, 400);
 }
 
+/**
+ * Collapsible accordion wrapper around the shared notes thread. Defaults to
+ * open when the conversation has notes (so context isn't hidden) and to
+ * closed when there are none (so the composer doesn't push the status bar
+ * down for threads that don't use notes). Trigger label includes the live
+ * note count.
+ */
+const NotesAccordionSection: React.FC<{ conversationId: string }> = ({ conversationId }) => {
+  const { notes } = useConversationNotes(conversationId);
+  const count = notes.length;
+  const defaultValue = count > 0 ? "notes" : undefined;
+  return (
+    <div
+      id="conversation-notes-section"
+      className="border-t border-border bg-warning/5 scroll-mt-20"
+    >
+      <Accordion type="single" collapsible defaultValue={defaultValue} key={conversationId}>
+        <AccordionItem value="notes" className="border-b-0">
+          <AccordionTrigger className="px-4 py-2 text-xs font-medium text-muted-foreground hover:no-underline hover:bg-warning/10">
+            <span className="flex items-center gap-2">
+              <StickyNote className="h-3.5 w-3.5 text-warning" />
+              Conversation notes
+              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                {count}
+              </Badge>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="px-4 pb-3 pt-0">
+            <ConversationNotes conversationId={conversationId} notes={notes} />
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </div>
+  );
+};
+
 const Conversations: React.FC = () => {
   const { profile, user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
