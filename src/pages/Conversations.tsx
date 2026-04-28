@@ -1929,9 +1929,43 @@ const Conversations: React.FC = () => {
           {recordingsLoading ? (
             <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
           ) : recordingsList.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              No recordings for this conversation yet.
-            </p>
+            <div className="flex flex-col items-center gap-3 rounded-md border border-dashed bg-muted/30 px-4 py-8 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                <Mic className="h-6 w-6 text-primary" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">No call recordings yet</p>
+                <p className="text-xs text-muted-foreground max-w-[280px]">
+                  Capture this conversation for compliance and analytics. Recordings
+                  appear here once you stop the recorder.
+                </p>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => {
+                      setRecordingsListOpen(false);
+                      // Scroll the in-header CallRecorder into view so the
+                      // agent immediately sees the Start button + consent
+                      // banner. The recorder lives in the conversation
+                      // header, so a top scroll is enough on every viewport.
+                      requestAnimationFrame(() => {
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      });
+                    }}
+                  >
+                    <Mic className="h-3.5 w-3.5" /> Start a recording
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[260px] text-xs">
+                  Open the recorder in the conversation header, accept the consent
+                  banner, then press <strong>Start</strong>. Stop when finished and
+                  the file uploads automatically — it'll show up here within seconds.
+                </TooltipContent>
+              </Tooltip>
+            </div>
           ) : (
             <ul className="divide-y">
               {recordingsList.map((r) => (
