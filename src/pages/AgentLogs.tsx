@@ -429,6 +429,13 @@ const AgentLogs: React.FC = () => {
                     })()}
                   </div>
                 </div>
+                {agentName === "Unassigned" && isStaff && (
+                  <div className="border-b border-border bg-warning/5 px-4 py-2 text-[11px] text-muted-foreground">
+                    These resolved conversations have no assigned agent. Use the
+                    per-row picker to attribute them to a teammate so weekly
+                    metrics stay accurate.
+                  </div>
+                )}
                 <ul className="divide-y divide-border">
                   {rows.map((r) => (
                     <li key={r.id} className="flex items-start gap-3 px-4 py-3 hover:bg-muted/20 transition-colors">
