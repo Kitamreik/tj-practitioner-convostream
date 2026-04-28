@@ -476,24 +476,52 @@ const AgentLogs: React.FC = () => {
                           />
                         </div>
                       </div>
-                      {/* Reopen is allowed for staff or for the agent who owns the thread. */}
-                      {(isStaff || (r.assignedAgent || "").toLowerCase() === myAgentName) && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={reopeningId === r.id}
-                          onClick={() => handleReopen(r)}
-                          className="gap-1.5 h-8 flex-shrink-0"
-                          aria-label={`Reopen ${r.customerName}`}
-                        >
-                          {reopeningId === r.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <RotateCcw className="h-3.5 w-3.5" />
-                          )}
-                          <span className="hidden sm:inline">Reopen</span>
-                        </Button>
-                      )}
+                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                        {/* Reopen is allowed for staff or for the agent who owns the thread. */}
+                        {(isStaff || (r.assignedAgent || "").toLowerCase() === myAgentName) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={reopeningId === r.id}
+                            onClick={() => handleReopen(r)}
+                            className="gap-1.5 h-8"
+                            aria-label={`Reopen ${r.customerName}`}
+                          >
+                            {reopeningId === r.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            )}
+                            <span className="hidden sm:inline">Reopen</span>
+                          </Button>
+                        )}
+                        {/* Admin/webmaster reassignment — fixes attribution on
+                            Unassigned rows so weekly per-agent metrics are
+                            accurate without needing to reopen the thread. */}
+                        {isStaff && (
+                          <Select
+                            value={r.assignedAgent || "__unassigned__"}
+                            onValueChange={(v) =>
+                              handleReassign(r, v === "__unassigned__" ? null : v)
+                            }
+                          >
+                            <SelectTrigger
+                              className="h-7 w-[150px] text-[11px]"
+                              aria-label={`Reassign ${r.customerName}`}
+                            >
+                              <SelectValue placeholder="Reassign…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                              {allAgentNames.map((n) => (
+                                <SelectItem key={n} value={n}>
+                                  {n}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
