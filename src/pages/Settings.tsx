@@ -1924,7 +1924,7 @@ const SettingsPage: React.FC = () => {
                   Use the identifier the user signs in with. The promotion is logged to the escalations history once granted.
                 </p>
               </div>
-              <Button onClick={handlePromote} disabled={promoting || !promoteIdentifier.trim()} className="gap-2">
+              <Button onClick={handlePromote} disabled={promoting || !promoteIdentifier.trim()} className="gap-2 w-full sm:w-auto">
                 <KeyRound className="h-4 w-4" />
                 {promoting ? "Granting…" : "Grant webmaster role"}
               </Button>
