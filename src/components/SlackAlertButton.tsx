@@ -90,7 +90,10 @@ const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
         const next = res.nextAllowedAt ?? Date.now() + RATE_LIMIT_MS;
         setNextAllowedAt(next);
         writeLocalNextAllowed(profile.uid, next);
-        toast({ title: "Slack channel pinged", description: "An alert was sent to the team channel." });
+        toast({
+          title: "✅ Slack channel pinged",
+          description: "Webhook test ping accepted — alert delivered to the team channel.",
+        });
       } else if (res.rateLimited && res.nextAllowedAt) {
         setNextAllowedAt(res.nextAllowedAt);
         writeLocalNextAllowed(profile.uid, res.nextAllowedAt);
