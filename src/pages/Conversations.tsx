@@ -102,6 +102,7 @@ import CallRecorder from "@/components/CallRecorder";
 import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 import { StickyNote } from "lucide-react";
 import SlackAlertButton from "@/components/SlackAlertButton";
+import RoleBadge from "@/components/RoleBadge";
 import RecordingPlayerDialog from "@/components/RecordingPlayerDialog";
 import { listConversationRecordings, type CallRecordingDoc } from "@/lib/callRecordings";
 import {
