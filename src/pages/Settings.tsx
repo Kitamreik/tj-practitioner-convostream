@@ -2036,11 +2036,11 @@ const SettingsPage: React.FC = () => {
                       )}
                       <p className="text-[10px] text-muted-foreground mt-1">{formatTime(req.createdAt)}</p>
                     </div>
-                    <div className="flex gap-2 flex-shrink-0">
+                    <div className="flex gap-2 flex-shrink-0 sm:w-auto w-full">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="gap-1"
+                        className="gap-1 flex-1 sm:flex-none"
                         disabled={decidingId === req.id}
                         onClick={() => decide(req.id, "deny")}
                       >
@@ -2048,7 +2048,7 @@ const SettingsPage: React.FC = () => {
                       </Button>
                       <Button
                         size="sm"
-                        className="gap-1"
+                        className="gap-1 flex-1 sm:flex-none"
                         disabled={decidingId === req.id}
                         onClick={() => decide(req.id, "approve")}
                       >
