@@ -1284,7 +1284,7 @@ const SettingsPage: React.FC = () => {
   return (
     <div className={cn(
       "mx-auto",
-      showSideNav ? "flex h-full max-w-6xl gap-0 p-0" : `p-4 md:p-8 ${isWebmaster ? "max-w-4xl" : "max-w-2xl"}`
+      showSideNav ? "flex h-full max-w-6xl gap-0 p-0" : `px-3 py-4 sm:p-6 md:p-8 ${isWebmaster ? "max-w-4xl" : "max-w-2xl"}`
     )}>
       {showSideNav && (
         <>
