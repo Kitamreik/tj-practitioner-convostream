@@ -1284,7 +1284,7 @@ const SettingsPage: React.FC = () => {
   return (
     <div className={cn(
       "mx-auto",
-      showSideNav ? "flex h-full max-w-6xl gap-0 p-0" : `p-4 md:p-8 ${isWebmaster ? "max-w-4xl" : "max-w-2xl"}`
+      showSideNav ? "flex h-full max-w-6xl gap-0 p-0" : `px-3 py-4 sm:p-6 md:p-8 ${isWebmaster ? "max-w-4xl" : "max-w-2xl"}`
     )}>
       {showSideNav && (
         <>
@@ -1359,7 +1359,7 @@ const SettingsPage: React.FC = () => {
 
       <div className="space-y-6 md:space-y-8">
         {/* Profile */}
-        <div id="profile" className="rounded-xl border border-border bg-card p-6">
+        <div id="profile" className="rounded-xl border border-border bg-card p-4 sm:p-6">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-4">
             <User className="h-5 w-5 text-primary" />
             Profile
@@ -1387,7 +1387,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Appearance — three-way toggle: light / dark / coder. "Coder Mode"
             is a soft-blue, low-contrast palette tuned for sensitive eyes. */}
-        <div id="appearance" className="rounded-xl border border-border bg-card p-6">
+        <div id="appearance" className="rounded-xl border border-border bg-card p-4 sm:p-6">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-4">
             {theme === "light" ? (
               <Sun className="h-5 w-5 text-primary" />
@@ -1443,7 +1443,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: contact cooldown duration */}
         {isWebmaster && (
-          <div id="webmaster-contact" className="rounded-xl border border-border bg-card p-6">
+          <div id="webmaster-contact" className="rounded-xl border border-border bg-card p-4 sm:p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-2">
               <PhoneCall className="h-5 w-5 text-primary" />
               Webmaster contact cooldown
@@ -1541,7 +1541,7 @@ const SettingsPage: React.FC = () => {
             localStorage pref consumed by useBackgroundGmailPoller, which is
             mounted globally in AppLayout. */}
         {isWebmaster && (
-          <div id="bg-gmail" className="rounded-xl border border-border bg-card p-6">
+          <div id="bg-gmail" className="rounded-xl border border-border bg-card p-4 sm:p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-2">
               <Mail className="h-5 w-5 text-primary" />
               Background Gmail ingestion
@@ -1582,7 +1582,7 @@ const SettingsPage: React.FC = () => {
             so every agent's browser can read it (per-user integrations creds
             are owner-only). */}
         {canEditWebhook && (
-          <div id="webmaster-slack" className="rounded-xl border border-border bg-card p-6">
+          <div id="webmaster-slack" className="rounded-xl border border-border bg-card p-4 sm:p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-2">
               <Send className="h-5 w-5 text-primary" />
               Webmaster Slack alerts
@@ -1658,7 +1658,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: Overview — at-a-glance assigned conversations per agent */}
         {isWebmaster && (
-          <div id="overview" className="rounded-xl border border-border bg-card p-6">
+          <div id="overview" className="rounded-xl border border-border bg-card p-4 sm:p-6">
             <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground">
                 <LayoutDashboard className="h-5 w-5 text-primary" />
@@ -1898,7 +1898,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: Promote */}
         {isWebmaster && (
-          <div id="promote" className="rounded-xl border border-primary/30 bg-primary/5 p-6">
+          <div id="promote" className="rounded-xl border border-primary/30 bg-primary/5 p-4 sm:p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
               <KeyRound className="h-5 w-5 text-primary" />
               Promote to Webmaster
@@ -1924,7 +1924,7 @@ const SettingsPage: React.FC = () => {
                   Use the identifier the user signs in with. The promotion is logged to the escalations history once granted.
                 </p>
               </div>
-              <Button onClick={handlePromote} disabled={promoting || !promoteIdentifier.trim()} className="gap-2">
+              <Button onClick={handlePromote} disabled={promoting || !promoteIdentifier.trim()} className="gap-2 w-full sm:w-auto">
                 <KeyRound className="h-4 w-4" />
                 {promoting ? "Granting…" : "Grant webmaster role"}
               </Button>
@@ -1940,7 +1940,7 @@ const SettingsPage: React.FC = () => {
           const exists = !!supportAccount;
           const alreadyWebmaster = supportAccount?.role === "webmaster";
           return (
-            <div id="provision-support" className="rounded-xl border border-primary/30 bg-primary/5 p-6">
+            <div id="provision-support" className="rounded-xl border border-primary/30 bg-primary/5 p-4 sm:p-6">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
                 <LifeBuoy className="h-5 w-5 text-primary" />
                 Provision Support account
@@ -1993,7 +1993,7 @@ const SettingsPage: React.FC = () => {
         })()}
 
         {isWebmaster && (
-          <div id="pending" className="rounded-xl border border-border bg-card p-6">
+          <div id="pending" className="rounded-xl border border-border bg-card p-4 sm:p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
               <Inbox className="h-5 w-5 text-primary" />
               Pending escalation requests
@@ -2036,11 +2036,11 @@ const SettingsPage: React.FC = () => {
                       )}
                       <p className="text-[10px] text-muted-foreground mt-1">{formatTime(req.createdAt)}</p>
                     </div>
-                    <div className="flex gap-2 flex-shrink-0">
+                    <div className="flex gap-2 flex-shrink-0 sm:w-auto w-full">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="gap-1"
+                        className="gap-1 flex-1 sm:flex-none"
                         disabled={decidingId === req.id}
                         onClick={() => decide(req.id, "deny")}
                       >
@@ -2048,7 +2048,7 @@ const SettingsPage: React.FC = () => {
                       </Button>
                       <Button
                         size="sm"
-                        className="gap-1"
+                        className="gap-1 flex-1 sm:flex-none"
                         disabled={decidingId === req.id}
                         onClick={() => decide(req.id, "approve")}
                       >
@@ -2065,7 +2065,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: Agents (rename agents) */}
         {isWebmaster && (
-          <div id="agents" className="rounded-xl border border-border bg-card p-6">
+          <div id="agents" className="rounded-xl border border-border bg-card p-4 sm:p-6">
             <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground">
                 <UserCog className="h-5 w-5 text-primary" />
@@ -2247,7 +2247,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: All accounts */}
         {isWebmaster && (
-          <div id="accounts" className="rounded-xl border border-border bg-card p-6">
+          <div id="accounts" className="rounded-xl border border-border bg-card p-4 sm:p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
               <Users className="h-5 w-5 text-primary" />
               Accounts
@@ -2562,7 +2562,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Webmaster-only: Investigation requests */}
         {isWebmaster && (
-          <div id="investigations" className="rounded-xl border border-border bg-card p-6">
+          <div id="investigations" className="rounded-xl border border-border bg-card p-4 sm:p-6">
             <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground">
                 <Search className="h-5 w-5 text-primary" />
@@ -2719,7 +2719,7 @@ const SettingsPage: React.FC = () => {
         )}
 
         {/* Security */}
-        <div id="security" className="rounded-xl border border-border bg-card p-6">
+        <div id="security" className="rounded-xl border border-border bg-card p-4 sm:p-6">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-4">
             <Shield className="h-5 w-5 text-primary" />
             Security
