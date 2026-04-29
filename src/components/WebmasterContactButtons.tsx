@@ -540,86 +540,35 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
 
   return (
     <div className={["flex flex-col gap-1.5", className].filter(Boolean).join(" ")}>
-      {/* Slack Alert — sits above Call/Text. Independent escalation: pings
-          the team Slack channel (with an optional custom message) and never
-          opens the dialer/composer. Always enabled — server enforces config
-          + rate limit. */}
-      <Popover open={slackOpen} onOpenChange={(v) => !slackSending && setSlackOpen(v)}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={slackSending}
-                className="w-full justify-center gap-2 border-primary/40 text-primary hover:bg-primary/10"
-                aria-label="Notify the on-call webmaster in Slack"
-              >
-                <Bell className="h-4 w-4" />
-                {compact ? null : <span>{slackSending ? "Sending…" : "Notify webmaster in Slack"}</span>}
-              </Button>
-            </PopoverTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs max-w-[260px]">
-            {profile.role === "admin"
-              ? "Admin shortcut — pings the on-call webmaster in Slack. Add a custom message or send the default review request."
-              : "Agent shortcut — pings the on-call webmaster in Slack. Add a custom message or send the default review request."}
-            <div className="mt-1 text-muted-foreground">
-              Rate-limited to one ping every 10 minutes per user.
-            </div>
-          </TooltipContent>
-        </Tooltip>
-        <PopoverContent
-          align="center"
-          side="top"
-          sideOffset={6}
-          collisionPadding={12}
-          avoidCollisions
-          sticky="always"
-          className="w-[min(22rem,calc(100vw-1rem))] max-h-[70vh] overflow-auto p-3 space-y-2"
-        >
-          <div>
-            <p className="text-xs font-medium text-foreground">Send Slack alert</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Optional message body. Leave blank to send the default review request.
-            </p>
-          </div>
-          <Textarea
-            value={slackMessage}
-            onChange={(e) => setSlackMessage(e.target.value.slice(0, 800))}
-            placeholder="Add context for the team (optional)…"
-            rows={3}
-            className="text-xs resize-none"
+      {/* Slack Alert — single-tap test ping. Sends a fixed alert to the team
+          channel via the server-side webhook (configured in Settings). No
+          form/modal — the user gets a toast confirmation and the channel is
+          notified immediately. The standalone <SlackAlertButton/> elsewhere
+          shares the same callable + 10-min cooldown. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             disabled={slackSending}
-          />
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] text-muted-foreground">{slackMessage.length}/800</span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-7 text-xs"
-                onClick={() => setSlackOpen(false)}
-                disabled={slackSending}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                className="h-7 gap-1.5 text-xs"
-                onClick={handleSlackAlert}
-                disabled={slackSending}
-              >
-                <Send className="h-3 w-3" />
-                {slackSending ? "Sending…" : "Send ping"}
-              </Button>
-            </div>
+            onClick={handleSlackAlert}
+            className="w-full justify-center gap-2 border-primary/40 text-primary hover:bg-primary/10"
+            aria-label="Send a test Slack ping to the team channel"
+          >
+            <Bell className="h-4 w-4" />
+            {compact ? null : <span>{slackSending ? "Pinging…" : "Ping Slack channel"}</span>}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs max-w-[260px]">
+          {profile.role === "admin"
+            ? "Admin shortcut — sends an instant test ping to the team Slack channel."
+            : "Agent shortcut — sends an instant test ping to the team Slack channel."}
+          <div className="mt-1 text-muted-foreground">
+            Rate-limited to one ping every 10 minutes per user.
           </div>
-        </PopoverContent>
-      </Popover>
+        </TooltipContent>
+      </Tooltip>
 
       {inCooldown ? (
         // Cooldown view: one button + confirm dialog. Mirrors the layout
