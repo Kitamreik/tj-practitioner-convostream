@@ -30,6 +30,7 @@ import { subscribeLocalAgents } from "@/lib/localAgents";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import PullToRefresh from "@/components/PullToRefresh";
+import RoleBadge from "@/components/RoleBadge";
 import ConversationNotes from "@/components/ConversationNotes";
 import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 

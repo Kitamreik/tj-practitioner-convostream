@@ -34,6 +34,7 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import RoleBadge from "@/components/RoleBadge";
 import { getBoolPref, setBoolPrefRemote, subscribeBoolPrefRemote } from "@/lib/userPrefs";
 import { BG_GMAIL_INGEST_PREF } from "@/hooks/useBackgroundGmailPoller";
 import { cn } from "@/lib/utils";
