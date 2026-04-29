@@ -1283,7 +1283,10 @@ const SettingsPage: React.FC = () => {
       )}
       <div className={cn(showSideNav ? "flex-1 min-w-0 overflow-y-auto p-6 md:p-8" : "")}>
       <div className="mb-6 md:mb-8">
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+          <RoleBadge />
+        </div>
         <p className="text-muted-foreground mt-1 text-sm md:text-base">Manage your account and preferences</p>
       </div>
 
