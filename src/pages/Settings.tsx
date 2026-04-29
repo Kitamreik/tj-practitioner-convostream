@@ -1905,22 +1905,26 @@ const SettingsPage: React.FC = () => {
             </h3>
             <p className="text-xs text-muted-foreground mb-4">
               Grants the target account full webmaster access. The change is recorded in
-              <code className="mx-1 rounded bg-muted px-1 py-0.5">roleGrants</code>
-              and signed server-side via the <code className="mx-1 rounded bg-muted px-1 py-0.5">_serverRoleWrite</code> sentinel.
+              <code className="mx-1 rounded bg-muted px-1 py-0.5">roleGrants</code>,
+              signed server-side via the <code className="mx-1 rounded bg-muted px-1 py-0.5">_serverRoleWrite</code> sentinel,
+              and a matching entry is written to the Pending escalations history below for an end-to-end audit trail.
             </p>
             <div className="space-y-3">
               <div className="space-y-2">
-                <Label htmlFor="promote-email">Target user email</Label>
+                <Label htmlFor="promote-identifier">Target account identifier</Label>
                 <Input
-                  id="promote-email"
-                  type="email"
-                  placeholder="user@example.com"
-                  value={promoteEmail}
-                  onChange={(e) => setPromoteEmail(e.target.value)}
+                  id="promote-identifier"
+                  type="text"
+                  placeholder="account login (e.g. user@workspace)"
+                  value={promoteIdentifier}
+                  onChange={(e) => setPromoteIdentifier(e.target.value)}
                   autoComplete="off"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Use the identifier the user signs in with. The promotion is logged to the escalations history once granted.
+                </p>
               </div>
-              <Button onClick={handlePromote} disabled={promoting || !promoteEmail.trim()} className="gap-2">
+              <Button onClick={handlePromote} disabled={promoting || !promoteIdentifier.trim()} className="gap-2">
                 <KeyRound className="h-4 w-4" />
                 {promoting ? "Granting…" : "Grant webmaster role"}
               </Button>
