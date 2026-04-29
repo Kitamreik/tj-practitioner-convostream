@@ -85,6 +85,8 @@ import {
   doc,
   writeBatch,
   getDocs,
+  addDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import {
   Select,
@@ -188,13 +190,28 @@ const SettingsPage: React.FC = () => {
   };
 
   // ---- Promote (webmaster only) ----
-  const [promoteEmail, setPromoteEmail] = useState("");
+  // The form takes a user identifier (email under the hood — required by the
+  // server callable to resolve the target uid), but the UI no longer mentions
+  // email so the language stays role/account-centric. Successful promotions
+  // are mirrored into `escalationRequests` with status "approved" so they
+  // surface in the Pending escalations history alongside admin-initiated
+  // requests. We only write the audit row after the callable succeeds — no
+  // hallucinated entries.
+  const [promoteIdentifier, setPromoteIdentifier] = useState("");
   const [promoting, setPromoting] = useState(false);
 
   const handlePromote = async () => {
-    const email = promoteEmail.trim().toLowerCase();
-    if (!email || !email.includes("@")) {
-      toast({ title: "Enter a valid email", variant: "destructive" });
+    const identifier = promoteIdentifier.trim().toLowerCase();
+    if (!identifier || !identifier.includes("@")) {
+      toast({
+        title: "Enter a valid account identifier",
+        description: "Use the account login (e.g. user@workspace).",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!user) {
+      toast({ title: "Not signed in", variant: "destructive" });
       return;
     }
     setPromoting(true);
@@ -203,12 +220,36 @@ const SettingsPage: React.FC = () => {
         functions,
         "promoteToWebmaster"
       );
-      const res = await fn({ targetEmail: email, role: "webmaster" });
+      const res = await fn({ targetEmail: identifier, role: "webmaster" });
+
+      // Mirror into escalationRequests so the promotion shows up in the
+      // escalations log/history. Best-effort — never block the toast on the
+      // audit write. Status is set to "approved" because the webmaster has
+      // already granted the role server-side.
+      try {
+        await addDoc(collection(db, "escalationRequests"), {
+          requesterUid: user.uid,
+          requesterEmail: profile?.email ?? null,
+          requesterName: profile?.displayName ?? null,
+          requesterRole: profile?.role ?? "webmaster",
+          targetIdentifier: identifier,
+          previousRole: res.data.previousRole,
+          newRole: res.data.newRole,
+          source: "promoteToWebmaster",
+          reason: `Webmaster role granted to ${identifier}.`,
+          status: "approved",
+          emailSent: false,
+          createdAt: serverTimestamp(),
+        });
+      } catch (auditErr) {
+        console.warn("Failed to log promotion in escalationRequests:", auditErr);
+      }
+
       toast({
         title: "Role granted",
-        description: `${email} promoted ${res.data.previousRole} → ${res.data.newRole}.`,
+        description: `Account promoted ${res.data.previousRole} → ${res.data.newRole}.`,
       });
-      setPromoteEmail("");
+      setPromoteIdentifier("");
     } catch (e: any) {
       toast({
         title: "Promotion failed",
