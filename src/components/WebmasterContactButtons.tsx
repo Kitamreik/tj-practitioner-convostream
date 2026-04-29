@@ -519,9 +519,13 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
         route: location.pathname,
       });
       toast({
-        title: res.ok ? "Slack channel pinged" : res.rateLimited ? "Cooldown active" : "Slack alert not sent",
+        title: res.ok
+          ? "✅ Slack channel pinged"
+          : res.rateLimited
+            ? "⏳ Cooldown active"
+            : "❌ Slack alert not sent",
         description: res.ok
-          ? "A test ping was sent to the team channel for review."
+          ? "Webhook test ping accepted — the team channel was notified."
           : res.error || "Webhook isn't configured. Ask an admin or webmaster to set it on Settings.",
         variant: res.ok ? undefined : "destructive",
       });
