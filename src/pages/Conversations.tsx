@@ -102,6 +102,7 @@ import CallRecorder from "@/components/CallRecorder";
 import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 import { StickyNote } from "lucide-react";
 import SlackAlertButton from "@/components/SlackAlertButton";
+import RoleBadge from "@/components/RoleBadge";
 import RecordingPlayerDialog from "@/components/RecordingPlayerDialog";
 import { listConversationRecordings, type CallRecordingDoc } from "@/lib/callRecordings";
 import {
@@ -1064,7 +1065,10 @@ const Conversations: React.FC = () => {
       >
         <div className="border-b border-border p-4">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-foreground">Conversations</h2>
+            <div className="flex items-center gap-2 min-w-0">
+              <h2 className="text-lg font-semibold text-foreground truncate">Conversations</h2>
+              <RoleBadge />
+            </div>
             <div className="flex items-center gap-1">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

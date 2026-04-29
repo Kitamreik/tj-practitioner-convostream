@@ -34,6 +34,7 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import RoleBadge from "@/components/RoleBadge";
 import { getBoolPref, setBoolPrefRemote, subscribeBoolPrefRemote } from "@/lib/userPrefs";
 import { BG_GMAIL_INGEST_PREF } from "@/hooks/useBackgroundGmailPoller";
 import { cn } from "@/lib/utils";
@@ -84,6 +85,8 @@ import {
   doc,
   writeBatch,
   getDocs,
+  addDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import {
   Select,
@@ -187,13 +190,28 @@ const SettingsPage: React.FC = () => {
   };
 
   // ---- Promote (webmaster only) ----
-  const [promoteEmail, setPromoteEmail] = useState("");
+  // The form takes a user identifier (email under the hood — required by the
+  // server callable to resolve the target uid), but the UI no longer mentions
+  // email so the language stays role/account-centric. Successful promotions
+  // are mirrored into `escalationRequests` with status "approved" so they
+  // surface in the Pending escalations history alongside admin-initiated
+  // requests. We only write the audit row after the callable succeeds — no
+  // hallucinated entries.
+  const [promoteIdentifier, setPromoteIdentifier] = useState("");
   const [promoting, setPromoting] = useState(false);
 
   const handlePromote = async () => {
-    const email = promoteEmail.trim().toLowerCase();
-    if (!email || !email.includes("@")) {
-      toast({ title: "Enter a valid email", variant: "destructive" });
+    const identifier = promoteIdentifier.trim().toLowerCase();
+    if (!identifier || !identifier.includes("@")) {
+      toast({
+        title: "Enter a valid account identifier",
+        description: "Use the account login (e.g. user@workspace).",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!user) {
+      toast({ title: "Not signed in", variant: "destructive" });
       return;
     }
     setPromoting(true);
@@ -202,12 +220,36 @@ const SettingsPage: React.FC = () => {
         functions,
         "promoteToWebmaster"
       );
-      const res = await fn({ targetEmail: email, role: "webmaster" });
+      const res = await fn({ targetEmail: identifier, role: "webmaster" });
+
+      // Mirror into escalationRequests so the promotion shows up in the
+      // escalations log/history. Best-effort — never block the toast on the
+      // audit write. Status is set to "approved" because the webmaster has
+      // already granted the role server-side.
+      try {
+        await addDoc(collection(db, "escalationRequests"), {
+          requesterUid: user.uid,
+          requesterEmail: profile?.email ?? null,
+          requesterName: profile?.displayName ?? null,
+          requesterRole: profile?.role ?? "webmaster",
+          targetIdentifier: identifier,
+          previousRole: res.data.previousRole,
+          newRole: res.data.newRole,
+          source: "promoteToWebmaster",
+          reason: `Webmaster role granted to ${identifier}.`,
+          status: "approved",
+          emailSent: false,
+          createdAt: serverTimestamp(),
+        });
+      } catch (auditErr) {
+        console.warn("Failed to log promotion in escalationRequests:", auditErr);
+      }
+
       toast({
         title: "Role granted",
-        description: `${email} promoted ${res.data.previousRole} → ${res.data.newRole}.`,
+        description: `Account promoted ${res.data.previousRole} → ${res.data.newRole}.`,
       });
-      setPromoteEmail("");
+      setPromoteIdentifier("");
     } catch (e: any) {
       toast({
         title: "Promotion failed",
@@ -1283,7 +1325,10 @@ const SettingsPage: React.FC = () => {
       )}
       <div className={cn(showSideNav ? "flex-1 min-w-0 overflow-y-auto p-6 md:p-8" : "")}>
       <div className="mb-6 md:mb-8">
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+          <RoleBadge />
+        </div>
         <p className="text-muted-foreground mt-1 text-sm md:text-base">Manage your account and preferences</p>
       </div>
 
@@ -1860,22 +1905,26 @@ const SettingsPage: React.FC = () => {
             </h3>
             <p className="text-xs text-muted-foreground mb-4">
               Grants the target account full webmaster access. The change is recorded in
-              <code className="mx-1 rounded bg-muted px-1 py-0.5">roleGrants</code>
-              and signed server-side via the <code className="mx-1 rounded bg-muted px-1 py-0.5">_serverRoleWrite</code> sentinel.
+              <code className="mx-1 rounded bg-muted px-1 py-0.5">roleGrants</code>,
+              signed server-side via the <code className="mx-1 rounded bg-muted px-1 py-0.5">_serverRoleWrite</code> sentinel,
+              and a matching entry is written to the Pending escalations history below for an end-to-end audit trail.
             </p>
             <div className="space-y-3">
               <div className="space-y-2">
-                <Label htmlFor="promote-email">Target user email</Label>
+                <Label htmlFor="promote-identifier">Target account identifier</Label>
                 <Input
-                  id="promote-email"
-                  type="email"
-                  placeholder="user@example.com"
-                  value={promoteEmail}
-                  onChange={(e) => setPromoteEmail(e.target.value)}
+                  id="promote-identifier"
+                  type="text"
+                  placeholder="account login (e.g. user@workspace)"
+                  value={promoteIdentifier}
+                  onChange={(e) => setPromoteIdentifier(e.target.value)}
                   autoComplete="off"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Use the identifier the user signs in with. The promotion is logged to the escalations history once granted.
+                </p>
               </div>
-              <Button onClick={handlePromote} disabled={promoting || !promoteEmail.trim()} className="gap-2">
+              <Button onClick={handlePromote} disabled={promoting || !promoteIdentifier.trim()} className="gap-2">
                 <KeyRound className="h-4 w-4" />
                 {promoting ? "Granting…" : "Grant webmaster role"}
               </Button>

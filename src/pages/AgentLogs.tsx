@@ -30,6 +30,7 @@ import { subscribeLocalAgents } from "@/lib/localAgents";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import PullToRefresh from "@/components/PullToRefresh";
+import RoleBadge from "@/components/RoleBadge";
 import ConversationNotes from "@/components/ConversationNotes";
 import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 
@@ -308,10 +309,13 @@ const AgentLogs: React.FC = () => {
     <PullToRefresh onRefresh={handleRefresh} disabled={!isMobile} className="h-full">
       <div className="p-4 md:p-8 max-w-6xl mx-auto">
         <div className="mb-6 md:mb-8">
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-            <ScrollText className="h-7 w-7 text-primary" />
-            Agent Logs
-          </h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
+              <ScrollText className="h-7 w-7 text-primary" />
+              Agent Logs
+            </h1>
+            <RoleBadge />
+          </div>
           <p className="text-muted-foreground mt-1 text-sm md:text-base">
             {isStaff
               ? "Resolved conversations across every agent and admin."
