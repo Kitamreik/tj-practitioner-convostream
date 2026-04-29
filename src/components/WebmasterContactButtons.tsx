@@ -330,8 +330,8 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
     return unsub;
   }, []);
   const [slackSending, setSlackSending] = useState(false);
-  const [slackOpen, setSlackOpen] = useState(false);
-  const [slackMessage, setSlackMessage] = useState("");
+  // (Slack popover/message state was removed when "Ping Slack" became a
+  // single-tap test ping. The server-side rate limit is the source of truth.)
   // SMS template picker state. We hydrate the same starter SMS templates
   // shipped in ConversationTemplates so the menu is never empty even if
   // the Firestore listener hasn't resolved yet (or the user is offline).
