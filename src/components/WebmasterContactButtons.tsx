@@ -506,11 +506,10 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
     recordContact(channel);
   };
 
-  // Slack Alert — opens a small popover where the agent can add an optional
-  // custom message body before pinging the team channel. The webhook is now
-  // managed server-side as a Cloud Functions secret, so the button is
-  // always enabled (the callable returns failed-precondition with a clear
-  // message if the secret is genuinely missing).
+  // Slack Alert — single-tap test ping. The webhook URL lives server-side as
+  // a Cloud Functions secret; the callable enforces config + rate limit. No
+  // popover/form — the channel is notified immediately and the user gets a
+  // toast confirmation.
   const handleSlackAlert = async () => {
     if (slackSending) return;
     setSlackSending(true);
@@ -518,21 +517,14 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
       const res = await pingWebmasterSlackAlert({
         agentName: senderName,
         route: location.pathname,
-        message: slackMessage.trim() || undefined,
       });
       toast({
         title: res.ok ? "Slack channel pinged" : res.rateLimited ? "Cooldown active" : "Slack alert not sent",
         description: res.ok
-          ? slackMessage.trim()
-            ? "Your custom message was sent to the team channel."
-            : "The webmaster channel has been notified for review."
+          ? "A test ping was sent to the team channel for review."
           : res.error || "Webhook isn't configured. Ask an admin or webmaster to set it on Settings.",
         variant: res.ok ? undefined : "destructive",
       });
-      if (res.ok) {
-        setSlackMessage("");
-        setSlackOpen(false);
-      }
     } finally {
       setSlackSending(false);
     }
