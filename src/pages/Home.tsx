@@ -362,13 +362,16 @@ const Home: React.FC = () => {
       >
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-1.5">
-              <PhoneCall className="h-3.5 w-3.5" />
-              {profile?.role === "webmaster"
-                ? "Webmaster console"
-                : profile?.role === "admin"
-                ? "Admin call center"
-                : "Agent call center"}
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5">
+                <PhoneCall className="h-3.5 w-3.5" />
+                {profile?.role === "webmaster"
+                  ? "Webmaster console"
+                  : profile?.role === "admin"
+                  ? "Admin call center"
+                  : "Agent call center"}
+              </span>
+              <RoleBadge />
             </p>
             <h1
               className="text-2xl md:text-3xl font-bold text-foreground"
