@@ -55,7 +55,7 @@ const Login: React.FC = () => {
             <MessageCircle className="h-8 w-8 text-primary-foreground" />
           </div>
           <h1 className="text-3xl font-bold text-foreground">Kit TJ Services ClientHub</h1>
-          <p className="mt-2 text-muted-foreground">People-centered conversations</p>
+          <p className="mt-2 text-muted-foreground">People-centered conversations and enhancing client relations.</p>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-8 shadow-lg">
