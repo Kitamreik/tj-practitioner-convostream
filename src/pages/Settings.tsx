@@ -1634,6 +1634,18 @@ const SettingsPage: React.FC = () => {
                 </Button>
                 {slackConfigured && (
                   <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleTestSlackWebhook}
+                    disabled={testingSlackWebhook || savingSlackWebhook || !canEditWebhook}
+                    className="gap-1.5"
+                  >
+                    <Send className="h-4 w-4" />
+                    {testingSlackWebhook ? "Pinging…" : "Test ping"}
+                  </Button>
+                )}
+                {slackConfigured && (
+                  <Button
                     variant="outline"
                     onClick={async () => {
                       setSavingSlackWebhook(true);
