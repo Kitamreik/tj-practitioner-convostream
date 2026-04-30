@@ -108,6 +108,7 @@ import {
   subscribeRecentContactEvents,
   type WebmasterContactEvent,
 } from "@/lib/webmasterContactEvents";
+import { pingWebmasterSlackAlert } from "@/lib/notifyWebmaster";
 
 // (Email-based escalation routing was removed — escalations now flow into
 // the in-app notifications queue via requestWebmasterEscalation.)
@@ -483,6 +484,7 @@ const SettingsPage: React.FC = () => {
   const [slackConfigured, setSlackConfigured] = useState<boolean>(false);
   const [slackWebhookDraft, setSlackWebhookDraft] = useState<string>("");
   const [savingSlackWebhook, setSavingSlackWebhook] = useState(false);
+  const [testingSlackWebhook, setTestingSlackWebhook] = useState(false);
   useEffect(() => subscribeSlackAlertConfigured(setSlackConfigured), []);
   const handleSaveSlackWebhook = async () => {
     setSavingSlackWebhook(true);
@@ -503,6 +505,22 @@ const SettingsPage: React.FC = () => {
       });
     } finally {
       setSavingSlackWebhook(false);
+    }
+  };
+
+  const handleTestSlackWebhook = async () => {
+    setTestingSlackWebhook(true);
+    try {
+      const res = await pingWebmasterSlackAlert({ route: "/settings" });
+      toast({
+        title: res.ok ? "Slack channel pinged" : res.rateLimited ? "Cooldown active" : "Slack test failed",
+        description: res.ok
+          ? "Webhook test ping accepted — the channel was notified."
+          : res.error || "The webhook test was not accepted. Check the saved URL and deployed functions.",
+        variant: res.ok ? undefined : "destructive",
+      });
+    } finally {
+      setTestingSlackWebhook(false);
     }
   };
 
