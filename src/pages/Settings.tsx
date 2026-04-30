@@ -1594,9 +1594,8 @@ const SettingsPage: React.FC = () => {
               Webmaster Slack alerts
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Optional. When set, every Call/Text Webmaster shortcut tap pings this
-              channel with the agent's name and current page — so the on-call
-              webmaster sees the heads-up even when the app is closed. Use a Slack{" "}
+              Optional. When set, Ping Slack sends a bare test alert to this channel
+              through the server-side webhook. Use a Slack{" "}
               <a
                 href="https://api.slack.com/messaging/webhooks"
                 target="_blank"
@@ -1668,7 +1667,7 @@ const SettingsPage: React.FC = () => {
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
               {slackConfigured
-                ? "Active — server-side proxy will forward Ping Slack alerts. URL is hidden from the browser."
+                ? "Active — use Test ping to verify the saved webhook. URL is hidden from the browser."
                 : "Not configured — only in-app bell notifications fire."}
             </p>
           </div>
