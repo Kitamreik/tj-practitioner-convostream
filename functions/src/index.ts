@@ -91,6 +91,33 @@ export const promoteToWebmaster = onCall(async (request) => {
     grantedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
+  const escalationRef = await db.collection("escalationRequests").add({
+    requestType: "role-promotion",
+    requesterUid: callerUid,
+    requesterEmail: callerSnap.data()?.email ?? null,
+    requesterName: callerSnap.data()?.displayName ?? null,
+    requesterRole: callerRole,
+    targetUid: targetDoc.id,
+    targetIdentifier: targetEmail,
+    previousRole,
+    newRole,
+    source: "promoteToWebmaster",
+    reason: `Webmaster role granted to ${targetEmail}.`,
+    status: "approved",
+    emailSent: false,
+    deliveryChannel: "settings-escalation-log",
+    log: [
+      {
+        action: "approved",
+        channel: "settings-promote-webmaster",
+        at: admin.firestore.Timestamp.now(),
+        byUid: callerUid,
+        byEmail: callerSnap.data()?.email ?? null,
+      },
+    ],
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
   logger.info("promoteToWebmaster: role granted", {
     targetUid: targetDoc.id,
     targetEmail,
@@ -99,7 +126,7 @@ export const promoteToWebmaster = onCall(async (request) => {
     grantedByUid: callerUid,
   });
 
-  return { ok: true, targetUid: targetDoc.id, previousRole, newRole };
+  return { ok: true, targetUid: targetDoc.id, previousRole, newRole, escalationRequestId: escalationRef.id };
 });
 
 /**
