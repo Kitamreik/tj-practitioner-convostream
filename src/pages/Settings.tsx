@@ -533,16 +533,16 @@ const SettingsPage: React.FC = () => {
     return subscribeRecentContactEvents(10, setRecentContacts);
   }, [isWebmaster]);
 
-  // ---- Pending escalation requests (webmaster only) ----
+  // ---- Escalation requests (webmaster only) ----
   const [pending, setPending] = useState<PendingEscalation[]>([]);
   const [decidingId, setDecidingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isWebmaster) return;
-    // Single-field where → no composite index required. Sort client-side.
+    // Read all escalation rows so approved promotion audit entries remain
+    // visible here instead of disappearing from the pending-only queue.
     const q = query(
-      collection(db, "escalationRequests"),
-      where("status", "==", "pending")
+      collection(db, "escalationRequests")
     );
     const unsub = onSnapshot(
       q,
@@ -580,6 +580,7 @@ const SettingsPage: React.FC = () => {
     );
     return unsub;
   }, [isWebmaster]);
+  const pendingCount = pending.filter((req) => req.status === "pending").length;
 
   const decide = async (requestId: string, decision: "approve" | "deny") => {
     setDecidingId(requestId);
