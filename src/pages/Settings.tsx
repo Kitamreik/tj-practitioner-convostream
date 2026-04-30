@@ -2014,18 +2014,18 @@ const SettingsPage: React.FC = () => {
           <div id="pending" className="rounded-xl border border-border bg-card p-4 sm:p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
               <Inbox className="h-5 w-5 text-primary" />
-              Pending escalation requests
-              {pending.length > 0 && (
-                <Badge variant="secondary" className="ml-1">{pending.length}</Badge>
+              Escalation requests
+              {pendingCount > 0 && (
+                <Badge variant="secondary" className="ml-1">{pendingCount}</Badge>
               )}
             </h3>
             <p className="text-xs text-muted-foreground mb-4">
-              Approve to grant the user escalated access to Integrations, Analytics, and Gmail API.
-              Both decisions are written to <code className="rounded bg-muted px-1 py-0.5">escalationRequests</code>.
+              Pending access requests and completed webmaster promotions are persisted in
+              <code className="mx-1 rounded bg-muted px-1 py-0.5">escalationRequests</code>.
             </p>
             {pending.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                No pending requests.
+                No escalation entries yet.
               </div>
             ) : (
               <div className="space-y-2">
@@ -2040,21 +2040,23 @@ const SettingsPage: React.FC = () => {
                           {req.requesterName || req.requesterEmail || req.requesterUid}
                         </span>
                         <Badge variant="outline" className="capitalize text-[10px]">{req.requesterRole}</Badge>
-                        {req.emailSent && (
-                          <Badge variant="outline" className="text-[10px] gap-1">
-                            <Send className="h-2.5 w-2.5" /> Email sent
-                          </Badge>
-                        )}
+                        <Badge variant={req.status === "pending" ? "secondary" : "outline"} className="capitalize text-[10px]">
+                          {req.status}
+                        </Badge>
+                        {req.requestType === "role-promotion" && <Badge variant="outline" className="text-[10px]">Promotion</Badge>}
                       </div>
                       {req.requesterEmail && req.requesterName && (
                         <p className="text-xs text-muted-foreground truncate">{req.requesterEmail}</p>
+                      )}
+                      {req.targetIdentifier && (
+                        <p className="text-xs text-muted-foreground mt-1 truncate">Target: {req.targetIdentifier}</p>
                       )}
                       {req.reason && (
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">"{req.reason}"</p>
                       )}
                       <p className="text-[10px] text-muted-foreground mt-1">{formatTime(req.createdAt)}</p>
                     </div>
-                    <div className="flex gap-2 flex-shrink-0 sm:w-auto w-full">
+                    {req.status === "pending" ? <div className="flex gap-2 flex-shrink-0 sm:w-auto w-full">
                       <Button
                         size="sm"
                         variant="outline"
@@ -2073,7 +2075,7 @@ const SettingsPage: React.FC = () => {
                         <Check className="h-3.5 w-3.5" />
                         {decidingId === req.id ? "…" : "Approve"}
                       </Button>
-                    </div>
+                    </div> : null}
                   </div>
                 ))}
               </div>
