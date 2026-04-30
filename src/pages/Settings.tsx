@@ -85,8 +85,6 @@ import {
   doc,
   writeBatch,
   getDocs,
-  addDoc,
-  serverTimestamp,
 } from "firebase/firestore";
 import {
   Select,
@@ -222,40 +220,18 @@ const SettingsPage: React.FC = () => {
     }
     setPromoting(true);
     try {
-      const fn = httpsCallable<{ targetIdentifier: string; role: "webmaster" }, { ok: boolean; previousRole: string; newRole: string }>(
+      const fn = httpsCallable<
+        { targetIdentifier: string; role: "webmaster" },
+        { ok: boolean; previousRole: string; newRole: string; escalationRequestId?: string }
+      >(
         functions,
         "promoteToWebmaster"
       );
       const res = await fn({ targetIdentifier: identifier, role: "webmaster" });
 
-      // Mirror into escalationRequests so the promotion shows up in the
-      // escalations log/history. Best-effort — never block the toast on the
-      // audit write. Status is set to "approved" because the webmaster has
-      // already granted the role server-side.
-      try {
-        await addDoc(collection(db, "escalationRequests"), {
-          requesterUid: user.uid,
-          requesterEmail: profile?.email ?? null,
-          requesterName: profile?.displayName ?? null,
-          requesterRole: profile?.role ?? "webmaster",
-          targetIdentifier: identifier,
-          previousRole: res.data.previousRole,
-          newRole: res.data.newRole,
-          requestType: "role-promotion",
-          source: "promoteToWebmaster",
-          reason: `Webmaster role granted to ${identifier}.`,
-          status: "approved",
-          emailSent: false,
-          deliveryChannel: "settings-escalation-log",
-          createdAt: serverTimestamp(),
-        });
-      } catch (auditErr) {
-        console.warn("Failed to log promotion in escalationRequests:", auditErr);
-      }
-
       toast({
         title: "Role granted",
-        description: `Account promoted ${res.data.previousRole} → ${res.data.newRole}.`,
+        description: `Account promoted ${res.data.previousRole} → ${res.data.newRole}; escalation log persisted.`,
       });
       setPromoteIdentifier("");
     } catch (e: any) {
