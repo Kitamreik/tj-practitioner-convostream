@@ -85,8 +85,6 @@ import {
   doc,
   writeBatch,
   getDocs,
-  addDoc,
-  serverTimestamp,
 } from "firebase/firestore";
 import {
   Select,
@@ -108,6 +106,7 @@ import {
   subscribeRecentContactEvents,
   type WebmasterContactEvent,
 } from "@/lib/webmasterContactEvents";
+import { pingWebmasterSlackAlert } from "@/lib/notifyWebmaster";
 
 // (Email-based escalation routing was removed — escalations now flow into
 // the in-app notifications queue via requestWebmasterEscalation.)
@@ -119,6 +118,11 @@ interface PendingEscalation {
   requesterName: string | null;
   requesterRole: string;
   reason: string;
+  status: "pending" | "approved" | "denied" | string;
+  requestType: string;
+  source: string | null;
+  targetIdentifier: string | null;
+  deliveryChannel: string | null;
   emailSent: boolean;
   createdAt: any;
 }
@@ -216,38 +220,18 @@ const SettingsPage: React.FC = () => {
     }
     setPromoting(true);
     try {
-      const fn = httpsCallable<{ targetEmail: string; role: "webmaster" }, { ok: boolean; previousRole: string; newRole: string }>(
+      const fn = httpsCallable<
+        { targetIdentifier: string; role: "webmaster" },
+        { ok: boolean; previousRole: string; newRole: string; escalationRequestId?: string }
+      >(
         functions,
         "promoteToWebmaster"
       );
-      const res = await fn({ targetEmail: identifier, role: "webmaster" });
-
-      // Mirror into escalationRequests so the promotion shows up in the
-      // escalations log/history. Best-effort — never block the toast on the
-      // audit write. Status is set to "approved" because the webmaster has
-      // already granted the role server-side.
-      try {
-        await addDoc(collection(db, "escalationRequests"), {
-          requesterUid: user.uid,
-          requesterEmail: profile?.email ?? null,
-          requesterName: profile?.displayName ?? null,
-          requesterRole: profile?.role ?? "webmaster",
-          targetIdentifier: identifier,
-          previousRole: res.data.previousRole,
-          newRole: res.data.newRole,
-          source: "promoteToWebmaster",
-          reason: `Webmaster role granted to ${identifier}.`,
-          status: "approved",
-          emailSent: false,
-          createdAt: serverTimestamp(),
-        });
-      } catch (auditErr) {
-        console.warn("Failed to log promotion in escalationRequests:", auditErr);
-      }
+      const res = await fn({ targetIdentifier: identifier, role: "webmaster" });
 
       toast({
         title: "Role granted",
-        description: `Account promoted ${res.data.previousRole} → ${res.data.newRole}.`,
+        description: `Account promoted ${res.data.previousRole} → ${res.data.newRole}; escalation log persisted.`,
       });
       setPromoteIdentifier("");
     } catch (e: any) {
@@ -476,6 +460,7 @@ const SettingsPage: React.FC = () => {
   const [slackConfigured, setSlackConfigured] = useState<boolean>(false);
   const [slackWebhookDraft, setSlackWebhookDraft] = useState<string>("");
   const [savingSlackWebhook, setSavingSlackWebhook] = useState(false);
+  const [testingSlackWebhook, setTestingSlackWebhook] = useState(false);
   useEffect(() => subscribeSlackAlertConfigured(setSlackConfigured), []);
   const handleSaveSlackWebhook = async () => {
     setSavingSlackWebhook(true);
@@ -496,6 +481,22 @@ const SettingsPage: React.FC = () => {
       });
     } finally {
       setSavingSlackWebhook(false);
+    }
+  };
+
+  const handleTestSlackWebhook = async () => {
+    setTestingSlackWebhook(true);
+    try {
+      const res = await pingWebmasterSlackAlert({ route: "/settings" });
+      toast({
+        title: res.ok ? "Slack channel pinged" : res.rateLimited ? "Cooldown active" : "Slack test failed",
+        description: res.ok
+          ? "Webhook test ping accepted — the channel was notified."
+          : res.error || "The webhook test was not accepted. Check the saved URL and deployed functions.",
+        variant: res.ok ? undefined : "destructive",
+      });
+    } finally {
+      setTestingSlackWebhook(false);
     }
   };
 
@@ -532,16 +533,16 @@ const SettingsPage: React.FC = () => {
     return subscribeRecentContactEvents(10, setRecentContacts);
   }, [isWebmaster]);
 
-  // ---- Pending escalation requests (webmaster only) ----
+  // ---- Escalation requests (webmaster only) ----
   const [pending, setPending] = useState<PendingEscalation[]>([]);
   const [decidingId, setDecidingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isWebmaster) return;
-    // Single-field where → no composite index required. Sort client-side.
+    // Read all escalation rows so approved promotion audit entries remain
+    // visible here instead of disappearing from the pending-only queue.
     const q = query(
-      collection(db, "escalationRequests"),
-      where("status", "==", "pending")
+      collection(db, "escalationRequests")
     );
     const unsub = onSnapshot(
       q,
@@ -556,6 +557,11 @@ const SettingsPage: React.FC = () => {
               requesterName: data.requesterName ?? null,
               requesterRole: data.requesterRole ?? "admin",
               reason: data.reason ?? "",
+              status: data.status ?? "pending",
+              requestType: data.requestType ?? "access",
+              source: data.source ?? null,
+              targetIdentifier: data.targetIdentifier ?? null,
+              deliveryChannel: data.deliveryChannel ?? null,
               emailSent: !!data.emailSent,
               createdAt: data.createdAt,
             };
@@ -574,6 +580,7 @@ const SettingsPage: React.FC = () => {
     );
     return unsub;
   }, [isWebmaster]);
+  const pendingCount = pending.filter((req) => req.status === "pending").length;
 
   const decide = async (requestId: string, decision: "approve" | "deny") => {
     setDecidingId(requestId);
@@ -1588,9 +1595,8 @@ const SettingsPage: React.FC = () => {
               Webmaster Slack alerts
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Optional. When set, every Call/Text Webmaster shortcut tap pings this
-              channel with the agent's name and current page — so the on-call
-              webmaster sees the heads-up even when the app is closed. Use a Slack{" "}
+              Optional. When set, Ping Slack sends a bare test alert to this channel
+              through the server-side webhook. Use a Slack{" "}
               <a
                 href="https://api.slack.com/messaging/webhooks"
                 target="_blank"
@@ -1628,6 +1634,18 @@ const SettingsPage: React.FC = () => {
                 </Button>
                 {slackConfigured && (
                   <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleTestSlackWebhook}
+                    disabled={testingSlackWebhook || savingSlackWebhook || !canEditWebhook}
+                    className="gap-1.5"
+                  >
+                    <Send className="h-4 w-4" />
+                    {testingSlackWebhook ? "Pinging…" : "Test ping"}
+                  </Button>
+                )}
+                {slackConfigured && (
+                  <Button
                     variant="outline"
                     onClick={async () => {
                       setSavingSlackWebhook(true);
@@ -1650,7 +1668,7 @@ const SettingsPage: React.FC = () => {
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
               {slackConfigured
-                ? "Active — server-side proxy will forward Ping Slack alerts. URL is hidden from the browser."
+                ? "Active — use Test ping to verify the saved webhook. URL is hidden from the browser."
                 : "Not configured — only in-app bell notifications fire."}
             </p>
           </div>
@@ -1996,18 +2014,18 @@ const SettingsPage: React.FC = () => {
           <div id="pending" className="rounded-xl border border-border bg-card p-4 sm:p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
               <Inbox className="h-5 w-5 text-primary" />
-              Pending escalation requests
-              {pending.length > 0 && (
-                <Badge variant="secondary" className="ml-1">{pending.length}</Badge>
+              Escalation requests
+              {pendingCount > 0 && (
+                <Badge variant="secondary" className="ml-1">{pendingCount}</Badge>
               )}
             </h3>
             <p className="text-xs text-muted-foreground mb-4">
-              Approve to grant the user escalated access to Integrations, Analytics, and Gmail API.
-              Both decisions are written to <code className="rounded bg-muted px-1 py-0.5">escalationRequests</code>.
+              Pending access requests and completed webmaster promotions are persisted in
+              <code className="mx-1 rounded bg-muted px-1 py-0.5">escalationRequests</code>.
             </p>
             {pending.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                No pending requests.
+                No escalation entries yet.
               </div>
             ) : (
               <div className="space-y-2">
@@ -2022,21 +2040,23 @@ const SettingsPage: React.FC = () => {
                           {req.requesterName || req.requesterEmail || req.requesterUid}
                         </span>
                         <Badge variant="outline" className="capitalize text-[10px]">{req.requesterRole}</Badge>
-                        {req.emailSent && (
-                          <Badge variant="outline" className="text-[10px] gap-1">
-                            <Send className="h-2.5 w-2.5" /> Email sent
-                          </Badge>
-                        )}
+                        <Badge variant={req.status === "pending" ? "secondary" : "outline"} className="capitalize text-[10px]">
+                          {req.status}
+                        </Badge>
+                        {req.requestType === "role-promotion" && <Badge variant="outline" className="text-[10px]">Promotion</Badge>}
                       </div>
                       {req.requesterEmail && req.requesterName && (
                         <p className="text-xs text-muted-foreground truncate">{req.requesterEmail}</p>
+                      )}
+                      {req.targetIdentifier && (
+                        <p className="text-xs text-muted-foreground mt-1 truncate">Target: {req.targetIdentifier}</p>
                       )}
                       {req.reason && (
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">"{req.reason}"</p>
                       )}
                       <p className="text-[10px] text-muted-foreground mt-1">{formatTime(req.createdAt)}</p>
                     </div>
-                    <div className="flex gap-2 flex-shrink-0 sm:w-auto w-full">
+                    {req.status === "pending" ? <div className="flex gap-2 flex-shrink-0 sm:w-auto w-full">
                       <Button
                         size="sm"
                         variant="outline"
@@ -2055,7 +2075,7 @@ const SettingsPage: React.FC = () => {
                         <Check className="h-3.5 w-3.5" />
                         {decidingId === req.id ? "…" : "Approve"}
                       </Button>
-                    </div>
+                    </div> : null}
                   </div>
                 ))}
               </div>

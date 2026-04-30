@@ -41,7 +41,7 @@ const db = admin.firestore();
  * `enforceUserRoleOnWrite` trigger accepts the change, and records an audit
  * entry under `roleGrants`.
  *
- * Request: { targetEmail: string, role: "admin" | "webmaster" }
+ * Request: { targetIdentifier: string, role: "admin" | "webmaster" }
  */
 export const promoteToWebmaster = onCall(async (request) => {
   if (!request.auth) {
@@ -54,17 +54,23 @@ export const promoteToWebmaster = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Only webmasters can grant roles.");
   }
 
-  const data = (request.data ?? {}) as { targetEmail?: unknown; role?: unknown };
-  const targetEmail = typeof data.targetEmail === "string" ? data.targetEmail.trim().toLowerCase() : "";
+  const data = (request.data ?? {}) as { targetIdentifier?: unknown; targetEmail?: unknown; role?: unknown };
+  const rawIdentifier =
+    typeof data.targetIdentifier === "string"
+      ? data.targetIdentifier
+      : typeof data.targetEmail === "string"
+        ? data.targetEmail
+        : "";
+  const targetEmail = rawIdentifier.trim().toLowerCase();
   const newRole = data.role === "admin" || data.role === "webmaster" ? data.role : "webmaster";
   if (!targetEmail || !targetEmail.includes("@")) {
-    throw new HttpsError("invalid-argument", "A valid targetEmail is required.");
+    throw new HttpsError("invalid-argument", "A valid account identifier is required.");
   }
 
   // Find target user by email.
   const targetQuery = await db.collection("users").where("email", "==", targetEmail).limit(1).get();
   if (targetQuery.empty) {
-    throw new HttpsError("not-found", `No user found with email ${targetEmail}.`);
+    throw new HttpsError("not-found", `No account found for ${targetEmail}.`);
   }
   const targetDoc = targetQuery.docs[0];
   const previousRole = (targetDoc.data() as { role?: string }).role ?? "admin";
@@ -85,6 +91,33 @@ export const promoteToWebmaster = onCall(async (request) => {
     grantedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
+  const escalationRef = await db.collection("escalationRequests").add({
+    requestType: "role-promotion",
+    requesterUid: callerUid,
+    requesterEmail: callerSnap.data()?.email ?? null,
+    requesterName: callerSnap.data()?.displayName ?? null,
+    requesterRole: callerRole,
+    targetUid: targetDoc.id,
+    targetIdentifier: targetEmail,
+    previousRole,
+    newRole,
+    source: "promoteToWebmaster",
+    reason: `Webmaster role granted to ${targetEmail}.`,
+    status: "approved",
+    emailSent: false,
+    deliveryChannel: "settings-escalation-log",
+    log: [
+      {
+        action: "approved",
+        channel: "settings-promote-webmaster",
+        at: admin.firestore.Timestamp.now(),
+        byUid: callerUid,
+        byEmail: callerSnap.data()?.email ?? null,
+      },
+    ],
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
   logger.info("promoteToWebmaster: role granted", {
     targetUid: targetDoc.id,
     targetEmail,
@@ -93,7 +126,7 @@ export const promoteToWebmaster = onCall(async (request) => {
     grantedByUid: callerUid,
   });
 
-  return { ok: true, targetUid: targetDoc.id, previousRole, newRole };
+  return { ok: true, targetUid: targetDoc.id, previousRole, newRole, escalationRequestId: escalationRef.id };
 });
 
 /**
@@ -2164,7 +2197,8 @@ export const pingWebmasterSlack = onCall(async (request) => {
     });
     if (!res.ok) {
       slackOk = false;
-      slackError = `Slack responded ${res.status}`;
+      const body = await res.text().catch(() => "");
+      slackError = `Slack webhook rejected the test ping (${res.status}${body ? `: ${safeForSlack(body)}` : ""}).`;
       logger.warn("pingWebmasterSlack: Slack returned non-2xx", {
         status: res.status,
         uid,
@@ -2172,7 +2206,7 @@ export const pingWebmasterSlack = onCall(async (request) => {
     }
   } catch (err) {
     slackOk = false;
-    slackError = (err as Error).message;
+    slackError = `Slack webhook request failed: ${(err as Error).message}`;
     logger.error("pingWebmasterSlack: fetch failed", err);
   }
 
@@ -2194,6 +2228,7 @@ export const pingWebmasterSlack = onCall(async (request) => {
   }
 
   if (!slackOk) {
+    await rateLimitRef.delete().catch(() => undefined);
     throw new HttpsError("internal", slackError || "Slack delivery failed.");
   }
 
