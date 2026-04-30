@@ -119,6 +119,11 @@ interface PendingEscalation {
   requesterName: string | null;
   requesterRole: string;
   reason: string;
+  status: "pending" | "approved" | "denied" | string;
+  requestType: string;
+  source: string | null;
+  targetIdentifier: string | null;
+  deliveryChannel: string | null;
   emailSent: boolean;
   createdAt: any;
 }
@@ -216,11 +221,11 @@ const SettingsPage: React.FC = () => {
     }
     setPromoting(true);
     try {
-      const fn = httpsCallable<{ targetEmail: string; role: "webmaster" }, { ok: boolean; previousRole: string; newRole: string }>(
+      const fn = httpsCallable<{ targetIdentifier: string; role: "webmaster" }, { ok: boolean; previousRole: string; newRole: string }>(
         functions,
         "promoteToWebmaster"
       );
-      const res = await fn({ targetEmail: identifier, role: "webmaster" });
+      const res = await fn({ targetIdentifier: identifier, role: "webmaster" });
 
       // Mirror into escalationRequests so the promotion shows up in the
       // escalations log/history. Best-effort — never block the toast on the
@@ -235,10 +240,12 @@ const SettingsPage: React.FC = () => {
           targetIdentifier: identifier,
           previousRole: res.data.previousRole,
           newRole: res.data.newRole,
+          requestType: "role-promotion",
           source: "promoteToWebmaster",
           reason: `Webmaster role granted to ${identifier}.`,
           status: "approved",
           emailSent: false,
+          deliveryChannel: "settings-escalation-log",
           createdAt: serverTimestamp(),
         });
       } catch (auditErr) {
