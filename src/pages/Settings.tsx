@@ -563,6 +563,11 @@ const SettingsPage: React.FC = () => {
               requesterName: data.requesterName ?? null,
               requesterRole: data.requesterRole ?? "admin",
               reason: data.reason ?? "",
+              status: data.status ?? "pending",
+              requestType: data.requestType ?? "access",
+              source: data.source ?? null,
+              targetIdentifier: data.targetIdentifier ?? null,
+              deliveryChannel: data.deliveryChannel ?? null,
               emailSent: !!data.emailSent,
               createdAt: data.createdAt,
             };
