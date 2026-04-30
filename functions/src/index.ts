@@ -2170,7 +2170,8 @@ export const pingWebmasterSlack = onCall(async (request) => {
     });
     if (!res.ok) {
       slackOk = false;
-      slackError = `Slack responded ${res.status}`;
+      const body = await res.text().catch(() => "");
+      slackError = `Slack webhook rejected the test ping (${res.status}${body ? `: ${safeForSlack(body)}` : ""}).`;
       logger.warn("pingWebmasterSlack: Slack returned non-2xx", {
         status: res.status,
         uid,
@@ -2178,7 +2179,7 @@ export const pingWebmasterSlack = onCall(async (request) => {
     }
   } catch (err) {
     slackOk = false;
-    slackError = (err as Error).message;
+    slackError = `Slack webhook request failed: ${(err as Error).message}`;
     logger.error("pingWebmasterSlack: fetch failed", err);
   }
 
@@ -2200,6 +2201,7 @@ export const pingWebmasterSlack = onCall(async (request) => {
   }
 
   if (!slackOk) {
+    await rateLimitRef.delete().catch(() => undefined);
     throw new HttpsError("internal", slackError || "Slack delivery failed.");
   }
 
