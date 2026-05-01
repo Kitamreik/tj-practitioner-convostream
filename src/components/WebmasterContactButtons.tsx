@@ -135,6 +135,14 @@ const applyTemplateVars = _applyTemplateVars;
 const computeSmsLimits = (body: string, recipient: string = WEBMASTER_NUMBER) =>
   _computeSmsLimits(body, recipient);
 type SmsLimits = _SmsLimits;
+const buildContextLine = _buildContextLine;
+const buildSmsHref = (name: string, route: string) => _buildSmsHref(name, route, WEBMASTER_NUMBER);
+const buildTelHref = (name: string, route: string) => _buildTelHref(name, route, WEBMASTER_NUMBER);
+const formatRelative = _formatRelative;
+// JSX thresholds — kept in sync with the constants in `@/lib/smsLimits`.
+const SOFT_SEGMENT_WARN = 3;
+const SMS_URI_SOFT_LIMIT = 1500;
+const SMS_URI_HARD_LIMIT = 2048;
 
 interface Props {
   /** "compact" = icon-only buttons (sidebar/bottom-sheet); "full" = labelled. */
@@ -142,37 +150,6 @@ interface Props {
   className?: string;
 }
 
-function buildContextLine(name: string, route: string): string {
-  const safeName = name.trim() || "a teammate";
-  const safeRoute = (route || "/").slice(0, 80);
-  return `Hi, this is ${safeName} from ${safeRoute} — `;
-}
-
-function buildSmsHref(name: string, route: string): string {
-  const body = buildContextLine(name, route);
-  return `sms:${WEBMASTER_NUMBER}?body=${encodeURIComponent(body)}`;
-}
-
-/**
- * RFC 3966 allows extra parameters on tel: URIs. Compliant dialers may show
- * the context in their notes field; non-compliant ones simply ignore it and
- * still dial the number, so this is a safe progressive enhancement.
- */
-function buildTelHref(name: string, route: string): string {
-  const ctx = buildContextLine(name, route).trim();
-  return `tel:${WEBMASTER_NUMBER};phone-context=${encodeURIComponent(ctx)}`;
-}
-
-function formatRelative(ms: number): string {
-  const diff = Date.now() - ms;
-  if (diff < 60_000) return "just now";
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
 
 const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className }) => {
   const { profile } = useAuth();
