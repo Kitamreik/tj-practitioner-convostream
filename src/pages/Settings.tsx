@@ -40,6 +40,7 @@ import { BG_GMAIL_INGEST_PREF } from "@/hooks/useBackgroundGmailPoller";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AccountActionsMenu } from "@/components/AccountActionsMenu";
+import PrivacyDataCard from "@/components/PrivacyDataCard";
 import EnvVarsPanel from "@/components/EnvVarsPanel";
 import CallRecordingSettings from "@/components/CallRecordingSettings";
 import { Link } from "react-router-dom";
@@ -1338,6 +1339,7 @@ const SettingsPage: React.FC = () => {
         </div>
         <p className="text-muted-foreground mt-1 text-sm md:text-base">Manage your account and preferences</p>
       </div>
+      <PrivacyDataCard />
 
       {/* Mobile-only quick jump nav for webmasters — the desktop sidebar is
           hidden on phones, so without this they'd have to scroll the entire
