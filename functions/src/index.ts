@@ -2351,7 +2351,7 @@ export const cloneIntegrationsToSupport = onCall(async (request) => {
 // required because the widget is meant to embed on arbitrary third-party
 // origins; abuse mitigation is rate-limit + validation + per-tenant audit.
 
-import * as crypto from "crypto";
+// crypto imported above
 
 const WIDGET_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const WIDGET_RATE_WINDOW_MS = 60 * 1000;
