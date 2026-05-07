@@ -114,6 +114,7 @@ const AppLayout: React.FC = () => {
 
         <main className="flex-1 overflow-y-auto pb-16 md:pb-0 relative">
           <Outlet />
+          <SiteFooter variant="app" />
           <ScrollToTop />
         </main>
       </div>
