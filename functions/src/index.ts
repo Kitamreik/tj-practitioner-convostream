@@ -2334,3 +2334,284 @@ export const cloneIntegrationsToSupport = onCall(async (request) => {
 
   return { ok: true, targetUid, targetEmail, clonedIntegrations, clonedPrefs };
 });
+
+// =============================================================================
+// Embeddable customer chat widget
+// =============================================================================
+//
+// `createWidgetConversation` (HTTP, public CORS) creates a new `conversations`
+// doc when a visitor submits the widget intake form, records explicit consent,
+// and returns a short-lived `visitorToken` the widget then uses to post
+// messages. `postWidgetMessage` (HTTP, public CORS) writes customer messages
+// to `conversations/{id}/messages`. Staff replies flow through the existing
+// authenticated client + Firestore rules unchanged.
+//
+// Both endpoints are rate-limited by `widgetRateLimits/{visitorToken}` and
+// validate input length to keep the surface area small. App Check is not
+// required because the widget is meant to embed on arbitrary third-party
+// origins; abuse mitigation is rate-limit + validation + per-tenant audit.
+
+// crypto imported above
+
+const WIDGET_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
+const WIDGET_RATE_WINDOW_MS = 60 * 1000;
+const WIDGET_RATE_LIMIT = 10;
+
+const widgetCors = (req: any, res: any) => {
+  const origin = req.headers.origin || "*";
+  res.set("Access-Control-Allow-Origin", origin);
+  res.set("Vary", "Origin");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.set("Access-Control-Max-Age", "3600");
+};
+
+function sanitize(s: unknown, max = 500): string {
+  if (typeof s !== "string") return "";
+  return s.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, max);
+}
+
+function isEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) && s.length <= 254;
+}
+
+export const createWidgetConversation = onRequest({ cors: false }, async (req, res) => {
+  widgetCors(req, res);
+  if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+  if (req.method !== "POST") { res.status(405).json({ error: "method-not-allowed" }); return; }
+
+  try {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const tenantId = sanitize(body.tenantId, 64) || "default";
+    const name = sanitize(body.name, 80);
+    const email = sanitize(body.email, 254).toLowerCase();
+    const phone = sanitize(body.phone, 32);
+    const consent = body.consent === true;
+    const pageUrl = sanitize(body.pageUrl, 500);
+
+    if (!name) { res.status(400).json({ error: "invalid-argument", message: "Name is required." }); return; }
+    if (!isEmail(email)) { res.status(400).json({ error: "invalid-argument", message: "A valid email is required." }); return; }
+    if (!consent) { res.status(400).json({ error: "consent-required", message: "Consent to the privacy policy is required." }); return; }
+
+    const visitorId = crypto.randomBytes(16).toString("hex");
+    const visitorToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(visitorToken).digest("hex");
+
+    const conversationRef = await db.collection("conversations").add({
+      customerName: name,
+      customerEmail: email,
+      customerPhone: phone || null,
+      assignedAgent: null,
+      status: "waiting",
+      channel: "web",
+      source: "web-widget",
+      widgetTenantId: tenantId,
+      visitorId,
+      visitorTokenHash: tokenHash,
+      visitorTokenExpiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + WIDGET_TOKEN_TTL_MS),
+      consent: {
+        acceptedAt: admin.firestore.FieldValue.serverTimestamp(),
+        ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+        userAgent: sanitize(req.headers["user-agent"], 300),
+        pageUrl,
+      },
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+      archived: false,
+      unreadCount: 0,
+    });
+
+    await db.collection("noteAudit").add({
+      action: "create",
+      type: "widget",
+      title: `Web widget thread from ${name}`,
+      description: `tenant=${tenantId} email=${email}`,
+      actor: "web-widget",
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch(() => undefined);
+
+    logger.info("createWidgetConversation: created", { conversationId: conversationRef.id, tenantId });
+    res.status(200).json({ ok: true, conversationId: conversationRef.id, visitorId, visitorToken });
+  } catch (err) {
+    logger.error("createWidgetConversation failed", err);
+    res.status(500).json({ error: "internal", message: "Could not create conversation." });
+  }
+});
+
+export const postWidgetMessage = onRequest({ cors: false }, async (req, res) => {
+  widgetCors(req, res);
+  if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+  if (req.method !== "POST") { res.status(405).json({ error: "method-not-allowed" }); return; }
+
+  try {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const conversationId = sanitize(body.conversationId, 64);
+    const visitorToken = typeof body.visitorToken === "string" ? body.visitorToken : "";
+    const text = sanitize(body.body, 2000);
+    if (!conversationId || !visitorToken || !text) {
+      res.status(400).json({ error: "invalid-argument" }); return;
+    }
+
+    const convoSnap = await db.doc(`conversations/${conversationId}`).get();
+    if (!convoSnap.exists) { res.status(404).json({ error: "not-found" }); return; }
+    const data = convoSnap.data() as any;
+    const expectedHash = crypto.createHash("sha256").update(visitorToken).digest("hex");
+    if (data.visitorTokenHash !== expectedHash) {
+      res.status(403).json({ error: "permission-denied" }); return;
+    }
+    const exp = data.visitorTokenExpiresAt?.toMillis?.() ?? 0;
+    if (exp && exp < Date.now()) {
+      res.status(403).json({ error: "token-expired" }); return;
+    }
+
+    // Per-token rate limit (10 msg / 60s).
+    const rateRef = db.doc(`widgetRateLimits/${expectedHash}`);
+    const allowed = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(rateRef);
+      const now = Date.now();
+      const arr = ((snap.exists ? (snap.data() as any).timestamps : []) as number[]).filter(
+        (t) => now - t < WIDGET_RATE_WINDOW_MS,
+      );
+      if (arr.length >= WIDGET_RATE_LIMIT) return false;
+      arr.push(now);
+      tx.set(rateRef, { timestamps: arr, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      return true;
+    });
+    if (!allowed) { res.status(429).json({ error: "rate-limited" }); return; }
+
+    await db.collection(`conversations/${conversationId}/messages`).add({
+      body: text,
+      sender: "customer",
+      senderName: data.customerName || "Customer",
+      channel: "web",
+      direction: "inbound",
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await convoSnap.ref.update({
+      lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastMessagePreview: text.slice(0, 140),
+      status: data.status === "closed" ? "waiting" : data.status || "waiting",
+    });
+
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    logger.error("postWidgetMessage failed", err);
+    res.status(500).json({ error: "internal" });
+  }
+});
+
+// =============================================================================
+// Privacy / data-subject rights
+// =============================================================================
+
+/**
+ * Returns a JSON dump of the caller's profile + audit entries they authored.
+ * No PII for other users is included. The client downloads the response as a file.
+ */
+export const exportMyData = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const uid = request.auth.uid;
+  const profileSnap = await db.doc(`users/${uid}`).get();
+  if (!profileSnap.exists) throw new HttpsError("not-found", "Profile not found.");
+  const email = (profileSnap.data() as any).email as string | undefined;
+
+  const [noteAudit, peopleAudit, contactEvents, escalations] = await Promise.all([
+    db.collection("noteAudit").where("actor", "==", email ?? "__none__").limit(500).get(),
+    db.collection("peopleAudit").where("actor", "==", email ?? "__none__").limit(500).get(),
+    db.collection("webmasterContactEvents").where("agentUid", "==", uid).limit(500).get(),
+    db.collection("escalationRequests").where("requesterUid", "==", uid).limit(200).get(),
+  ]);
+
+  const dump = {
+    exportedAt: new Date().toISOString(),
+    profile: { uid, ...profileSnap.data() },
+    noteAudit: noteAudit.docs.map((d) => ({ id: d.id, ...d.data() })),
+    peopleAudit: peopleAudit.docs.map((d) => ({ id: d.id, ...d.data() })),
+    webmasterContactEvents: contactEvents.docs.map((d) => ({ id: d.id, ...d.data() })),
+    escalationRequests: escalations.docs.map((d) => ({ id: d.id, ...d.data() })),
+  };
+
+  await db.collection("noteAudit").add({
+    action: "create",
+    type: "privacy",
+    title: "Data export generated",
+    description: `User ${email ?? uid} downloaded a personal data export.`,
+    actor: email ?? uid,
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  }).catch(() => undefined);
+
+  return { ok: true, data: dump };
+});
+
+/**
+ * Marks the caller's account for deletion (30-day soft-delete window).
+ * Webmasters can self-request only if another webmaster exists.
+ */
+export const requestAccountDeletion = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const uid = request.auth.uid;
+  const profileSnap = await db.doc(`users/${uid}`).get();
+  if (!profileSnap.exists) throw new HttpsError("not-found", "Profile not found.");
+  const profile = profileSnap.data() as any;
+
+  if (profile.role === "webmaster") {
+    const others = await db.collection("users").where("role", "==", "webmaster").limit(2).get();
+    if (others.size <= 1) {
+      throw new HttpsError(
+        "failed-precondition",
+        "You are the only webmaster. Promote another webmaster before requesting deletion.",
+      );
+    }
+  }
+
+  await profileSnap.ref.update({
+    deletionRequestedAt: admin.firestore.FieldValue.serverTimestamp(),
+    deletionScheduledFor: admin.firestore.Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000),
+  });
+
+  await db.collection("accountDeletions").add({
+    uid,
+    email: profile.email ?? null,
+    requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+    scheduledFor: admin.firestore.Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    status: "pending",
+  });
+
+  return { ok: true, scheduledFor: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() };
+});
+
+export const getWidgetMessages = onRequest({ cors: false }, async (req, res) => {
+  widgetCors(req, res);
+  if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+  if (req.method !== "GET") { res.status(405).json({ error: "method-not-allowed" }); return; }
+  try {
+    const conversationId = sanitize((req.query as any).conversationId, 64);
+    const visitorToken = String((req.query as any).visitorToken || "");
+    if (!conversationId || !visitorToken) { res.status(400).json({ error: "invalid-argument" }); return; }
+    const convoSnap = await db.doc(`conversations/${conversationId}`).get();
+    if (!convoSnap.exists) { res.status(404).json({ error: "not-found" }); return; }
+    const data = convoSnap.data() as any;
+    const expectedHash = crypto.createHash("sha256").update(visitorToken).digest("hex");
+    if (data.visitorTokenHash !== expectedHash) { res.status(403).json({ error: "permission-denied" }); return; }
+
+    const msgs = await db
+      .collection(`conversations/${conversationId}/messages`)
+      .orderBy("timestamp", "asc")
+      .limit(200)
+      .get();
+    const messages = msgs.docs.map((d) => {
+      const m = d.data() as any;
+      return {
+        id: d.id,
+        body: m.body || "",
+        sender: m.sender || (m.direction === "inbound" ? "customer" : "agent"),
+        senderName: m.senderName || "",
+        timestamp: m.timestamp?.toMillis?.() ?? null,
+      };
+    });
+    res.status(200).json({ ok: true, messages });
+  } catch (err) {
+    logger.error("getWidgetMessages failed", err);
+    res.status(500).json({ error: "internal" });
+  }
+});

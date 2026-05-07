@@ -28,6 +28,9 @@ import Bootstrap from "./pages/Bootstrap";
 import SmokeTest from "./pages/SmokeTest";
 import CallAnalytics from "./pages/CallAnalytics";
 import NotFound from "./pages/NotFound";
+import Legal from "./pages/Legal";
+import WidgetInstall from "./pages/WidgetInstall";
+import CookieConsent from "./components/CookieConsent";
 import FirestoreErrorBoundary from "./components/FirestoreErrorBoundary";
 
 const queryClient = new QueryClient();
@@ -76,10 +79,13 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
+              <CookieConsent />
               <Routes>
                 <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
                 <Route path="/forgot-password" element={<AuthRoute><ForgotPassword /></AuthRoute>} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/legal/:slug" element={<Legal />} />
+                <Route path="/legal" element={<Legal />} />
                 {/* First-time setup. Cloud Function gates by webmaster existence. */}
                 <Route path="/bootstrap" element={<Bootstrap />} />
                 <Route
@@ -102,6 +108,7 @@ const App = () => (
                   <Route path="/analytics" element={<ProtectedRoute escalated><Analytics /></ProtectedRoute>} />
                   <Route path="/gmail" element={<ProtectedRoute escalated><GmailAPI /></ProtectedRoute>} />
                   <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/widget-install" element={<ProtectedRoute escalated><WidgetInstall /></ProtectedRoute>} />
                   <Route path="/archive" element={<Archive />} />
                   <Route path="/agent-logs" element={<AgentLogs />} />
                   <Route path="/staff-updates" element={<StaffUpdates />} />

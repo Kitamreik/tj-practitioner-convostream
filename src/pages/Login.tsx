@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "react-router-dom";
+import SiteFooter from "@/components/SiteFooter";
 
 const Login: React.FC = () => {
   const { signIn, signUp } = useAuth();
@@ -43,7 +45,8 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen flex-col bg-background">
+      <div className="flex flex-1 items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -138,8 +141,15 @@ const Login: React.FC = () => {
               </a>
             </div>
           </div>
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            By continuing you agree to our{" "}
+            <Link to="/legal/terms" className="underline hover:text-primary">Terms</Link> and{" "}
+            <Link to="/legal/privacy" className="underline hover:text-primary">Privacy Policy</Link>.
+          </p>
         </div>
       </motion.div>
+      </div>
+      <SiteFooter variant="public" />
     </div>
   );
 };
