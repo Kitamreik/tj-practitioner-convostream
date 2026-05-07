@@ -4,6 +4,7 @@ import { MessageCircle } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import BottomNav from "@/components/BottomNav";
 import ScrollToTop from "@/components/ScrollToTop";
+import SiteFooter from "@/components/SiteFooter";
 import PWAInstallBanner from "@/components/PWAInstallBanner";
 import { useAuth } from "@/contexts/AuthContext";
 import { collection, getDocs, limit, query, where } from "firebase/firestore";
