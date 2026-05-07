@@ -108,6 +108,7 @@ const App = () => (
                   <Route path="/analytics" element={<ProtectedRoute escalated><Analytics /></ProtectedRoute>} />
                   <Route path="/gmail" element={<ProtectedRoute escalated><GmailAPI /></ProtectedRoute>} />
                   <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/widget-install" element={<ProtectedRoute escalated><WidgetInstall /></ProtectedRoute>} />
                   <Route path="/archive" element={<Archive />} />
                   <Route path="/agent-logs" element={<AgentLogs />} />
                   <Route path="/staff-updates" element={<StaffUpdates />} />
