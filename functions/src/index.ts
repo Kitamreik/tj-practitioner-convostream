@@ -2579,3 +2579,39 @@ export const requestAccountDeletion = onCall(async (request) => {
 
   return { ok: true, scheduledFor: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() };
 });
+
+export const getWidgetMessages = onRequest({ cors: false }, async (req, res) => {
+  widgetCors(req, res);
+  if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+  if (req.method !== "GET") { res.status(405).json({ error: "method-not-allowed" }); return; }
+  try {
+    const conversationId = sanitize((req.query as any).conversationId, 64);
+    const visitorToken = String((req.query as any).visitorToken || "");
+    if (!conversationId || !visitorToken) { res.status(400).json({ error: "invalid-argument" }); return; }
+    const convoSnap = await db.doc(`conversations/${conversationId}`).get();
+    if (!convoSnap.exists) { res.status(404).json({ error: "not-found" }); return; }
+    const data = convoSnap.data() as any;
+    const expectedHash = crypto.createHash("sha256").update(visitorToken).digest("hex");
+    if (data.visitorTokenHash !== expectedHash) { res.status(403).json({ error: "permission-denied" }); return; }
+
+    const msgs = await db
+      .collection(`conversations/${conversationId}/messages`)
+      .orderBy("timestamp", "asc")
+      .limit(200)
+      .get();
+    const messages = msgs.docs.map((d) => {
+      const m = d.data() as any;
+      return {
+        id: d.id,
+        body: m.body || "",
+        sender: m.sender || (m.direction === "inbound" ? "customer" : "agent"),
+        senderName: m.senderName || "",
+        timestamp: m.timestamp?.toMillis?.() ?? null,
+      };
+    });
+    res.status(200).json({ ok: true, messages });
+  } catch (err) {
+    logger.error("getWidgetMessages failed", err);
+    res.status(500).json({ error: "internal" });
+  }
+});
