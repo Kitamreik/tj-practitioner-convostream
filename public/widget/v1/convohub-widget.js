@@ -16,6 +16,7 @@
   })();
 
   var TENANT = (script && script.getAttribute("data-tenant")) || "default";
+  var SITE_KEY = (script && script.getAttribute("data-site-key")) || "";
   var COLOR = (script && script.getAttribute("data-color")) || "#E07A5F";
   var ORIGIN = (script && script.src) ? new URL(script.src).origin : window.location.origin;
   var ENDPOINT = (script && script.getAttribute("data-endpoint")) || ORIGIN;
