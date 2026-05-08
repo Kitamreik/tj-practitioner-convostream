@@ -2733,12 +2733,24 @@ export const getWidgetMessages = onRequest({ cors: false }, async (req, res) => 
   try {
     const conversationId = sanitize((req.query as any).conversationId, 64);
     const visitorToken = String((req.query as any).visitorToken || "");
-    if (!conversationId || !visitorToken) { res.status(400).json({ error: "invalid-argument" }); return; }
+    if (!conversationId || !/^[A-Za-z0-9_-]{6,64}$/.test(conversationId)) { res.status(400).json({ error: "invalid-argument" }); return; }
+    if (!visitorToken || !/^[a-f0-9]{32,128}$/.test(visitorToken)) { res.status(400).json({ error: "invalid-argument" }); return; }
     const convoSnap = await db.doc(`conversations/${conversationId}`).get();
     if (!convoSnap.exists) { res.status(404).json({ error: "not-found" }); return; }
     const data = convoSnap.data() as any;
     const expectedHash = crypto.createHash("sha256").update(visitorToken).digest("hex");
     if (data.visitorTokenHash !== expectedHash) { res.status(403).json({ error: "permission-denied" }); return; }
+    // Origin check
+    const tenantId = data.widgetTenantId as string | undefined;
+    const reqOrigin = normalizeOrigin((req.headers.origin as string) || "");
+    if (tenantId) {
+      const cfg = await loadTenantConfig(tenantId);
+      const allowed: string[] = Array.isArray(cfg?.allowedOrigins) ? cfg.allowedOrigins.map(normalizeOrigin).filter(Boolean) : [];
+      if (allowed.length > 0 && reqOrigin && !allowed.includes(reqOrigin)) {
+        res.status(403).json({ error: "origin-not-allowed" }); return;
+      }
+      widgetCors(req, res, allowed);
+    }
 
     const msgs = await db
       .collection(`conversations/${conversationId}/messages`)
