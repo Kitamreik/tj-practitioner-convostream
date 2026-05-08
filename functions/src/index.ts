@@ -2773,3 +2773,98 @@ export const getWidgetMessages = onRequest({ cors: false }, async (req, res) => 
     res.status(500).json({ error: "internal" });
   }
 });
+
+// =============================================================================
+// Widget tenant configuration (admin/webmaster)
+// =============================================================================
+//
+// `upsertWidgetConfig` lets an admin or webmaster create / update a tenant
+// configuration document at `widgetConfigs/{tenantId}`. The document holds:
+//   - siteKey:        Public, opaque token shipped in the <script> tag.
+//   - allowedOrigins: Exact origins (https://example.com) the widget may run on.
+//   - theme:          { color, position } — applied client-side.
+//   - enabled:        Master kill-switch.
+//   - requireConsent: Whether the intake form must include the consent box.
+//
+// `rotateWidgetSiteKey` issues a fresh siteKey, immediately invalidating every
+// previously-installed snippet for that tenant.
+
+function makeSiteKey(): string {
+  return "ck_" + crypto.randomBytes(24).toString("base64url");
+}
+
+function validateOrigins(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const out: string[] = [];
+  for (const raw of input) {
+    if (typeof raw !== "string") continue;
+    try {
+      const u = new URL(raw.trim());
+      if (u.protocol !== "https:" && u.protocol !== "http:") continue;
+      out.push(`${u.protocol}//${u.host}`);
+    } catch { /* skip */ }
+    if (out.length >= 25) break;
+  }
+  return Array.from(new Set(out));
+}
+
+async function requireAdminOrWebmaster(uid: string): Promise<void> {
+  const snap = await db.doc(`users/${uid}`).get();
+  const role = (snap.data() as any)?.role;
+  if (role !== "admin" && role !== "webmaster") {
+    throw new HttpsError("permission-denied", "Admin or webmaster role required.");
+  }
+}
+
+export const upsertWidgetConfig = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  await requireAdminOrWebmaster(request.auth.uid);
+  const data = (request.data ?? {}) as Record<string, unknown>;
+  const tenantId = typeof data.tenantId === "string" ? data.tenantId.trim() : "";
+  if (!/^[a-zA-Z0-9_-]{3,64}$/.test(tenantId)) {
+    throw new HttpsError("invalid-argument", "tenantId must be 3–64 chars [a-zA-Z0-9_-].");
+  }
+  const allowedOrigins = validateOrigins(data.allowedOrigins);
+  const theme = (data.theme && typeof data.theme === "object") ? data.theme as any : {};
+  const color = typeof theme.color === "string" && /^#[0-9a-fA-F]{6}$/.test(theme.color) ? theme.color : "#E07A5F";
+  const position = theme.position === "left" ? "left" : "right";
+  const enabled = data.enabled !== false;
+  const requireConsent = data.requireConsent !== false;
+
+  const ref = db.doc(`widgetConfigs/${tenantId}`);
+  const existing = await ref.get();
+  const siteKey = existing.exists ? (existing.data() as any).siteKey : makeSiteKey();
+
+  await ref.set({
+    tenantId,
+    siteKey,
+    allowedOrigins,
+    theme: { color, position },
+    enabled,
+    requireConsent,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedBy: request.auth.uid,
+    ...(existing.exists ? {} : { createdAt: admin.firestore.FieldValue.serverTimestamp(), createdBy: request.auth.uid }),
+  }, { merge: true });
+
+  return { ok: true, tenantId, siteKey, allowedOrigins, theme: { color, position }, enabled, requireConsent };
+});
+
+export const rotateWidgetSiteKey = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  await requireAdminOrWebmaster(request.auth.uid);
+  const tenantId = typeof (request.data as any)?.tenantId === "string" ? (request.data as any).tenantId.trim() : "";
+  if (!/^[a-zA-Z0-9_-]{3,64}$/.test(tenantId)) {
+    throw new HttpsError("invalid-argument", "Invalid tenantId.");
+  }
+  const ref = db.doc(`widgetConfigs/${tenantId}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Tenant config not found.");
+  const siteKey = makeSiteKey();
+  await ref.update({
+    siteKey,
+    rotatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    rotatedBy: request.auth.uid,
+  });
+  return { ok: true, siteKey };
+});
