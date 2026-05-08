@@ -134,14 +134,17 @@
       var fd = new FormData(form);
       fetch(FN_BASE + "/createWidgetConversation", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-ConvoHub-Site-Key": SITE_KEY },
         body: JSON.stringify({
           tenantId: TENANT,
+          siteKey: SITE_KEY,
           name: fd.get("name"),
           email: fd.get("email"),
           phone: fd.get("phone") || "",
           consent: fd.get("consent") === "on",
           pageUrl: location.href,
+          website: fd.get("website") || "",
+          renderedAt: renderedAt,
         }),
       })
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
