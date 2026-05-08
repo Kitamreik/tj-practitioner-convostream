@@ -2355,16 +2355,36 @@ export const cloneIntegrationsToSupport = onCall(async (request) => {
 
 const WIDGET_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const WIDGET_RATE_WINDOW_MS = 60 * 1000;
-const WIDGET_RATE_LIMIT = 10;
+const WIDGET_RATE_LIMIT = 10;          // messages per minute per visitor token
+const WIDGET_IP_CREATE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const WIDGET_IP_CREATE_LIMIT = 5;      // new conversations per hour per IP
+const WIDGET_IP_MSG_WINDOW_MS = 60 * 1000;
+const WIDGET_IP_MSG_LIMIT = 30;        // messages per minute per IP
+const WIDGET_BODY_MAX = 2000;
+const WIDGET_NAME_MAX = 80;
+const WIDGET_PHONE_MAX = 32;
+const WIDGET_PAGE_URL_MAX = 500;
+// Disposable / known throwaway domains used by spam bots. Small starter set —
+// extend via the `widgetConfigs/_meta` doc later.
+const DISPOSABLE_EMAIL_DOMAINS = new Set([
+  "mailinator.com", "guerrillamail.com", "10minutemail.com", "tempmail.com",
+  "trashmail.com", "yopmail.com", "discard.email", "throwaway.email",
+]);
 
-const widgetCors = (req: any, res: any) => {
-  const origin = req.headers.origin || "*";
-  res.set("Access-Control-Allow-Origin", origin);
+function widgetCors(req: any, res: any, allowedOrigins?: string[]) {
+  const reqOrigin = (req.headers.origin as string) || "";
+  let allow = "*";
+  if (allowedOrigins && allowedOrigins.length > 0) {
+    allow = allowedOrigins.includes(reqOrigin) ? reqOrigin : allowedOrigins[0];
+  } else if (reqOrigin) {
+    allow = reqOrigin;
+  }
+  res.set("Access-Control-Allow-Origin", allow);
   res.set("Vary", "Origin");
-  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.set("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-ConvoHub-Site-Key");
   res.set("Access-Control-Max-Age", "3600");
-};
+}
 
 function sanitize(s: unknown, max = 500): string {
   if (typeof s !== "string") return "";
@@ -2375,27 +2395,123 @@ function isEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) && s.length <= 254;
 }
 
+function clientIp(req: any): string {
+  const fwd = (req.headers["x-forwarded-for"] as string) || "";
+  return fwd.split(",")[0]?.trim() || req.ip || "0.0.0.0";
+}
+
+function hashStr(s: string): string {
+  return crypto.createHash("sha256").update(s).digest("hex");
+}
+
+function normalizeOrigin(s: string): string {
+  try { const u = new URL(s); return `${u.protocol}//${u.host}`; } catch { return ""; }
+}
+
+/** Look bias / linkspam heuristic — flag obvious bot payloads. */
+function looksLikeSpam(text: string): boolean {
+  const t = text.toLowerCase();
+  const urlCount = (t.match(/https?:\/\//g) || []).length;
+  if (urlCount >= 4) return true;
+  if (/\b(viagra|casino|crypto airdrop|loan offer|seo services|porn|xxx)\b/.test(t)) return true;
+  // Repeated chars (aaaaaaaaa) or repeated word spam.
+  if (/(.)\1{19,}/.test(t)) return true;
+  return false;
+}
+
+/**
+ * Resolve a tenant config document. Returns null if missing.
+ * Shape: { siteKey: string, allowedOrigins: string[], theme?: {...},
+ *          enabled?: boolean, requireConsent?: boolean }
+ */
+async function loadTenantConfig(tenantId: string): Promise<any | null> {
+  if (!tenantId) return null;
+  const snap = await db.doc(`widgetConfigs/${tenantId}`).get();
+  return snap.exists ? snap.data() : null;
+}
+
+/** Check + record IP rate window using a Firestore transaction. */
+async function checkIpRate(ipHash: string, scope: string, windowMs: number, limit: number): Promise<boolean> {
+  const ref = db.doc(`widgetIpRateLimits/${ipHash}_${scope}`);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const now = Date.now();
+    const arr = ((snap.exists ? (snap.data() as any).timestamps : []) as number[]).filter(
+      (t) => now - t < windowMs,
+    );
+    if (arr.length >= limit) return false;
+    arr.push(now);
+    tx.set(ref, { timestamps: arr, scope, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    return true;
+  });
+}
+
 export const createWidgetConversation = onRequest({ cors: false }, async (req, res) => {
+  // Note: we don't yet know the tenant's allowed origins, so use permissive
+  // CORS for the preflight; the POST handler re-applies tighter CORS once
+  // the tenant config is known.
   widgetCors(req, res);
   if (req.method === "OPTIONS") { res.status(204).send(""); return; }
   if (req.method !== "POST") { res.status(405).json({ error: "method-not-allowed" }); return; }
 
   try {
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const tenantId = sanitize(body.tenantId, 64) || "default";
-    const name = sanitize(body.name, 80);
+    const tenantId = sanitize(body.tenantId, 64);
+    const siteKey = sanitize(body.siteKey ?? req.headers["x-convohub-site-key"], 128);
+    const name = sanitize(body.name, WIDGET_NAME_MAX);
     const email = sanitize(body.email, 254).toLowerCase();
-    const phone = sanitize(body.phone, 32);
+    const phone = sanitize(body.phone, WIDGET_PHONE_MAX);
     const consent = body.consent === true;
-    const pageUrl = sanitize(body.pageUrl, 500);
+    const pageUrl = sanitize(body.pageUrl, WIDGET_PAGE_URL_MAX);
+    const honeypot = sanitize(body.website ?? body.hp_field, 200);
+    const renderedAt = typeof body.renderedAt === "number" ? body.renderedAt : 0;
+    const reqOrigin = normalizeOrigin((req.headers.origin as string) || "");
 
+    if (!tenantId) { res.status(400).json({ error: "invalid-argument", message: "Missing tenant id." }); return; }
+    if (!siteKey) { res.status(400).json({ error: "invalid-argument", message: "Missing site key." }); return; }
+    if (honeypot) { logger.warn("widget: honeypot tripped", { tenantId, ip: clientIp(req) }); res.status(204).send(""); return; }
+    // Time-trap: require the form to have been on screen at least 1500ms.
+    if (renderedAt && Date.now() - renderedAt < 1500) {
+      logger.warn("widget: time-trap tripped", { tenantId, delta: Date.now() - renderedAt });
+      res.status(429).json({ error: "rate-limited", message: "Please try again." }); return;
+    }
     if (!name) { res.status(400).json({ error: "invalid-argument", message: "Name is required." }); return; }
+    if (name.length < 2 || /[<>{}]/.test(name)) { res.status(400).json({ error: "invalid-argument", message: "Invalid name." }); return; }
     if (!isEmail(email)) { res.status(400).json({ error: "invalid-argument", message: "A valid email is required." }); return; }
-    if (!consent) { res.status(400).json({ error: "consent-required", message: "Consent to the privacy policy is required." }); return; }
+    const emailDomain = email.split("@")[1] || "";
+    if (DISPOSABLE_EMAIL_DOMAINS.has(emailDomain)) {
+      res.status(400).json({ error: "invalid-argument", message: "Please use a non-disposable email." }); return;
+    }
+    if (phone && !/^[+()\-\s\d]{4,32}$/.test(phone)) {
+      res.status(400).json({ error: "invalid-argument", message: "Invalid phone number." }); return;
+    }
+
+    const cfg = await loadTenantConfig(tenantId);
+    if (!cfg) { res.status(404).json({ error: "tenant-not-found", message: "Unknown widget tenant." }); return; }
+    if (cfg.enabled === false) { res.status(403).json({ error: "tenant-disabled", message: "Widget is disabled." }); return; }
+    if (cfg.siteKey !== siteKey) { res.status(403).json({ error: "bad-site-key", message: "Invalid site key." }); return; }
+
+    const allowed: string[] = Array.isArray(cfg.allowedOrigins) ? cfg.allowedOrigins.map(normalizeOrigin).filter(Boolean) : [];
+    if (allowed.length > 0 && reqOrigin && !allowed.includes(reqOrigin)) {
+      logger.warn("widget: origin not allowed", { tenantId, reqOrigin, allowed });
+      res.status(403).json({ error: "origin-not-allowed", message: "This site is not authorized for this widget." }); return;
+    }
+    // Re-emit CORS now with the (possibly tighter) tenant allow-list.
+    widgetCors(req, res, allowed);
+
+    if (cfg.requireConsent !== false && !consent) {
+      res.status(400).json({ error: "consent-required", message: "Consent to the privacy policy is required." }); return;
+    }
+
+    // Per-IP create rate limit.
+    const ip = clientIp(req);
+    const ipHash = hashStr(`${ip}|${tenantId}`);
+    const okIp = await checkIpRate(ipHash, "create", WIDGET_IP_CREATE_WINDOW_MS, WIDGET_IP_CREATE_LIMIT);
+    if (!okIp) { res.status(429).json({ error: "rate-limited", message: "Too many new chats from your network. Try again later." }); return; }
 
     const visitorId = crypto.randomBytes(16).toString("hex");
     const visitorToken = crypto.randomBytes(32).toString("hex");
-    const tokenHash = crypto.createHash("sha256").update(visitorToken).digest("hex");
+    const tokenHash = hashStr(visitorToken);
 
     const conversationRef = await db.collection("conversations").add({
       customerName: name,
@@ -2406,12 +2522,13 @@ export const createWidgetConversation = onRequest({ cors: false }, async (req, r
       channel: "web",
       source: "web-widget",
       widgetTenantId: tenantId,
+      widgetOrigin: reqOrigin || null,
       visitorId,
       visitorTokenHash: tokenHash,
       visitorTokenExpiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + WIDGET_TOKEN_TTL_MS),
       consent: {
         acceptedAt: admin.firestore.FieldValue.serverTimestamp(),
-        ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+        ip,
         userAgent: sanitize(req.headers["user-agent"], 300),
         pageUrl,
       },
@@ -2425,12 +2542,12 @@ export const createWidgetConversation = onRequest({ cors: false }, async (req, r
       action: "create",
       type: "widget",
       title: `Web widget thread from ${name}`,
-      description: `tenant=${tenantId} email=${email}`,
+      description: `tenant=${tenantId} email=${email} origin=${reqOrigin || "?"}`,
       actor: "web-widget",
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     }).catch(() => undefined);
 
-    logger.info("createWidgetConversation: created", { conversationId: conversationRef.id, tenantId });
+    logger.info("createWidgetConversation: created", { conversationId: conversationRef.id, tenantId, reqOrigin });
     res.status(200).json({ ok: true, conversationId: conversationRef.id, visitorId, visitorToken });
   } catch (err) {
     logger.error("createWidgetConversation failed", err);
@@ -2447,15 +2564,25 @@ export const postWidgetMessage = onRequest({ cors: false }, async (req, res) => 
     const body = (req.body ?? {}) as Record<string, unknown>;
     const conversationId = sanitize(body.conversationId, 64);
     const visitorToken = typeof body.visitorToken === "string" ? body.visitorToken : "";
-    const text = sanitize(body.body, 2000);
-    if (!conversationId || !visitorToken || !text) {
+    const text = sanitize(body.body, WIDGET_BODY_MAX);
+    const honeypot = sanitize(body.website ?? body.hp_field, 200);
+    if (honeypot) { logger.warn("postWidgetMessage: honeypot tripped"); res.status(204).send(""); return; }
+    if (!conversationId || !/^[A-Za-z0-9_-]{6,64}$/.test(conversationId)) {
       res.status(400).json({ error: "invalid-argument" }); return;
+    }
+    if (!visitorToken || !/^[a-f0-9]{32,128}$/.test(visitorToken)) {
+      res.status(400).json({ error: "invalid-argument" }); return;
+    }
+    if (!text || text.length < 1) { res.status(400).json({ error: "invalid-argument" }); return; }
+    if (looksLikeSpam(text)) {
+      logger.warn("postWidgetMessage: spam heuristic", { conversationId });
+      res.status(400).json({ error: "spam-detected", message: "Message blocked." }); return;
     }
 
     const convoSnap = await db.doc(`conversations/${conversationId}`).get();
     if (!convoSnap.exists) { res.status(404).json({ error: "not-found" }); return; }
     const data = convoSnap.data() as any;
-    const expectedHash = crypto.createHash("sha256").update(visitorToken).digest("hex");
+    const expectedHash = hashStr(visitorToken);
     if (data.visitorTokenHash !== expectedHash) {
       res.status(403).json({ error: "permission-denied" }); return;
     }
@@ -2463,6 +2590,25 @@ export const postWidgetMessage = onRequest({ cors: false }, async (req, res) => 
     if (exp && exp < Date.now()) {
       res.status(403).json({ error: "token-expired" }); return;
     }
+
+    // Origin check against tenant config.
+    const tenantId = data.widgetTenantId as string | undefined;
+    const reqOrigin = normalizeOrigin((req.headers.origin as string) || "");
+    if (tenantId) {
+      const cfg = await loadTenantConfig(tenantId);
+      if (!cfg || cfg.enabled === false) { res.status(403).json({ error: "tenant-disabled" }); return; }
+      const allowed: string[] = Array.isArray(cfg.allowedOrigins) ? cfg.allowedOrigins.map(normalizeOrigin).filter(Boolean) : [];
+      if (allowed.length > 0 && reqOrigin && !allowed.includes(reqOrigin)) {
+        res.status(403).json({ error: "origin-not-allowed" }); return;
+      }
+      widgetCors(req, res, allowed);
+    }
+
+    // Per-IP rate limit (cheap DDoS guard).
+    const ip = clientIp(req);
+    const ipHash = hashStr(`${ip}|${tenantId || ""}`);
+    const okIp = await checkIpRate(ipHash, "msg", WIDGET_IP_MSG_WINDOW_MS, WIDGET_IP_MSG_LIMIT);
+    if (!okIp) { res.status(429).json({ error: "rate-limited" }); return; }
 
     // Per-token rate limit (10 msg / 60s).
     const rateRef = db.doc(`widgetRateLimits/${expectedHash}`);
