@@ -16,6 +16,7 @@
   })();
 
   var TENANT = (script && script.getAttribute("data-tenant")) || "default";
+  var SITE_KEY = (script && script.getAttribute("data-site-key")) || "";
   var COLOR = (script && script.getAttribute("data-color")) || "#E07A5F";
   var ORIGIN = (script && script.src) ? new URL(script.src).origin : window.location.origin;
   var ENDPOINT = (script && script.getAttribute("data-endpoint")) || ORIGIN;
@@ -109,13 +110,17 @@
   }
 
   function renderForm(body) {
+    var renderedAt = Date.now();
     var form = document.createElement("form");
     form.className = "form";
     form.innerHTML = '' +
       '<p style="margin:0 0 8px;font-size:13px;color:#444">Hi! Tell us a bit about yourself and we\'ll get right back to you.</p>' +
-      '<label>Your name</label><input name="name" required maxlength="80" />' +
-      '<label>Email</label><input name="email" type="email" required maxlength="254" />' +
-      '<label>Phone (optional)</label><input name="phone" type="tel" maxlength="32" />' +
+      '<label>Your name</label><input name="name" required maxlength="80" autocomplete="name" />' +
+      '<label>Email</label><input name="email" type="email" required maxlength="254" autocomplete="email" />' +
+      '<label>Phone (optional)</label><input name="phone" type="tel" maxlength="32" autocomplete="tel" />' +
+      // Honeypot — hidden from real users; bots tend to fill every input.
+      '<div aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">' +
+      '<label>Website</label><input name="website" type="text" tabindex="-1" autocomplete="off" /></div>' +
       '<div class="row"><input type="checkbox" name="consent" id="cv-consent" required style="width:auto;margin-top:3px" />' +
       '<label for="cv-consent" style="margin:0">I agree to the <a href="' + ORIGIN + '/legal/terms" target="_blank" rel="noopener">Terms</a> and <a href="' + ORIGIN + '/legal/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</label></div>' +
       '<button type="submit" class="btn">Start chat</button>' +
@@ -129,14 +134,17 @@
       var fd = new FormData(form);
       fetch(FN_BASE + "/createWidgetConversation", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-ConvoHub-Site-Key": SITE_KEY },
         body: JSON.stringify({
           tenantId: TENANT,
+          siteKey: SITE_KEY,
           name: fd.get("name"),
           email: fd.get("email"),
           phone: fd.get("phone") || "",
           consent: fd.get("consent") === "on",
           pageUrl: location.href,
+          website: fd.get("website") || "",
+          renderedAt: renderedAt,
         }),
       })
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })

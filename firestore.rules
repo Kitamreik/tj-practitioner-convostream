@@ -463,6 +463,30 @@ service cloud.firestore {
       }
     }
 
+    // -------- widgetConfigs/{tenantId} — embeddable widget tenant config --
+    // Stores public siteKey, theme, and allowedOrigins for each tenant that
+    // installs the chat widget. siteKey is public (travels in the <script>
+    // tag) — security comes from the (siteKey, allowedOrigins) pair enforced
+    // server-side in createWidgetConversation/postWidgetMessage.
+    // Reads: any signed-in teammate (admin UI lists configs).
+    // Writes: admins + webmasters only.
+    match /widgetConfigs/{tenantId} {
+      allow read: if isSignedIn();
+      allow create, update: if isWebmaster() || isAdmin();
+      allow delete: if isWebmaster();
+    }
+
+    // -------- widgetIpRateLimits/{ipHash} — server-side widget IP ledger ---
+    // Written exclusively by the widget Cloud Functions (admin SDK bypass).
+    match /widgetIpRateLimits/{ipHash} {
+      allow read, write: if false; // server only
+    }
+
+    // -------- widgetRateLimits/{tokenHash} — per-token rate ledger ---------
+    match /widgetRateLimits/{tokenHash} {
+      allow read, write: if false; // server only
+    }
+
     // -------- callRecordings/{id} — call recording metadata --------
     // Storage objects live in Firebase Storage at call_recordings/{convoId}/*.
     // Firestore docs hold the metadata used by the analytics dashboard.
