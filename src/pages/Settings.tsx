@@ -2448,24 +2448,31 @@ const SettingsPage: React.FC = () => {
                       </div>
                       <p className="text-xs text-muted-foreground truncate">{acc.email || acc.uid}</p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">Joined {formatTime(acc.createdAt)}</p>
-                      {/* Password row (webmaster vault). Shows masked dots
-                          unless the eye is toggled; falls back to
-                          localStorage when Firestore is unavailable. */}
+                      {/* Password row (encrypted webmaster vault). Plaintext
+                          is decrypted in-browser only when the vault is
+                          unlocked with the webmaster passphrase. */}
                       {(() => {
-                        const stored = getDisplayPassword(acc.uid);
-                        const revealed = revealedUid === acc.uid;
+                        const hasEntry = !!vaultEntries[acc.uid];
+                        const plain = vaultPlain[acc.uid] ?? null;
+                        const revealed = revealedUid === acc.uid && !!plain;
                         return (
                           <div className="mt-1 flex items-center gap-1.5 text-[11px]">
                             <KeyRound className="h-3 w-3 text-muted-foreground" />
                             <span className="text-muted-foreground">Password:</span>
                             <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
-                              {stored ? (revealed ? stored : "•".repeat(Math.min(stored.length, 12))) : "(not set via vault)"}
+                              {hasEntry
+                                ? revealed
+                                  ? plain
+                                  : vaultUnlocked
+                                  ? "••••••••••"
+                                  : "🔒 vault locked"
+                                : "(not set via vault)"}
                             </code>
-                            {stored && (
+                            {hasEntry && vaultUnlocked && (
                               <>
                                 <button
                                   type="button"
-                                  onClick={() => setRevealedUid(revealed ? null : acc.uid)}
+                                  onClick={() => revealPassword(acc.uid)}
                                   className="text-muted-foreground hover:text-foreground"
                                   aria-label={revealed ? "Hide password" : "Show password"}
                                 >
@@ -2486,7 +2493,7 @@ const SettingsPage: React.FC = () => {
                               onClick={() => openPasswordDialog(acc.uid)}
                               className="ml-1 text-primary hover:underline"
                             >
-                              {stored ? "Change" : "Set"}
+                              {hasEntry ? "Change" : "Set"}
                             </button>
                           </div>
                         );
