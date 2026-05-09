@@ -968,6 +968,21 @@ const Conversations: React.FC = () => {
     toast({ title: "Channel updated", description: `Switched to ${newChannel.toUpperCase()}.` });
   };
 
+  const handleChangeTopic = async (newTopic: ConsultingTopic) => {
+    if (!selectedId) return;
+    setConversations((prev) =>
+      prev.map((c) => (c.id === selectedId ? { ...c, topic: newTopic } : c))
+    );
+    if (!usingFallback) {
+      try {
+        await updateDoc(doc(db, "conversations", selectedId), { topic: newTopic });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    toast({ title: "Topic updated", description: `Labeled as ${topicLabel(newTopic)}.` });
+  };
+
   const handleDeleteConversation = async () => {
     if (!selectedId) return;
     const idToDelete = selectedId;
