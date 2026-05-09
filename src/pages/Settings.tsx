@@ -976,6 +976,8 @@ const SettingsPage: React.FC = () => {
   const [vaultPassphrase, setVaultPassphrase] = useState("");
   const [vaultPassphraseConfirm, setVaultPassphraseConfirm] = useState("");
   const [vaultBusy, setVaultBusy] = useState(false);
+  const [vaultError, setVaultError] = useState<string | null>(null);
+  const [vaultStep, setVaultStep] = useState<"idle" | "deriving" | "writing" | "done">("idle");
 
   useEffect(() => {
     if (!isWebmaster) return;
