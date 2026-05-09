@@ -2132,9 +2132,21 @@ export const setSlackWebhookUrlAdmin = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "URL must start with https://hooks.slack.com/");
   }
 
-  await db.doc("appSettings/webmasterContact").set(
+  // Persist the secret in a webmaster-only doc that no agent can read.
+  await db.doc("appSettings/slackWebhookSecret").set(
     {
       slackWebhookUrl: raw,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: callerUid,
+    },
+    { merge: true }
+  );
+
+  // Defense-in-depth: scrub any legacy copy of the URL on the
+  // public-readable `webmasterContact` doc so older clients can't leak it.
+  await db.doc("appSettings/webmasterContact").set(
+    {
+      slackWebhookUrl: admin.firestore.FieldValue.delete(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedBy: callerUid,
     },
