@@ -916,46 +916,161 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // ---- Managed passwords (webmaster only) ---------------------------------
-  // Mirror of /managedPasswords/{uid}. Webmaster-only (rules enforce). When
-  // Firestore is unreachable we fall back to localStorage so the webmaster
-  // can still see the last-set password offline.
-  const [managedPasswords, setManagedPasswords] = useState<Record<string, string>>({});
+  // ---- Managed passwords vault (webmaster only) -------------------------
+  // Plaintext is NEVER stored. Each managedPasswords/{uid} doc holds an
+  // AES-GCM ciphertext that the webmaster decrypts in-browser using their
+  // vault passphrase. The passphrase lives in module memory only — never
+  // persisted to localStorage. See src/lib/passwordVault.ts.
+  const [vaultEntries, setVaultEntries] = useState<Record<string, EncryptedBlob>>({});
+  const [vaultPlain, setVaultPlain] = useState<Record<string, string>>({});
   const [revealedUid, setRevealedUid] = useState<string | null>(null);
   const [pwDialogUid, setPwDialogUid] = useState<string | null>(null);
   const [pwDraft, setPwDraft] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
+
+  // Vault unlock state
+  const [vaultSentinel, setVaultSentinel] = useState<EncryptedBlob | null>(null);
+  const [vaultUnlocked, setVaultUnlocked] = useState<boolean>(!!getCachedPassphrase());
+  const [vaultDialogOpen, setVaultDialogOpen] = useState(false);
+  const [vaultPassphrase, setVaultPassphrase] = useState("");
+  const [vaultPassphraseConfirm, setVaultPassphraseConfirm] = useState("");
+  const [vaultBusy, setVaultBusy] = useState(false);
 
   useEffect(() => {
     if (!isWebmaster) return;
     const unsub = onSnapshot(
       collection(db, "managedPasswords"),
       (snap) => {
-        const next: Record<string, string> = {};
+        const next: Record<string, EncryptedBlob> = {};
         snap.docs.forEach((d) => {
-          const data = d.data() as { password?: string };
-          if (typeof data.password === "string") {
-            next[d.id] = data.password;
-            // Refresh local cache so offline lookups stay current.
-            setLocalManagedPassword(d.id, data.password);
+          const data = d.data() as any;
+          if (typeof data.ciphertext === "string" && typeof data.iv === "string" && typeof data.salt === "string") {
+            next[d.id] = {
+              ciphertext: data.ciphertext,
+              iv: data.iv,
+              salt: data.salt,
+              algo: data.algo || "AES-GCM-256/PBKDF2-SHA256",
+              iterations: typeof data.iterations === "number" ? data.iterations : 200_000,
+            };
           }
         });
-        setManagedPasswords(next);
+        setVaultEntries(next);
       },
       (err) => {
         console.warn("managedPasswords listener error:", err);
-        setManagedPasswords({});
+        setVaultEntries({});
       }
     );
     return unsub;
   }, [isWebmaster]);
 
-  const getDisplayPassword = (uid: string): string | null => {
-    return managedPasswords[uid] ?? getLocalManagedPassword(uid);
+  // Subscribe to the vault sentinel doc (used to verify the passphrase).
+  useEffect(() => {
+    if (!isWebmaster) return;
+    const unsub = onSnapshot(
+      doc(db, "appSettings", "vaultCheck"),
+      (snap) => {
+        const data = snap.data() as any;
+        if (data && typeof data.ciphertext === "string") {
+          setVaultSentinel({
+            ciphertext: data.ciphertext,
+            iv: data.iv,
+            salt: data.salt,
+            algo: data.algo || "AES-GCM-256/PBKDF2-SHA256",
+            iterations: typeof data.iterations === "number" ? data.iterations : 200_000,
+          });
+        } else {
+          setVaultSentinel(null);
+        }
+      },
+      (err) => console.warn("vaultCheck listener error:", err)
+    );
+    return unsub;
+  }, [isWebmaster]);
+
+  const isVaultInitialized = vaultSentinel !== null;
+
+  const openVaultDialog = () => {
+    setVaultPassphrase("");
+    setVaultPassphraseConfirm("");
+    setVaultDialogOpen(true);
+  };
+
+  const handleVaultUnlock = async () => {
+    const pass = vaultPassphrase;
+    if (pass.length < 8) {
+      toast({ title: "Passphrase too short", description: "Minimum 8 characters.", variant: "destructive" });
+      return;
+    }
+    setVaultBusy(true);
+    try {
+      if (!isVaultInitialized) {
+        if (pass !== vaultPassphraseConfirm) {
+          toast({ title: "Passphrases don't match", variant: "destructive" });
+          return;
+        }
+        const sentinel = await buildSentinel(pass);
+        await setDoc(doc(db, "appSettings", "vaultCheck"), {
+          ...sentinel,
+          createdByUid: user?.uid ?? null,
+          createdByEmail: profile?.email ?? null,
+          createdAt: serverTimestamp(),
+        });
+        cachePassphrase(pass);
+        setVaultUnlocked(true);
+        setVaultDialogOpen(false);
+        toast({ title: "Vault initialized", description: "Remember this passphrase — it cannot be recovered." });
+      } else {
+        const ok = await verifySentinel(vaultSentinel!, pass);
+        if (!ok) {
+          toast({ title: "Wrong passphrase", description: "Could not unlock the vault.", variant: "destructive" });
+          return;
+        }
+        cachePassphrase(pass);
+        setVaultUnlocked(true);
+        setVaultDialogOpen(false);
+        toast({ title: "Vault unlocked" });
+      }
+    } catch (e: any) {
+      toast({ title: "Vault error", description: e?.message, variant: "destructive" });
+    } finally {
+      setVaultBusy(false);
+    }
+  };
+
+  const handleVaultLock = () => {
+    clearVault();
+    setVaultUnlocked(false);
+    setVaultPlain({});
+    setRevealedUid(null);
+    toast({ title: "Vault locked" });
+  };
+
+  const decryptEntry = async (uid: string): Promise<string | null> => {
+    const blob = vaultEntries[uid];
+    if (!blob) return null;
+    const pass = getCachedPassphrase();
+    if (!pass) {
+      openVaultDialog();
+      return null;
+    }
+    if (vaultPlain[uid]) return vaultPlain[uid];
+    try {
+      const pt = await decryptWithPassphrase(blob, pass);
+      setVaultPlain((prev) => ({ ...prev, [uid]: pt }));
+      return pt;
+    } catch {
+      toast({ title: "Decryption failed", description: "Stored ciphertext could not be decrypted with the current passphrase.", variant: "destructive" });
+      return null;
+    }
   };
 
   const openPasswordDialog = (uid: string) => {
-    setPwDraft(getDisplayPassword(uid) ?? "");
+    if (!vaultUnlocked) {
+      openVaultDialog();
+      return;
+    }
+    setPwDraft("");
     setPwDialogUid(uid);
   };
 
@@ -965,6 +1080,12 @@ const SettingsPage: React.FC = () => {
       toast({ title: "Password too short", description: "Minimum 6 characters.", variant: "destructive" });
       return;
     }
+    const pass = getCachedPassphrase();
+    if (!pass) {
+      toast({ title: "Vault locked", description: "Unlock the vault first.", variant: "destructive" });
+      openVaultDialog();
+      return;
+    }
     setPwSaving(true);
     try {
       const fn = httpsCallable<{ targetUid: string; newPassword: string }, { ok: boolean }>(
@@ -972,28 +1093,26 @@ const SettingsPage: React.FC = () => {
         "setUserPassword"
       );
       await fn({ targetUid: uid, newPassword: trimmed });
-      // Optimistic local mirror in case the listener is slow.
-      setManagedPasswords((prev) => ({ ...prev, [uid]: trimmed }));
-      setLocalManagedPassword(uid, trimmed);
+      const blob = await encryptWithPassphrase(trimmed, pass);
+      await setDoc(
+        doc(db, "managedPasswords", uid),
+        { ...blob, email, updatedAt: serverTimestamp() },
+        { merge: true }
+      );
+      setVaultPlain((prev) => ({ ...prev, [uid]: trimmed }));
       toast({ title: "Password updated", description: `${email || uid} can now sign in with the new password.` });
       setPwDialogUid(null);
       setPwDraft("");
     } catch (e: any) {
-      // Even if the cloud call fails, persist locally so the webmaster
-      // doesn't lose what they just typed.
-      setLocalManagedPassword(uid, trimmed);
-      toast({ title: "Password save failed", description: e?.message ?? "Saved locally as fallback.", variant: "destructive" });
+      toast({ title: "Password save failed", description: e?.message ?? "Unknown error", variant: "destructive" });
     } finally {
       setPwSaving(false);
     }
   };
 
   const copyPassword = async (uid: string) => {
-    const pw = getDisplayPassword(uid);
-    if (!pw) {
-      toast({ title: "No password on file", description: "Set one first.", variant: "destructive" });
-      return;
-    }
+    const pw = await decryptEntry(uid);
+    if (!pw) return;
     try {
       await navigator.clipboard.writeText(pw);
       toast({ title: "Password copied" });
@@ -1001,6 +1120,16 @@ const SettingsPage: React.FC = () => {
       toast({ title: "Copy failed", variant: "destructive" });
     }
   };
+
+  const revealPassword = async (uid: string) => {
+    if (revealedUid === uid) {
+      setRevealedUid(null);
+      return;
+    }
+    const pw = await decryptEntry(uid);
+    if (pw) setRevealedUid(uid);
+  };
+
   const [revokingUid, setRevokingUid] = useState<string | null>(null);
   const [revokeDialogUid, setRevokeDialogUid] = useState<string | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
