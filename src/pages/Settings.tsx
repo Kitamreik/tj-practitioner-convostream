@@ -618,6 +618,39 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  /** Resolve / reopen / archive an escalation row. The Archive page surfaces
+   *  archived rows alongside archived conversations. */
+  const [managingId, setManagingId] = useState<string | null>(null);
+  const manageEscalation = async (
+    requestId: string,
+    action: "resolve" | "reopen" | "archive"
+  ) => {
+    setManagingId(requestId);
+    try {
+      const fn = httpsCallable<
+        { requestId: string; action: typeof action },
+        { ok: boolean; action: string }
+      >(functions, "manageEscalationRequest");
+      await fn({ requestId, action });
+      toast({
+        title:
+          action === "resolve"
+            ? "Marked resolved"
+            : action === "reopen"
+            ? "Reopened"
+            : "Moved to Archive",
+        description:
+          action === "archive"
+            ? "Visible on the Archive page for 30 days, then permanently removed."
+            : undefined,
+      });
+    } catch (e: any) {
+      toast({ title: "Could not update", description: e?.message, variant: "destructive" });
+    } finally {
+      setManagingId(null);
+    }
+  };
+
   // ---- All accounts (webmaster only) ----
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [deletingUid, setDeletingUid] = useState<string | null>(null);
