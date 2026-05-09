@@ -2670,6 +2670,65 @@ const SettingsPage: React.FC = () => {
           </Dialog>
         )}
 
+        {/* Webmaster-only: Vault unlock / initialize dialog */}
+        {isWebmaster && (
+          <Dialog
+            open={vaultDialogOpen}
+            onOpenChange={(o) => {
+              if (!o) {
+                setVaultDialogOpen(false);
+                setVaultPassphrase("");
+                setVaultPassphraseConfirm("");
+              }
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4 text-primary" />
+                  {isVaultInitialized ? "Unlock password vault" : "Initialize password vault"}
+                </DialogTitle>
+                <DialogDescription>
+                  {isVaultInitialized
+                    ? "Enter your vault passphrase to decrypt managed passwords. The passphrase is held in this tab's memory only and never persisted."
+                    : "Choose a passphrase that protects every managed password. It derives an AES-GCM-256 key via PBKDF2. We do not store it anywhere — if you lose it, every entry must be re-set."}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <Label htmlFor="vault-passphrase">Passphrase</Label>
+                <Input
+                  id="vault-passphrase"
+                  type="password"
+                  value={vaultPassphrase}
+                  onChange={(e) => setVaultPassphrase(e.target.value)}
+                  placeholder="At least 8 characters"
+                  autoFocus
+                />
+                {!isVaultInitialized && (
+                  <>
+                    <Label htmlFor="vault-passphrase-confirm">Confirm passphrase</Label>
+                    <Input
+                      id="vault-passphrase-confirm"
+                      type="password"
+                      value={vaultPassphraseConfirm}
+                      onChange={(e) => setVaultPassphraseConfirm(e.target.value)}
+                    />
+                  </>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setVaultDialogOpen(false)} disabled={vaultBusy}>
+                  Cancel
+                </Button>
+                <Button onClick={handleVaultUnlock} disabled={vaultBusy || vaultPassphrase.length < 8} className="gap-1.5">
+                  <KeyRound className="h-3.5 w-3.5" />
+                  {vaultBusy ? "Working…" : isVaultInitialized ? "Unlock" : "Initialize vault"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
         {/* Shared revoke-escalation dialog (controlled) */}
         {isWebmaster && (
           <Dialog
