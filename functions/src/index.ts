@@ -304,17 +304,10 @@ export const bootstrapSupportAccount = onCall(async (request) => {
     action: "grantSupport",
   });
 
-  // Mirror the password into managedPasswords for webmaster lookup parity
-  // (only when we actually set one).
-  if (created && initialPassword) {
-    await db.doc(`managedPasswords/${uid}`).set({
-      password: initialPassword,
-      email: SUPPORT_EMAIL,
-      setByUid: "(bootstrap)",
-      setByEmail: null,
-      setAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-  }
+  // The bootstrap password is intentionally NOT mirrored to Firestore.
+  // Operators receive the plaintext one time in the callable response and
+  // must rotate it via the webmaster vault (encrypted with their vault
+  // passphrase) on first sign-in.
 
   logger.info("bootstrapSupportAccount: complete", {
     uid,
