@@ -565,10 +565,10 @@ export const deleteUserAccount = onCall(async (request) => {
 
 /**
  * Webmaster-only: set (overwrite) another user's password. Updates Firebase
- * Auth via the admin SDK and stores the plaintext in
- * `managedPasswords/{targetUid}` so the webmaster can look it up later
- * (Firebase Auth itself never returns the hash). The client also mirrors
- * the value into localStorage as an offline fallback.
+ * Auth via the admin SDK only — the plaintext password is NEVER persisted
+ * server-side. The webmaster client encrypts the password with the vault
+ * passphrase (AES-GCM via PBKDF2) and writes the ciphertext to
+ * `managedPasswords/{targetUid}` directly. See `src/lib/passwordVault.ts`.
  *
  * Request: { targetUid: string, newPassword: string }
  */
@@ -604,15 +604,20 @@ export const setUserPassword = onCall(async (request) => {
     ? (targetSnap.data() as { email?: string }).email ?? null
     : null;
 
-  await db.doc(`managedPasswords/${targetUid}`).set({
-    password: newPassword,
-    email: targetEmail,
-    setByUid: callerUid,
-    setByEmail: callerData?.email ?? null,
-    setAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  // Audit-only metadata; no plaintext, no ciphertext. Also clears any
+  // legacy `password` field written by older builds.
+  await db.doc(`managedPasswords/${targetUid}`).set(
+    {
+      email: targetEmail,
+      lastSetByUid: callerUid,
+      lastSetByEmail: callerData?.email ?? null,
+      lastSetAt: admin.firestore.FieldValue.serverTimestamp(),
+      password: admin.firestore.FieldValue.delete(),
+    },
+    { merge: true }
+  );
 
-  logger.info("setUserPassword: updated", { targetUid, by: callerUid });
+  logger.info("setUserPassword: updated (auth only, no plaintext stored)", { targetUid, by: callerUid });
   return { ok: true, targetUid, targetEmail };
 });
 
