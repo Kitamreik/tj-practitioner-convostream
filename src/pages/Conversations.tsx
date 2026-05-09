@@ -123,7 +123,47 @@ interface Conversation {
   assignedAgent?: string;
   archived?: boolean;
   deletedAt?: any;
+  topic?: ConsultingTopic;
 }
+
+/**
+ * Consulting-oriented topic labels. Picked to cover the lifecycle of a
+ * client engagement (discovery → delivery → renewal) plus operational
+ * lanes that sit alongside it (billing, compliance, escalations).
+ */
+export type ConsultingTopic =
+  | "unlabeled"
+  | "discovery"
+  | "strategy"
+  | "onboarding"
+  | "roadmap"
+  | "implementation"
+  | "account-review"
+  | "renewal"
+  | "billing"
+  | "compliance"
+  | "technical-support"
+  | "follow-up"
+  | "escalation";
+
+const consultingTopics: { value: ConsultingTopic; label: string }[] = [
+  { value: "unlabeled", label: "Unlabeled" },
+  { value: "discovery", label: "Discovery call" },
+  { value: "strategy", label: "Strategy session" },
+  { value: "onboarding", label: "Onboarding" },
+  { value: "roadmap", label: "Roadmap review" },
+  { value: "implementation", label: "Implementation" },
+  { value: "account-review", label: "Account review" },
+  { value: "renewal", label: "Renewal & retention" },
+  { value: "billing", label: "Billing & contracts" },
+  { value: "compliance", label: "Compliance & risk" },
+  { value: "technical-support", label: "Technical support" },
+  { value: "follow-up", label: "Follow-up" },
+  { value: "escalation", label: "Escalation" },
+];
+
+const topicLabel = (t?: ConsultingTopic) =>
+  consultingTopics.find((x) => x.value === (t ?? "unlabeled"))?.label ?? "Unlabeled";
 
 interface ConversationMessage {
   id: string;
