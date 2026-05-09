@@ -2628,9 +2628,11 @@ const SettingsPage: React.FC = () => {
                   })()}
                 </DialogTitle>
                 <DialogDescription>
-                  Updates Firebase Auth immediately. The value is mirrored to{" "}
-                  <code className="rounded bg-muted px-1 py-0.5 text-[11px]">managedPasswords/{pwDialogUid ?? "{uid}"}</code>{" "}
-                  and your local browser cache so you can look it up later.
+                  Updates Firebase Auth immediately. The plaintext is{" "}
+                  <strong>encrypted in your browser</strong> with your vault passphrase
+                  (AES-GCM-256 / PBKDF2) and only the ciphertext is written to{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-[11px]">managedPasswords/{pwDialogUid ?? "{uid}"}</code>.
+                  No plaintext leaves this device.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 py-2">
