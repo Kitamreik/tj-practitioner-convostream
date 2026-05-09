@@ -135,7 +135,7 @@ interface PendingEscalation {
   deliveryChannel: string | null;
   emailSent: boolean;
   createdAt: any;
-}
+  archived?: boolean;
 
 interface AccountRow {
   uid: string;
