@@ -164,12 +164,14 @@ service cloud.firestore {
     }
     match /noteAudit/{id} {
       allow create: if isSignedIn();
-      allow read, delete: if isSignedIn();
+      allow read: if isSignedIn();
+      allow delete: if isWebmaster();
       allow update: if false;
     }
     match /peopleAudit/{id} {
       allow create: if isSignedIn();
-      allow read, delete: if isSignedIn();
+      allow read: if isSignedIn();
+      allow delete: if isWebmaster();
       allow update: if false;
     }
     match /retentionAudit/{id} {
