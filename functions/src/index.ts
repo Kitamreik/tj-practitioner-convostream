@@ -1266,7 +1266,10 @@ export const enforceUserRoleOnWrite = onDocumentWritten(
     const serverAuthored = afterData._serverRoleWrite === true;
     const newRole = afterData.role;
     const oldRole = beforeData?.role ?? "agent";
-    const ALLOWED_BASELINES = new Set(["agent", "admin"]);
+    // Only "agent" is an acceptable baseline on client-authored writes.
+    // Privileged roles (admin, webmaster) must come through server-authored
+    // writes (`_serverRoleWrite: true`), e.g. via `promoteToWebmaster`.
+    const ALLOWED_BASELINES = new Set(["agent"]);
 
     // Server-authored writes are trusted — just clear the sentinel.
     if (serverAuthored) {

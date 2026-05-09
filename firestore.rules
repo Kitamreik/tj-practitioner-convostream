@@ -80,7 +80,6 @@ service cloud.firestore {
         && (
           !('role' in request.resource.data)
           || request.resource.data.role == 'agent'
-          || request.resource.data.role == 'admin'
           || isWebmaster()
         )
         && !('escalatedAccess' in request.resource.data);
