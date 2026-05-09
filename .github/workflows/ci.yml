@@ -1,0 +1,44 @@
+name: CI — smoke + escalation E2E
+
+# Run on every push and every PR. Also runs on workflow_dispatch so a
+# webmaster can re-trigger the suite from the GitHub UI right after a
+# `firebase deploy` to catch CORS / Firestore-ID regressions early.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Vitest (smoke + escalation E2E)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Runs the full Vitest suite, which now includes:
+      #   - src/test/notifyWebmaster.test.ts     (Slack callable contract)
+      #   - src/test/escalationLifecycle.e2e.test.ts (request → resolve →
+      #     reopen → archive lifecycle, plus Firestore-ID + CORS guards)
+      - name: Run tests
+        run: bun run test
+
+      # Build to catch any worker / Vite PWA regressions that would
+      # otherwise only surface on deploy.
+      - name: Build
+        run: bun run build
