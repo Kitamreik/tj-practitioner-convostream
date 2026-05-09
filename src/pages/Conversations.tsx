@@ -1834,7 +1834,23 @@ const Conversations: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <div className="flex items-center gap-1.5">
+              <Tag className="h-3 w-3 text-muted-foreground" />
+              <span className="text-muted-foreground">Topic:</span>
+              <Select
+                value={selected.topic ?? "unlabeled"}
+                onValueChange={(v) => handleChangeTopic(v as ConsultingTopic)}
+              >
+                <SelectTrigger className="h-7 w-44 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {consultingTopics.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
               <SlackAlertButton />
               <Button
                 size="sm"
