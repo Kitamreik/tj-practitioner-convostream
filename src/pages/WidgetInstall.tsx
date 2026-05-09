@@ -348,6 +348,84 @@ const WidgetInstall: React.FC = () => {
           </p>
         </CardContent>
       </Card>
+
+      <Card className="mt-6">
+        <CardHeader className="flex-row items-center justify-between gap-2">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-primary" /> Installation guide
+            </CardTitle>
+            <CardDescription>Step-by-step reference for the team installing the widget on a customer site.</CardDescription>
+          </div>
+          <Button onClick={downloadPdf} variant="outline" size="sm">
+            <Download className="mr-1 h-4 w-4" /> Download as PDF
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-5 text-sm">
+          <section className="space-y-1.5">
+            <h3 className="flex items-center gap-1.5 font-semibold text-foreground">
+              <FileText className="h-4 w-4 text-primary" /> 1. Embed the script
+            </h3>
+            <p className="text-muted-foreground">
+              Paste the snippet above immediately before the closing <code className="rounded bg-muted px-1">&lt;/body&gt;</code> tag of every page that should show the chat. The script is asynchronous, so it will not block your page load.
+            </p>
+            <ul className="ml-5 list-disc text-muted-foreground space-y-0.5">
+              <li>Do not host a copy yourself — always load it from the URL above so security patches deploy automatically.</li>
+              <li>If your site uses a Content Security Policy, allow <code className="rounded bg-muted px-1">{origin}</code> in <code className="rounded bg-muted px-1">script-src</code> and <code className="rounded bg-muted px-1">connect-src</code>.</li>
+              <li>Tag managers (GTM, Segment) work — fire the snippet on a "DOM Ready" trigger.</li>
+            </ul>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-1.5">
+            <h3 className="flex items-center gap-1.5 font-semibold text-foreground">
+              <Globe className="h-4 w-4 text-primary" /> 2. Whitelist your origins
+            </h3>
+            <p className="text-muted-foreground">
+              The widget will only create new threads from origins listed in the <strong>Security</strong> card above. The site key is public — origins are the real perimeter.
+            </p>
+            <ul className="ml-5 list-disc text-muted-foreground space-y-0.5">
+              <li>Use the full origin including scheme: <code className="rounded bg-muted px-1">https://www.example.com</code>.</li>
+              <li>Add every subdomain individually — <code className="rounded bg-muted px-1">https://example.com</code> and <code className="rounded bg-muted px-1">https://www.example.com</code> are different origins.</li>
+              <li>Include staging and preview URLs (e.g. Vercel previews) only while testing, then remove them.</li>
+              <li>No wildcards, no paths, no query strings.</li>
+              <li>Leaving the list empty allows any origin and is <strong>strongly discouraged</strong> in production.</li>
+            </ul>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-1.5">
+            <h3 className="flex items-center gap-1.5 font-semibold text-foreground">
+              <Palette className="h-4 w-4 text-primary" /> 3. Set the theme safely
+            </h3>
+            <p className="text-muted-foreground">
+              The accent color is the only style you control — the widget renders inside an isolated container so it cannot leak CSS into the host page.
+            </p>
+            <ul className="ml-5 list-disc text-muted-foreground space-y-0.5">
+              <li>Provide a 6-digit hex color (e.g. <code className="rounded bg-muted px-1">#E07A5F</code>). Other formats are rejected.</li>
+              <li>Pick a tone with at least <strong>4.5:1 contrast</strong> against white for WCAG AA compliance on the launcher button.</li>
+              <li>Avoid pure red (<code className="rounded bg-muted px-1">#FF0000</code>) — visitors associate it with errors and reduce engagement.</li>
+              <li>Position the bubble away from cookie banners or chat-bot competitors to avoid overlap.</li>
+            </ul>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-1.5">
+            <h3 className="flex items-center gap-1.5 font-semibold text-foreground">
+              <ShieldCheck className="h-4 w-4 text-primary" /> 4. Privacy, consent & rollback
+            </h3>
+            <ul className="ml-5 list-disc text-muted-foreground space-y-0.5">
+              <li>Keep <strong>Require explicit consent</strong> on so visitors must accept your privacy & terms before sending the first message.</li>
+              <li>The widget stores a single first-party identifier (thread id) — no third-party trackers.</li>
+              <li>Toggle <strong>Widget enabled</strong> off to instantly stop accepting new chats from every installed snippet.</li>
+              <li>Rotate the site key if a snippet leaks; redeploy with the new key everywhere.</li>
+            </ul>
+          </section>
+        </CardContent>
+      </Card>
     </div>
   );
 };
