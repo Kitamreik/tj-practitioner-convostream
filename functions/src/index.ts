@@ -2087,12 +2087,24 @@ async function readSlackWebhookUrl(): Promise<string | null> {
   const fromEnv = (process.env.SLACK_WEBHOOK_URL || "").trim();
   if (fromEnv && fromEnv.startsWith("https://hooks.slack.com/")) return fromEnv;
 
+  // Preferred storage: webmaster-only doc that no client can read.
+  try {
+    const snap = await db.doc("appSettings/slackWebhookSecret").get();
+    const url = ((snap.data() as { slackWebhookUrl?: string } | undefined)?.slackWebhookUrl || "").trim();
+    if (url && url.startsWith("https://hooks.slack.com/")) return url;
+  } catch (err) {
+    logger.warn("readSlackWebhookUrl: secret doc read failed", err);
+  }
+
+  // Legacy fallback: older deployments stored the URL on the public-readable
+  // `appSettings/webmasterContact` doc. The setSlackWebhookUrlAdmin callable
+  // now clears that field and migrates writes to the secret doc above.
   try {
     const snap = await db.doc("appSettings/webmasterContact").get();
     const url = ((snap.data() as { slackWebhookUrl?: string } | undefined)?.slackWebhookUrl || "").trim();
     if (url && url.startsWith("https://hooks.slack.com/")) return url;
   } catch (err) {
-    logger.warn("readSlackWebhookUrl: Firestore read failed", err);
+    logger.warn("readSlackWebhookUrl: legacy Firestore read failed", err);
   }
   return null;
 }
