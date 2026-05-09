@@ -575,8 +575,11 @@ const SettingsPage: React.FC = () => {
               deliveryChannel: data.deliveryChannel ?? null,
               emailSent: !!data.emailSent,
               createdAt: data.createdAt,
+              archived: !!data.archived,
             };
           })
+          // Hide archived rows from the active queue — they live on the Archive page.
+          .filter((r) => !r.archived)
           .sort((a, b) => {
             const am = a.createdAt?.toMillis?.() ?? 0;
             const bm = b.createdAt?.toMillis?.() ?? 0;
