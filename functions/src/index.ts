@@ -504,7 +504,73 @@ export const decideEscalationRequest = onCall(async (request) => {
 });
 
 /**
- * Webmaster-only: permanently delete a user account (Auth + Firestore profile).
+ * Webmaster-only: change the lifecycle state of an escalation request.
+ *
+ *  - "resolve"  → status = "resolved", clears archived flag.
+ *  - "reopen"   → status = "pending",  clears resolvedAt + archived flag.
+ *  - "archive"  → archived = true,     stamps deletedAt for the 30-day
+ *                 retention window mirrored on the Archive page.
+ *  - "restore"  → archived = false,    clears deletedAt.
+ *
+ * Request: { requestId: string, action: "resolve" | "reopen" | "archive" | "restore" }
+ */
+export const manageEscalationRequest = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
+  const callerData = callerSnap.data() as { role?: string; email?: string } | undefined;
+  if (callerData?.role !== "webmaster") {
+    throw new HttpsError("permission-denied", "Webmasters only.");
+  }
+
+  const { requestId, action } = (request.data ?? {}) as {
+    requestId?: unknown;
+    action?: unknown;
+  };
+  if (typeof requestId !== "string" || !requestId) {
+    throw new HttpsError("invalid-argument", "requestId required.");
+  }
+  if (action !== "resolve" && action !== "reopen" && action !== "archive" && action !== "restore") {
+    throw new HttpsError("invalid-argument", "action must be resolve|reopen|archive|restore.");
+  }
+
+  const ref = db.collection("escalationRequests").doc(requestId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Request not found.");
+
+  const patch: Record<string, unknown> = {
+    log: admin.firestore.FieldValue.arrayUnion({
+      action,
+      at: admin.firestore.Timestamp.now(),
+      byUid: request.auth.uid,
+      byEmail: callerData?.email ?? null,
+    }),
+  };
+
+  if (action === "resolve") {
+    patch.status = "resolved";
+    patch.resolvedAt = admin.firestore.FieldValue.serverTimestamp();
+    patch.resolvedByUid = request.auth.uid;
+    patch.archived = false;
+    patch.deletedAt = admin.firestore.FieldValue.delete();
+  } else if (action === "reopen") {
+    patch.status = "pending";
+    patch.resolvedAt = admin.firestore.FieldValue.delete();
+    patch.archived = false;
+    patch.deletedAt = admin.firestore.FieldValue.delete();
+  } else if (action === "archive") {
+    patch.archived = true;
+    patch.deletedAt = admin.firestore.FieldValue.serverTimestamp();
+  } else if (action === "restore") {
+    patch.archived = false;
+    patch.deletedAt = admin.firestore.FieldValue.delete();
+  }
+
+  await ref.update(patch);
+  logger.info("manageEscalationRequest", { requestId, action, by: request.auth.uid });
+  return { ok: true, action };
+});
+
+
  * Refuses to delete the caller's own account.
  *
  * Request: { targetUid: string }
