@@ -1039,20 +1039,41 @@ const SettingsPage: React.FC = () => {
     setVaultDialogOpen(true);
   };
 
+  const passphraseStrength = (pass: string): { score: number; label: string } => {
+    let score = 0;
+    if (pass.length >= 8) score += 25;
+    if (pass.length >= 14) score += 25;
+    if (/[A-Z]/.test(pass) && /[a-z]/.test(pass)) score += 15;
+    if (/\d/.test(pass)) score += 15;
+    if (/[^A-Za-z0-9]/.test(pass)) score += 20;
+    score = Math.min(100, score);
+    const label = score < 40 ? "Weak" : score < 70 ? "Fair" : score < 90 ? "Strong" : "Excellent";
+    return { score, label };
+  };
+
   const handleVaultUnlock = async () => {
+    setVaultError(null);
     const pass = vaultPassphrase;
     if (pass.length < 8) {
-      toast({ title: "Passphrase too short", description: "Minimum 8 characters.", variant: "destructive" });
+      setVaultError("Passphrase must be at least 8 characters.");
       return;
     }
     setVaultBusy(true);
+    setVaultStep("deriving");
     try {
       if (!isVaultInitialized) {
         if (pass !== vaultPassphraseConfirm) {
-          toast({ title: "Passphrases don't match", variant: "destructive" });
+          setVaultError("Passphrases do not match. Re-enter both fields exactly.");
+          setVaultStep("idle");
+          return;
+        }
+        if (passphraseStrength(pass).score < 40) {
+          setVaultError("Passphrase is too weak. Add length, mixed case, numbers or symbols.");
+          setVaultStep("idle");
           return;
         }
         const sentinel = await buildSentinel(pass);
+        setVaultStep("writing");
         await setDoc(doc(db, "appSettings", "vaultCheck"), {
           ...sentinel,
           createdByUid: user?.uid ?? null,
@@ -1061,21 +1082,31 @@ const SettingsPage: React.FC = () => {
         });
         cachePassphrase(pass);
         setVaultUnlocked(true);
-        setVaultDialogOpen(false);
+        setVaultStep("done");
+        setTimeout(() => {
+          setVaultDialogOpen(false);
+          setVaultStep("idle");
+        }, 600);
         toast({ title: "Vault initialized", description: "Remember this passphrase — it cannot be recovered." });
       } else {
         const ok = await verifySentinel(vaultSentinel!, pass);
         if (!ok) {
-          toast({ title: "Wrong passphrase", description: "Could not unlock the vault.", variant: "destructive" });
+          setVaultError("Wrong passphrase. The vault could not be decrypted.");
+          setVaultStep("idle");
           return;
         }
         cachePassphrase(pass);
         setVaultUnlocked(true);
-        setVaultDialogOpen(false);
+        setVaultStep("done");
+        setTimeout(() => {
+          setVaultDialogOpen(false);
+          setVaultStep("idle");
+        }, 400);
         toast({ title: "Vault unlocked" });
       }
     } catch (e: any) {
-      toast({ title: "Vault error", description: e?.message, variant: "destructive" });
+      setVaultError(e?.message || "Vault operation failed.");
+      setVaultStep("idle");
     } finally {
       setVaultBusy(false);
     }
