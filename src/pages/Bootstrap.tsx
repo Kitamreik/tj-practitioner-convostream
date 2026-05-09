@@ -66,11 +66,14 @@ const Bootstrap: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const fn = httpsCallable<{ initialPassword: string }, CallResult>(
-        functions,
-        "bootstrapSupportAccount"
-      );
-      const res = await fn({ initialPassword: password });
+      const fn = httpsCallable<
+        { initialPassword: string; bootstrapSecret?: string },
+        CallResult
+      >(functions, "bootstrapSupportAccount");
+      const res = await fn({
+        initialPassword: password,
+        ...(bootstrapSecret.trim() ? { bootstrapSecret: bootstrapSecret.trim() } : {}),
+      });
       setResult(res.data);
       toast({
         title: "Bootstrap complete",
