@@ -77,7 +77,11 @@ export async function encryptWithPassphrase(plaintext: string, passphrase: strin
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveKey(passphrase, salt, VAULT_ITERATIONS);
   const enc = new TextEncoder();
-  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(plaintext));
+  const ct = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: iv as unknown as BufferSource },
+    key,
+    enc.encode(plaintext) as unknown as BufferSource
+  );
   return {
     ciphertext: toB64(ct),
     iv: toB64(iv),
@@ -90,9 +94,9 @@ export async function encryptWithPassphrase(plaintext: string, passphrase: strin
 export async function decryptWithPassphrase(blob: EncryptedBlob, passphrase: string): Promise<string> {
   const key = await deriveKey(passphrase, fromB64(blob.salt), blob.iterations || VAULT_ITERATIONS);
   const pt = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: fromB64(blob.iv) },
+    { name: "AES-GCM", iv: fromB64(blob.iv) as unknown as BufferSource },
     key,
-    fromB64(blob.ciphertext)
+    fromB64(blob.ciphertext) as unknown as BufferSource
   );
   return new TextDecoder().decode(pt);
 }
