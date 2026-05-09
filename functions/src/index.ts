@@ -30,6 +30,32 @@ import * as admin from "firebase-admin";
 admin.initializeApp();
 const db = admin.firestore();
 
+/**
+ * CORS allow-list applied to every callable in this module. Browser
+ * `httpsCallable` invocations require the Functions endpoint to echo the
+ * caller's Origin in `Access-Control-Allow-Origin`; without this the SDK
+ * surfaces a generic `internal` error and the browser logs a CORS block.
+ *
+ * Allows:
+ *  - Firebase Hosting domains for the project (web.app + firebaseapp.com)
+ *  - Lovable preview / published / custom-domain hosts
+ *  - localhost dev servers
+ */
+const CALLABLE_OPTS = {
+  cors: [
+    /^https:\/\/.*\.lovableproject\.com$/,
+    /^https:\/\/.*\.lovable\.app$/,
+    /^https:\/\/.*\.lovable\.dev$/,
+    /^https:\/\/.*\.web\.app$/,
+    /^https:\/\/.*\.firebaseapp\.com$/,
+    /^https:\/\/convohub\.dev$/,
+    /^https:\/\/.*\.convohub\.dev$/,
+    "http://localhost:5173",
+    "http://localhost:8080",
+    "http://localhost:3000",
+  ],
+} as const;
+
 // =============================================================================
 // Role management — callable functions
 // =============================================================================
