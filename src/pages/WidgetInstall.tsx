@@ -125,7 +125,89 @@ const WidgetInstall: React.FC = () => {
     }
   };
 
-  const originsValid = originsText
+  const downloadPdf = () => {
+    const doc = new jsPDF({ unit: "pt", format: "letter" });
+    const margin = 54;
+    const maxWidth = 612 - margin * 2;
+    let y = margin;
+
+    const writeHeading = (text: string, size = 16) => {
+      if (y > 720) { doc.addPage(); y = margin; }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(size);
+      doc.text(text, margin, y);
+      y += size + 6;
+    };
+    const writeBody = (text: string, size = 10.5) => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(size);
+      const lines = doc.splitTextToSize(text, maxWidth);
+      lines.forEach((line: string) => {
+        if (y > 740) { doc.addPage(); y = margin; }
+        doc.text(line, margin, y);
+        y += size + 3;
+      });
+      y += 4;
+    };
+    const writeCode = (text: string) => {
+      doc.setFont("courier", "normal");
+      doc.setFontSize(9);
+      const lines = doc.splitTextToSize(text, maxWidth);
+      lines.forEach((line: string) => {
+        if (y > 740) { doc.addPage(); y = margin; }
+        doc.text(line, margin, y);
+        y += 12;
+      });
+      y += 6;
+    };
+
+    writeHeading("ConvoHub Chat Widget — Installation Guide", 18);
+    writeBody(
+      `Tenant id: ${tenant}\nSite key: ${config?.siteKey || "(save the configuration to generate)"}\nGenerated: ${new Date().toUTCString()}`
+    );
+
+    writeHeading("1. What this widget does", 13);
+    writeBody(
+      "The ConvoHub widget is a small JavaScript snippet you embed on your customer-facing website. When a visitor opens it, a new conversation thread is created and routed straight into your ConvoHub inbox. Returning visitors on the same browser automatically resume their existing thread."
+    );
+
+    writeHeading("2. Install snippet", 13);
+    writeBody("Paste this just before </body> on every page where the widget should appear:");
+    writeCode(snippet);
+
+    writeHeading("3. Allow-listed origins", 13);
+    writeBody(
+      "The widget only accepts new chats from origins you explicitly list. The site key is public; security comes from this allow-list. Add every domain (and subdomain) where the snippet will load, including staging environments. Use full origins with scheme — for example:"
+    );
+    writeCode("https://www.example.com\nhttps://app.example.com\nhttps://staging.example.com");
+    writeBody(
+      "Do NOT use wildcards or paths. If you leave the list empty the widget runs anywhere, which is strongly discouraged in production."
+    );
+
+    writeHeading("4. Theme — safe customization", 13);
+    writeBody(
+      `Accent color (hex only, e.g. #E07A5F): ${color}\nBubble position: ${position === "left" ? "Bottom left" : "Bottom right"}\n\nGuidance: pick a color with at least 4.5:1 contrast against white text so the launcher button stays accessible (WCAG AA). Avoid pure red (#FF0000) — visitors associate it with errors. Test the chosen color on the actual page; the widget injects no other styles into your site, so there is no risk of leaking CSS.`
+    );
+
+    writeHeading("5. Privacy & consent", 13);
+    writeBody(
+      `Require explicit consent: ${requireConsent ? "ENABLED" : "DISABLED"}.\n\nWhen enabled, visitors must accept your privacy and terms before sending the first message. We recommend keeping this on. The widget sets only one first-party cookie/localStorage key (the thread id) and never loads third-party trackers.`
+    );
+
+    writeHeading("6. Operations", 13);
+    writeBody(
+      "• Disable the widget instantly by toggling \"Widget enabled\" off in the admin page — every installed snippet stops accepting new chats within seconds.\n• Rotate the site key if a snippet leaks. All existing installs must be redeployed with the new key.\n• Backend endpoints are rate-limited and run bot/spam checks; abusive origins are throttled automatically."
+    );
+
+    writeHeading("7. Troubleshooting", 13);
+    writeBody(
+      "Widget does not appear → check the browser console for an \"origin not allowed\" message and add the exact origin to the allow-list.\nMessages do not arrive → confirm the site key matches the latest value in this admin page.\nStyle conflicts → the widget renders inside a shadow DOM container; if it still clashes, set a higher z-index on the host page."
+    );
+
+    doc.save(`convohub-widget-install-${tenant}.pdf`);
+    toast({ title: "PDF downloaded", description: "Installation guide saved." });
+  };
+
     .split(/\r?\n/)
     .map((s) => s.trim())
     .filter(Boolean)
