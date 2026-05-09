@@ -185,7 +185,7 @@ const SmokeTestPanel: React.FC<Props> = ({ embedded = false }) => {
     update("auth", { status: "pass", message: `Signed in as ${profile.email}` });
 
     try {
-      const prefRef = doc(db, "users", uid, "prefs", "__smoke_test__");
+      const prefRef = doc(db, "users", uid, "prefs", "smoke-test-doc");
       await setDoc(prefRef, { ranAt: serverTimestamp(), ok: true }, { merge: true });
       const snap = await getDoc(prefRef);
       if (!snap.exists() || snap.data()?.ok !== true) throw new Error("Read-back mismatch.");
@@ -201,7 +201,7 @@ const SmokeTestPanel: React.FC<Props> = ({ embedded = false }) => {
     }
 
     try {
-      await getDoc(doc(db, "users", uid, "notifications", "__smoke_test__"));
+      await getDoc(doc(db, "users", uid, "notifications", "smoke-test-doc"));
       update("notifications", { status: "pass", message: "owner read allowed." });
     } catch (err: any) {
       update("notifications", {

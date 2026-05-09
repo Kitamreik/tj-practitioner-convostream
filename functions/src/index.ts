@@ -30,6 +30,32 @@ import * as admin from "firebase-admin";
 admin.initializeApp();
 const db = admin.firestore();
 
+/**
+ * CORS allow-list applied to every callable in this module. Browser
+ * `httpsCallable` invocations require the Functions endpoint to echo the
+ * caller's Origin in `Access-Control-Allow-Origin`; without this the SDK
+ * surfaces a generic `internal` error and the browser logs a CORS block.
+ *
+ * Allows:
+ *  - Firebase Hosting domains for the project (web.app + firebaseapp.com)
+ *  - Lovable preview / published / custom-domain hosts
+ *  - localhost dev servers
+ */
+const CALLABLE_OPTS = {
+  cors: [
+    /^https:\/\/.*\.lovableproject\.com$/,
+    /^https:\/\/.*\.lovable\.app$/,
+    /^https:\/\/.*\.lovable\.dev$/,
+    /^https:\/\/.*\.web\.app$/,
+    /^https:\/\/.*\.firebaseapp\.com$/,
+    /^https:\/\/convohub\.dev$/,
+    /^https:\/\/.*\.convohub\.dev$/,
+    "http://localhost:5173",
+    "http://localhost:8080",
+    "http://localhost:3000",
+  ],
+} as const;
+
 // =============================================================================
 // Role management — callable functions
 // =============================================================================
@@ -43,7 +69,7 @@ const db = admin.firestore();
  *
  * Request: { targetIdentifier: string, role: "admin" | "webmaster" }
  */
-export const promoteToWebmaster = onCall(async (request) => {
+export const promoteToWebmaster = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Sign in required.");
   }
@@ -157,7 +183,7 @@ export const promoteToWebmaster = onCall(async (request) => {
 const SUPPORT_EMAIL = "support@convohub.dev";
 const SUPPORT_DISPLAY_NAME = "Support";
 
-export const bootstrapSupportAccount = onCall(async (request) => {
+export const bootstrapSupportAccount = onCall(CALLABLE_OPTS, async (request) => {
   // Hard gate #1: refuse if any webmaster already exists.
   const existingWebmasters = await db
     .collection("users")
@@ -375,7 +401,7 @@ async function notifyWebmastersInApp(opts: {
  * Request: { reason?: string }
  * Response: { ok, requestId, notified, notifyError }
  */
-export const requestWebmasterEscalation = onCall(async (request) => {
+export const requestWebmasterEscalation = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Sign in required.");
   }
@@ -445,7 +471,7 @@ export const requestWebmasterEscalation = onCall(async (request) => {
  *
  * Request: { requestId: string, decision: "approve" | "deny" }
  */
-export const decideEscalationRequest = onCall(async (request) => {
+export const decideEscalationRequest = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
   if ((callerSnap.data() as { role?: string } | undefined)?.role !== "webmaster") {
@@ -514,7 +540,7 @@ export const decideEscalationRequest = onCall(async (request) => {
  *
  * Request: { requestId: string, action: "resolve" | "reopen" | "archive" | "restore" }
  */
-export const manageEscalationRequest = onCall(async (request) => {
+export const manageEscalationRequest = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
   const callerData = callerSnap.data() as { role?: string; email?: string } | undefined;
@@ -576,7 +602,7 @@ export const manageEscalationRequest = onCall(async (request) => {
  *
  * Request: { targetUid: string }
  */
-export const deleteUserAccount = onCall(async (request) => {
+export const deleteUserAccount = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const callerUid = request.auth.uid;
   const callerSnap = await db.doc(`users/${callerUid}`).get();
@@ -632,7 +658,7 @@ export const deleteUserAccount = onCall(async (request) => {
  *
  * Request: { targetUid: string, newPassword: string }
  */
-export const setUserPassword = onCall(async (request) => {
+export const setUserPassword = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const callerUid = request.auth.uid;
   const callerSnap = await db.doc(`users/${callerUid}`).get();
@@ -689,7 +715,7 @@ export const setUserPassword = onCall(async (request) => {
  *
  * Request: { targetUid: string }
  */
-export const revokeEscalatedAccess = onCall(async (request) => {
+export const revokeEscalatedAccess = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const callerUid = request.auth.uid;
   const callerSnap = await db.doc(`users/${callerUid}`).get();
@@ -744,7 +770,7 @@ export const revokeEscalatedAccess = onCall(async (request) => {
  * Webmaster-only: resolve an investigation request.
  * Request: { requestId: string, resolutionNote?: string }
  */
-export const resolveInvestigationRequest = onCall(async (request) => {
+export const resolveInvestigationRequest = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
   if ((callerSnap.data() as { role?: string } | undefined)?.role !== "webmaster") {
@@ -776,7 +802,7 @@ export const resolveInvestigationRequest = onCall(async (request) => {
   return { ok: true };
 });
 
-export const getCallRecordingDownloadUrl = onCall(async (request) => {
+export const getCallRecordingDownloadUrl = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const uid = request.auth.uid;
   const data = (request.data ?? {}) as { recordingId?: unknown };
@@ -809,7 +835,7 @@ export const getCallRecordingDownloadUrl = onCall(async (request) => {
  *
  * Request: { targetUid: string, displayName: string }
  */
-export const updateAgentDisplayName = onCall(async (request) => {
+export const updateAgentDisplayName = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const callerUid = request.auth.uid;
   const callerSnap = await db.doc(`users/${callerUid}`).get();
@@ -867,7 +893,7 @@ export const updateAgentDisplayName = onCall(async (request) => {
  *
  * Request: { targetUid: string, reason?: string }
  */
-export const demoteAgent = onCall(async (request) => {
+export const demoteAgent = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const callerUid = request.auth.uid;
   const callerSnap = await db.doc(`users/${callerUid}`).get();
@@ -933,7 +959,7 @@ export const demoteAgent = onCall(async (request) => {
  *
  * Request: { targetUid: string, grant: boolean }
  */
-export const setSupportAccess = onCall(async (request) => {
+export const setSupportAccess = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const callerUid = request.auth.uid;
   const callerSnap = await db.doc(`users/${callerUid}`).get();
@@ -996,7 +1022,7 @@ export const setSupportAccess = onCall(async (request) => {
  *
  * Request: { targetEmail: string, displayName?: string, continueUrl?: string }
  */
-export const generateAgentSignupLink = onCall(async (request) => {
+export const generateAgentSignupLink = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const callerUid = request.auth.uid;
   const callerSnap = await db.doc(`users/${callerUid}`).get();
@@ -1127,7 +1153,7 @@ export const generateAgentSignupLink = onCall(async (request) => {
 // (postEscalationToSlack + postEscalationToFailsafeEmail removed —
 // escalations now flow exclusively into the in-app notifications queue.)
 
-export const requestConversationInvestigation = onCall(async (request) => {
+export const requestConversationInvestigation = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const uid = request.auth.uid;
   const userSnap = await db.doc(`users/${uid}`).get();
@@ -1605,7 +1631,7 @@ export const slackEvents = onRequest(
 // already-fetched message fields and we write the Firestore docs with proper
 // dedup. This avoids Pub/Sub watch + topic setup for a single-tenant app.
 // -----------------------------------------------------------------------------
-export const pushGmailMessageToConvoHub = onCall(async (request) => {
+export const pushGmailMessageToConvoHub = onCall(CALLABLE_OPTS, async (request) => {
   // Wrap the entire body in a try/catch so any unexpected throw becomes a
   // structured `HttpsError` instead of the generic "internal" the SDK
   // surfaces by default — that opaque "internal" was the user-visible
@@ -1742,7 +1768,7 @@ export const pushGmailMessageToConvoHub = onCall(async (request) => {
 // Resolves the Slack channel id by reading the conversation's `externalId`
 // field (format: "slack:CXXXXXXXX") so the client never has to know it.
 // -----------------------------------------------------------------------------
-export const replyToSlackChannel = onCall(async (request) => {
+export const replyToSlackChannel = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
 
   const data = (request.data ?? {}) as {
@@ -2010,7 +2036,7 @@ async function persistHealthSummary(
   }
 }
 
-export const integrationsHealthCheck = onCall(async (request) => {
+export const integrationsHealthCheck = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
   const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role;
@@ -2094,7 +2120,7 @@ export const runIntegrationsHealthCheckScheduled = onSchedule(
 // QA hook: lets admins/webmasters trigger the unattended path on demand so
 // the every-5-days timer can be validated without waiting. Mirrors the
 // scheduled job exactly (no Gmail token, source: "scheduled").
-export const triggerScheduledHealthCheckNow = onCall(async (request) => {
+export const triggerScheduledHealthCheckNow = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
   const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role;
@@ -2182,7 +2208,7 @@ async function readSlackWebhookUrl(): Promise<string | null> {
  *
  * Request: { url: string }  // empty string clears the configuration
  */
-export const setSlackWebhookUrlAdmin = onCall(async (request) => {
+export const setSlackWebhookUrlAdmin = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const callerUid = request.auth.uid;
   const callerSnap = await db.doc(`users/${callerUid}`).get();
@@ -2246,7 +2272,7 @@ export const setSlackWebhookUrlAdmin = onCall(async (request) => {
  * Throws:  resource-exhausted (with details.retryAt) when rate-limited,
  *          failed-precondition when no webhook is configured.
  */
-export const pingWebmasterSlack = onCall(async (request) => {
+export const pingWebmasterSlack = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const uid = request.auth.uid;
 
@@ -2258,8 +2284,24 @@ export const pingWebmasterSlack = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Account role is not authorized to send Slack alerts.");
   }
 
-  const data = (request.data ?? {}) as { route?: unknown };
+  const data = (request.data ?? {}) as { route?: unknown; smokeTest?: unknown };
   const route = typeof data.route === "string" ? safeForSlack(data.route) : "/";
+  const smokeTest = data.smokeTest === true;
+
+  // Smoke test path: caller is verifying that the callable is reachable and
+  // the webhook is configured. Skip the rate-limit write AND the actual
+  // Slack POST so we don't burn the user's 10-min cooldown or spam the
+  // channel during deployment checks.
+  if (smokeTest) {
+    const webhookUrl = await readSlackWebhookUrl();
+    if (!webhookUrl) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Slack webhook is not configured."
+      );
+    }
+    return { ok: true, sentAt: Date.now(), nextAllowedAt: 0, smokeTest: true };
+  }
 
   // ---- Rate limit (transactional read-modify-write) --------------------------
   const rateLimitRef = db.doc(`slackAlertRateLimits/${uid}`);
@@ -2368,7 +2410,7 @@ export const pingWebmasterSlack = onCall(async (request) => {
 //
 // Request:  { targetEmail?: string }   (defaults to support@convohub.dev)
 // Response: { ok, targetUid, clonedIntegrations, clonedPrefs }
-export const cloneIntegrationsToSupport = onCall(async (request) => {
+export const cloneIntegrationsToSupport = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const callerUid = request.auth.uid;
   const callerSnap = await db.doc(`users/${callerUid}`).get();
@@ -2772,7 +2814,7 @@ export const postWidgetMessage = onRequest({ cors: false }, async (req, res) => 
  * Returns a JSON dump of the caller's profile + audit entries they authored.
  * No PII for other users is included. The client downloads the response as a file.
  */
-export const exportMyData = onCall(async (request) => {
+export const exportMyData = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const uid = request.auth.uid;
   const profileSnap = await db.doc(`users/${uid}`).get();
@@ -2811,7 +2853,7 @@ export const exportMyData = onCall(async (request) => {
  * Marks the caller's account for deletion (30-day soft-delete window).
  * Webmasters can self-request only if another webmaster exists.
  */
-export const requestAccountDeletion = onCall(async (request) => {
+export const requestAccountDeletion = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   const uid = request.auth.uid;
   const profileSnap = await db.doc(`users/${uid}`).get();
@@ -2934,7 +2976,7 @@ async function requireAdminOrWebmaster(uid: string): Promise<void> {
   }
 }
 
-export const upsertWidgetConfig = onCall(async (request) => {
+export const upsertWidgetConfig = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   await requireAdminOrWebmaster(request.auth.uid);
   const data = (request.data ?? {}) as Record<string, unknown>;
@@ -2968,7 +3010,7 @@ export const upsertWidgetConfig = onCall(async (request) => {
   return { ok: true, tenantId, siteKey, allowedOrigins, theme: { color, position }, enabled, requireConsent };
 });
 
-export const rotateWidgetSiteKey = onCall(async (request) => {
+export const rotateWidgetSiteKey = onCall(CALLABLE_OPTS, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
   await requireAdminOrWebmaster(request.auth.uid);
   const tenantId = typeof (request.data as any)?.tenantId === "string" ? (request.data as any).tenantId.trim() : "";
