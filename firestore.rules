@@ -369,8 +369,11 @@ service cloud.firestore {
       allow delete: if isWebmaster();
     }
     // Catch-all for any other appSettings docs we add later — webmaster only.
+    // IMPORTANT: read is webmaster-only so this rule does NOT widen access to
+    // sensitive docs like `slackWebhookSecret`. Docs that need broader read
+    // access must declare their own explicit `match` block above.
     match /appSettings/{docId} {
-      allow read: if isSignedIn();
+      allow read: if isWebmaster();
       allow create, update, delete: if isWebmaster();
     }
 
