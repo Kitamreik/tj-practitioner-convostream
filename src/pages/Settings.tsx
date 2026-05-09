@@ -32,6 +32,8 @@ import {
   PhoneCall,
   Mail,
   LifeBuoy,
+  RotateCcw,
+  Archive as ArchiveIcon,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import RoleBadge from "@/components/RoleBadge";
@@ -72,10 +74,17 @@ import { toast } from "@/hooks/use-toast";
 import { httpsCallable } from "firebase/functions";
 import { functions, db } from "@/lib/firebase";
 import { subscribeLocalAgents, type LocalAgent } from "@/lib/localAgents";
+import "@/lib/managedPasswords"; // side-effect: purges legacy localStorage keys
 import {
-  setLocalManagedPassword,
-  getLocalManagedPassword,
-} from "@/lib/managedPasswords";
+  encryptWithPassphrase,
+  decryptWithPassphrase,
+  buildSentinel,
+  verifySentinel,
+  cachePassphrase,
+  getCachedPassphrase,
+  clearVault,
+  type EncryptedBlob,
+} from "@/lib/passwordVault";
 import {
   collection,
   query,
@@ -84,6 +93,8 @@ import {
   limit,
   onSnapshot,
   doc,
+  setDoc,
+  serverTimestamp,
   writeBatch,
   getDocs,
 } from "firebase/firestore";
@@ -126,6 +137,7 @@ interface PendingEscalation {
   deliveryChannel: string | null;
   emailSent: boolean;
   createdAt: any;
+  archived?: boolean;
 }
 
 interface AccountRow {
@@ -565,8 +577,11 @@ const SettingsPage: React.FC = () => {
               deliveryChannel: data.deliveryChannel ?? null,
               emailSent: !!data.emailSent,
               createdAt: data.createdAt,
+              archived: !!data.archived,
             };
           })
+          // Hide archived rows from the active queue — they live on the Archive page.
+          .filter((r) => !r.archived)
           .sort((a, b) => {
             const am = a.createdAt?.toMillis?.() ?? 0;
             const bm = b.createdAt?.toMillis?.() ?? 0;
@@ -602,6 +617,39 @@ const SettingsPage: React.FC = () => {
       toast({ title: "Could not update request", description: e?.message, variant: "destructive" });
     } finally {
       setDecidingId(null);
+    }
+  };
+
+  /** Resolve / reopen / archive an escalation row. The Archive page surfaces
+   *  archived rows alongside archived conversations. */
+  const [managingId, setManagingId] = useState<string | null>(null);
+  const manageEscalation = async (
+    requestId: string,
+    action: "resolve" | "reopen" | "archive"
+  ) => {
+    setManagingId(requestId);
+    try {
+      const fn = httpsCallable<
+        { requestId: string; action: typeof action },
+        { ok: boolean; action: string }
+      >(functions, "manageEscalationRequest");
+      await fn({ requestId, action });
+      toast({
+        title:
+          action === "resolve"
+            ? "Marked resolved"
+            : action === "reopen"
+            ? "Reopened"
+            : "Moved to Archive",
+        description:
+          action === "archive"
+            ? "Visible on the Archive page for 30 days, then permanently removed."
+            : undefined,
+      });
+    } catch (e: any) {
+      toast({ title: "Could not update", description: e?.message, variant: "destructive" });
+    } finally {
+      setManagingId(null);
     }
   };
 
@@ -909,46 +957,161 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // ---- Managed passwords (webmaster only) ---------------------------------
-  // Mirror of /managedPasswords/{uid}. Webmaster-only (rules enforce). When
-  // Firestore is unreachable we fall back to localStorage so the webmaster
-  // can still see the last-set password offline.
-  const [managedPasswords, setManagedPasswords] = useState<Record<string, string>>({});
+  // ---- Managed passwords vault (webmaster only) -------------------------
+  // Plaintext is NEVER stored. Each managedPasswords/{uid} doc holds an
+  // AES-GCM ciphertext that the webmaster decrypts in-browser using their
+  // vault passphrase. The passphrase lives in module memory only — never
+  // persisted to localStorage. See src/lib/passwordVault.ts.
+  const [vaultEntries, setVaultEntries] = useState<Record<string, EncryptedBlob>>({});
+  const [vaultPlain, setVaultPlain] = useState<Record<string, string>>({});
   const [revealedUid, setRevealedUid] = useState<string | null>(null);
   const [pwDialogUid, setPwDialogUid] = useState<string | null>(null);
   const [pwDraft, setPwDraft] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
+
+  // Vault unlock state
+  const [vaultSentinel, setVaultSentinel] = useState<EncryptedBlob | null>(null);
+  const [vaultUnlocked, setVaultUnlocked] = useState<boolean>(!!getCachedPassphrase());
+  const [vaultDialogOpen, setVaultDialogOpen] = useState(false);
+  const [vaultPassphrase, setVaultPassphrase] = useState("");
+  const [vaultPassphraseConfirm, setVaultPassphraseConfirm] = useState("");
+  const [vaultBusy, setVaultBusy] = useState(false);
 
   useEffect(() => {
     if (!isWebmaster) return;
     const unsub = onSnapshot(
       collection(db, "managedPasswords"),
       (snap) => {
-        const next: Record<string, string> = {};
+        const next: Record<string, EncryptedBlob> = {};
         snap.docs.forEach((d) => {
-          const data = d.data() as { password?: string };
-          if (typeof data.password === "string") {
-            next[d.id] = data.password;
-            // Refresh local cache so offline lookups stay current.
-            setLocalManagedPassword(d.id, data.password);
+          const data = d.data() as any;
+          if (typeof data.ciphertext === "string" && typeof data.iv === "string" && typeof data.salt === "string") {
+            next[d.id] = {
+              ciphertext: data.ciphertext,
+              iv: data.iv,
+              salt: data.salt,
+              algo: data.algo || "AES-GCM-256/PBKDF2-SHA256",
+              iterations: typeof data.iterations === "number" ? data.iterations : 200_000,
+            };
           }
         });
-        setManagedPasswords(next);
+        setVaultEntries(next);
       },
       (err) => {
         console.warn("managedPasswords listener error:", err);
-        setManagedPasswords({});
+        setVaultEntries({});
       }
     );
     return unsub;
   }, [isWebmaster]);
 
-  const getDisplayPassword = (uid: string): string | null => {
-    return managedPasswords[uid] ?? getLocalManagedPassword(uid);
+  // Subscribe to the vault sentinel doc (used to verify the passphrase).
+  useEffect(() => {
+    if (!isWebmaster) return;
+    const unsub = onSnapshot(
+      doc(db, "appSettings", "vaultCheck"),
+      (snap) => {
+        const data = snap.data() as any;
+        if (data && typeof data.ciphertext === "string") {
+          setVaultSentinel({
+            ciphertext: data.ciphertext,
+            iv: data.iv,
+            salt: data.salt,
+            algo: data.algo || "AES-GCM-256/PBKDF2-SHA256",
+            iterations: typeof data.iterations === "number" ? data.iterations : 200_000,
+          });
+        } else {
+          setVaultSentinel(null);
+        }
+      },
+      (err) => console.warn("vaultCheck listener error:", err)
+    );
+    return unsub;
+  }, [isWebmaster]);
+
+  const isVaultInitialized = vaultSentinel !== null;
+
+  const openVaultDialog = () => {
+    setVaultPassphrase("");
+    setVaultPassphraseConfirm("");
+    setVaultDialogOpen(true);
+  };
+
+  const handleVaultUnlock = async () => {
+    const pass = vaultPassphrase;
+    if (pass.length < 8) {
+      toast({ title: "Passphrase too short", description: "Minimum 8 characters.", variant: "destructive" });
+      return;
+    }
+    setVaultBusy(true);
+    try {
+      if (!isVaultInitialized) {
+        if (pass !== vaultPassphraseConfirm) {
+          toast({ title: "Passphrases don't match", variant: "destructive" });
+          return;
+        }
+        const sentinel = await buildSentinel(pass);
+        await setDoc(doc(db, "appSettings", "vaultCheck"), {
+          ...sentinel,
+          createdByUid: user?.uid ?? null,
+          createdByEmail: profile?.email ?? null,
+          createdAt: serverTimestamp(),
+        });
+        cachePassphrase(pass);
+        setVaultUnlocked(true);
+        setVaultDialogOpen(false);
+        toast({ title: "Vault initialized", description: "Remember this passphrase — it cannot be recovered." });
+      } else {
+        const ok = await verifySentinel(vaultSentinel!, pass);
+        if (!ok) {
+          toast({ title: "Wrong passphrase", description: "Could not unlock the vault.", variant: "destructive" });
+          return;
+        }
+        cachePassphrase(pass);
+        setVaultUnlocked(true);
+        setVaultDialogOpen(false);
+        toast({ title: "Vault unlocked" });
+      }
+    } catch (e: any) {
+      toast({ title: "Vault error", description: e?.message, variant: "destructive" });
+    } finally {
+      setVaultBusy(false);
+    }
+  };
+
+  const handleVaultLock = () => {
+    clearVault();
+    setVaultUnlocked(false);
+    setVaultPlain({});
+    setRevealedUid(null);
+    toast({ title: "Vault locked" });
+  };
+
+  const decryptEntry = async (uid: string): Promise<string | null> => {
+    const blob = vaultEntries[uid];
+    if (!blob) return null;
+    const pass = getCachedPassphrase();
+    if (!pass) {
+      openVaultDialog();
+      return null;
+    }
+    if (vaultPlain[uid]) return vaultPlain[uid];
+    try {
+      const pt = await decryptWithPassphrase(blob, pass);
+      setVaultPlain((prev) => ({ ...prev, [uid]: pt }));
+      return pt;
+    } catch {
+      toast({ title: "Decryption failed", description: "Stored ciphertext could not be decrypted with the current passphrase.", variant: "destructive" });
+      return null;
+    }
   };
 
   const openPasswordDialog = (uid: string) => {
-    setPwDraft(getDisplayPassword(uid) ?? "");
+    if (!vaultUnlocked) {
+      openVaultDialog();
+      return;
+    }
+    setPwDraft("");
     setPwDialogUid(uid);
   };
 
@@ -958,6 +1121,12 @@ const SettingsPage: React.FC = () => {
       toast({ title: "Password too short", description: "Minimum 6 characters.", variant: "destructive" });
       return;
     }
+    const pass = getCachedPassphrase();
+    if (!pass) {
+      toast({ title: "Vault locked", description: "Unlock the vault first.", variant: "destructive" });
+      openVaultDialog();
+      return;
+    }
     setPwSaving(true);
     try {
       const fn = httpsCallable<{ targetUid: string; newPassword: string }, { ok: boolean }>(
@@ -965,28 +1134,26 @@ const SettingsPage: React.FC = () => {
         "setUserPassword"
       );
       await fn({ targetUid: uid, newPassword: trimmed });
-      // Optimistic local mirror in case the listener is slow.
-      setManagedPasswords((prev) => ({ ...prev, [uid]: trimmed }));
-      setLocalManagedPassword(uid, trimmed);
+      const blob = await encryptWithPassphrase(trimmed, pass);
+      await setDoc(
+        doc(db, "managedPasswords", uid),
+        { ...blob, email, updatedAt: serverTimestamp() },
+        { merge: true }
+      );
+      setVaultPlain((prev) => ({ ...prev, [uid]: trimmed }));
       toast({ title: "Password updated", description: `${email || uid} can now sign in with the new password.` });
       setPwDialogUid(null);
       setPwDraft("");
     } catch (e: any) {
-      // Even if the cloud call fails, persist locally so the webmaster
-      // doesn't lose what they just typed.
-      setLocalManagedPassword(uid, trimmed);
-      toast({ title: "Password save failed", description: e?.message ?? "Saved locally as fallback.", variant: "destructive" });
+      toast({ title: "Password save failed", description: e?.message ?? "Unknown error", variant: "destructive" });
     } finally {
       setPwSaving(false);
     }
   };
 
   const copyPassword = async (uid: string) => {
-    const pw = getDisplayPassword(uid);
-    if (!pw) {
-      toast({ title: "No password on file", description: "Set one first.", variant: "destructive" });
-      return;
-    }
+    const pw = await decryptEntry(uid);
+    if (!pw) return;
     try {
       await navigator.clipboard.writeText(pw);
       toast({ title: "Password copied" });
@@ -994,6 +1161,16 @@ const SettingsPage: React.FC = () => {
       toast({ title: "Copy failed", variant: "destructive" });
     }
   };
+
+  const revealPassword = async (uid: string) => {
+    if (revealedUid === uid) {
+      setRevealedUid(null);
+      return;
+    }
+    const pw = await decryptEntry(uid);
+    if (pw) setRevealedUid(uid);
+  };
+
   const [revokingUid, setRevokingUid] = useState<string | null>(null);
   const [revokeDialogUid, setRevokeDialogUid] = useState<string | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
@@ -2058,26 +2235,60 @@ const SettingsPage: React.FC = () => {
                       )}
                       <p className="text-[10px] text-muted-foreground mt-1">{formatTime(req.createdAt)}</p>
                     </div>
-                    {req.status === "pending" ? <div className="flex gap-2 flex-shrink-0 sm:w-auto w-full">
+                    <div className="flex flex-wrap gap-2 flex-shrink-0 sm:w-auto w-full">
+                      {req.status === "pending" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 flex-1 sm:flex-none"
+                            disabled={decidingId === req.id}
+                            onClick={() => decide(req.id, "deny")}
+                          >
+                            <X className="h-3.5 w-3.5" /> Deny
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="gap-1 flex-1 sm:flex-none"
+                            disabled={decidingId === req.id}
+                            onClick={() => decide(req.id, "approve")}
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            {decidingId === req.id ? "…" : "Approve"}
+                          </Button>
+                        </>
+                      )}
+                      {req.status !== "resolved" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 flex-1 sm:flex-none"
+                          disabled={managingId === req.id}
+                          onClick={() => manageEscalation(req.id, "resolve")}
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Resolve
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 flex-1 sm:flex-none"
+                          disabled={managingId === req.id}
+                          onClick={() => manageEscalation(req.id, "reopen")}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" /> Reopen
+                        </Button>
+                      )}
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="ghost"
                         className="gap-1 flex-1 sm:flex-none"
-                        disabled={decidingId === req.id}
-                        onClick={() => decide(req.id, "deny")}
+                        disabled={managingId === req.id}
+                        onClick={() => manageEscalation(req.id, "archive")}
                       >
-                        <X className="h-3.5 w-3.5" /> Deny
+                        <ArchiveIcon className="h-3.5 w-3.5" /> Archive
                       </Button>
-                      <Button
-                        size="sm"
-                        className="gap-1 flex-1 sm:flex-none"
-                        disabled={decidingId === req.id}
-                        onClick={() => decide(req.id, "approve")}
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                        {decidingId === req.id ? "…" : "Approve"}
-                      </Button>
-                    </div> : null}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -2310,24 +2521,31 @@ const SettingsPage: React.FC = () => {
                       </div>
                       <p className="text-xs text-muted-foreground truncate">{acc.email || acc.uid}</p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">Joined {formatTime(acc.createdAt)}</p>
-                      {/* Password row (webmaster vault). Shows masked dots
-                          unless the eye is toggled; falls back to
-                          localStorage when Firestore is unavailable. */}
+                      {/* Password row (encrypted webmaster vault). Plaintext
+                          is decrypted in-browser only when the vault is
+                          unlocked with the webmaster passphrase. */}
                       {(() => {
-                        const stored = getDisplayPassword(acc.uid);
-                        const revealed = revealedUid === acc.uid;
+                        const hasEntry = !!vaultEntries[acc.uid];
+                        const plain = vaultPlain[acc.uid] ?? null;
+                        const revealed = revealedUid === acc.uid && !!plain;
                         return (
                           <div className="mt-1 flex items-center gap-1.5 text-[11px]">
                             <KeyRound className="h-3 w-3 text-muted-foreground" />
                             <span className="text-muted-foreground">Password:</span>
                             <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
-                              {stored ? (revealed ? stored : "•".repeat(Math.min(stored.length, 12))) : "(not set via vault)"}
+                              {hasEntry
+                                ? revealed
+                                  ? plain
+                                  : vaultUnlocked
+                                  ? "••••••••••"
+                                  : "🔒 vault locked"
+                                : "(not set via vault)"}
                             </code>
-                            {stored && (
+                            {hasEntry && vaultUnlocked && (
                               <>
                                 <button
                                   type="button"
-                                  onClick={() => setRevealedUid(revealed ? null : acc.uid)}
+                                  onClick={() => revealPassword(acc.uid)}
                                   className="text-muted-foreground hover:text-foreground"
                                   aria-label={revealed ? "Hide password" : "Show password"}
                                 >
@@ -2348,7 +2566,7 @@ const SettingsPage: React.FC = () => {
                               onClick={() => openPasswordDialog(acc.uid)}
                               className="ml-1 text-primary hover:underline"
                             >
-                              {stored ? "Change" : "Set"}
+                              {hasEntry ? "Change" : "Set"}
                             </button>
                           </div>
                         );
@@ -2483,9 +2701,11 @@ const SettingsPage: React.FC = () => {
                   })()}
                 </DialogTitle>
                 <DialogDescription>
-                  Updates Firebase Auth immediately. The value is mirrored to{" "}
-                  <code className="rounded bg-muted px-1 py-0.5 text-[11px]">managedPasswords/{pwDialogUid ?? "{uid}"}</code>{" "}
-                  and your local browser cache so you can look it up later.
+                  Updates Firebase Auth immediately. The plaintext is{" "}
+                  <strong>encrypted in your browser</strong> with your vault passphrase
+                  (AES-GCM-256 / PBKDF2) and only the ciphertext is written to{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-[11px]">managedPasswords/{pwDialogUid ?? "{uid}"}</code>.
+                  No plaintext leaves this device.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 py-2">
@@ -2517,6 +2737,65 @@ const SettingsPage: React.FC = () => {
                 >
                   <KeyRound className="h-3.5 w-3.5" />
                   {pwSaving ? "Saving…" : "Save password"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Webmaster-only: Vault unlock / initialize dialog */}
+        {isWebmaster && (
+          <Dialog
+            open={vaultDialogOpen}
+            onOpenChange={(o) => {
+              if (!o) {
+                setVaultDialogOpen(false);
+                setVaultPassphrase("");
+                setVaultPassphraseConfirm("");
+              }
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4 text-primary" />
+                  {isVaultInitialized ? "Unlock password vault" : "Initialize password vault"}
+                </DialogTitle>
+                <DialogDescription>
+                  {isVaultInitialized
+                    ? "Enter your vault passphrase to decrypt managed passwords. The passphrase is held in this tab's memory only and never persisted."
+                    : "Choose a passphrase that protects every managed password. It derives an AES-GCM-256 key via PBKDF2. We do not store it anywhere — if you lose it, every entry must be re-set."}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <Label htmlFor="vault-passphrase">Passphrase</Label>
+                <Input
+                  id="vault-passphrase"
+                  type="password"
+                  value={vaultPassphrase}
+                  onChange={(e) => setVaultPassphrase(e.target.value)}
+                  placeholder="At least 8 characters"
+                  autoFocus
+                />
+                {!isVaultInitialized && (
+                  <>
+                    <Label htmlFor="vault-passphrase-confirm">Confirm passphrase</Label>
+                    <Input
+                      id="vault-passphrase-confirm"
+                      type="password"
+                      value={vaultPassphraseConfirm}
+                      onChange={(e) => setVaultPassphraseConfirm(e.target.value)}
+                    />
+                  </>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setVaultDialogOpen(false)} disabled={vaultBusy}>
+                  Cancel
+                </Button>
+                <Button onClick={handleVaultUnlock} disabled={vaultBusy || vaultPassphrase.length < 8} className="gap-1.5">
+                  <KeyRound className="h-3.5 w-3.5" />
+                  {vaultBusy ? "Working…" : isVaultInitialized ? "Unlock" : "Initialize vault"}
                 </Button>
               </DialogFooter>
             </DialogContent>

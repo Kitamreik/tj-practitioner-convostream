@@ -304,17 +304,10 @@ export const bootstrapSupportAccount = onCall(async (request) => {
     action: "grantSupport",
   });
 
-  // Mirror the password into managedPasswords for webmaster lookup parity
-  // (only when we actually set one).
-  if (created && initialPassword) {
-    await db.doc(`managedPasswords/${uid}`).set({
-      password: initialPassword,
-      email: SUPPORT_EMAIL,
-      setByUid: "(bootstrap)",
-      setByEmail: null,
-      setAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-  }
+  // The bootstrap password is intentionally NOT mirrored to Firestore.
+  // Operators receive the plaintext one time in the callable response and
+  // must rotate it via the webmaster vault (encrypted with their vault
+  // passphrase) on first sign-in.
 
   logger.info("bootstrapSupportAccount: complete", {
     uid,
@@ -511,6 +504,73 @@ export const decideEscalationRequest = onCall(async (request) => {
 });
 
 /**
+ * Webmaster-only: change the lifecycle state of an escalation request.
+ *
+ *  - "resolve"  → status = "resolved", clears archived flag.
+ *  - "reopen"   → status = "pending",  clears resolvedAt + archived flag.
+ *  - "archive"  → archived = true,     stamps deletedAt for the 30-day
+ *                 retention window mirrored on the Archive page.
+ *  - "restore"  → archived = false,    clears deletedAt.
+ *
+ * Request: { requestId: string, action: "resolve" | "reopen" | "archive" | "restore" }
+ */
+export const manageEscalationRequest = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
+  const callerData = callerSnap.data() as { role?: string; email?: string } | undefined;
+  if (callerData?.role !== "webmaster") {
+    throw new HttpsError("permission-denied", "Webmasters only.");
+  }
+
+  const { requestId, action } = (request.data ?? {}) as {
+    requestId?: unknown;
+    action?: unknown;
+  };
+  if (typeof requestId !== "string" || !requestId) {
+    throw new HttpsError("invalid-argument", "requestId required.");
+  }
+  if (action !== "resolve" && action !== "reopen" && action !== "archive" && action !== "restore") {
+    throw new HttpsError("invalid-argument", "action must be resolve|reopen|archive|restore.");
+  }
+
+  const ref = db.collection("escalationRequests").doc(requestId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Request not found.");
+
+  const patch: Record<string, unknown> = {
+    log: admin.firestore.FieldValue.arrayUnion({
+      action,
+      at: admin.firestore.Timestamp.now(),
+      byUid: request.auth.uid,
+      byEmail: callerData?.email ?? null,
+    }),
+  };
+
+  if (action === "resolve") {
+    patch.status = "resolved";
+    patch.resolvedAt = admin.firestore.FieldValue.serverTimestamp();
+    patch.resolvedByUid = request.auth.uid;
+    patch.archived = false;
+    patch.deletedAt = admin.firestore.FieldValue.delete();
+  } else if (action === "reopen") {
+    patch.status = "pending";
+    patch.resolvedAt = admin.firestore.FieldValue.delete();
+    patch.archived = false;
+    patch.deletedAt = admin.firestore.FieldValue.delete();
+  } else if (action === "archive") {
+    patch.archived = true;
+    patch.deletedAt = admin.firestore.FieldValue.serverTimestamp();
+  } else if (action === "restore") {
+    patch.archived = false;
+    patch.deletedAt = admin.firestore.FieldValue.delete();
+  }
+
+  await ref.update(patch);
+  logger.info("manageEscalationRequest", { requestId, action, by: request.auth.uid });
+  return { ok: true, action };
+});
+
+/**
  * Webmaster-only: permanently delete a user account (Auth + Firestore profile).
  * Refuses to delete the caller's own account.
  *
@@ -565,10 +625,10 @@ export const deleteUserAccount = onCall(async (request) => {
 
 /**
  * Webmaster-only: set (overwrite) another user's password. Updates Firebase
- * Auth via the admin SDK and stores the plaintext in
- * `managedPasswords/{targetUid}` so the webmaster can look it up later
- * (Firebase Auth itself never returns the hash). The client also mirrors
- * the value into localStorage as an offline fallback.
+ * Auth via the admin SDK only — the plaintext password is NEVER persisted
+ * server-side. The webmaster client encrypts the password with the vault
+ * passphrase (AES-GCM via PBKDF2) and writes the ciphertext to
+ * `managedPasswords/{targetUid}` directly. See `src/lib/passwordVault.ts`.
  *
  * Request: { targetUid: string, newPassword: string }
  */
@@ -604,15 +664,20 @@ export const setUserPassword = onCall(async (request) => {
     ? (targetSnap.data() as { email?: string }).email ?? null
     : null;
 
-  await db.doc(`managedPasswords/${targetUid}`).set({
-    password: newPassword,
-    email: targetEmail,
-    setByUid: callerUid,
-    setByEmail: callerData?.email ?? null,
-    setAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  // Audit-only metadata; no plaintext, no ciphertext. Also clears any
+  // legacy `password` field written by older builds.
+  await db.doc(`managedPasswords/${targetUid}`).set(
+    {
+      email: targetEmail,
+      lastSetByUid: callerUid,
+      lastSetByEmail: callerData?.email ?? null,
+      lastSetAt: admin.firestore.FieldValue.serverTimestamp(),
+      password: admin.firestore.FieldValue.delete(),
+    },
+    { merge: true }
+  );
 
-  logger.info("setUserPassword: updated", { targetUid, by: callerUid });
+  logger.info("setUserPassword: updated (auth only, no plaintext stored)", { targetUid, by: callerUid });
   return { ok: true, targetUid, targetEmail };
 });
 
