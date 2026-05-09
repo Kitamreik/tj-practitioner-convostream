@@ -32,6 +32,8 @@ import {
   PhoneCall,
   Mail,
   LifeBuoy,
+  RotateCcw,
+  Archive as ArchiveIcon,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import RoleBadge from "@/components/RoleBadge";
