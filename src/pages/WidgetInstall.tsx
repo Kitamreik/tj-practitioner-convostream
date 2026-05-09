@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Copy, Check, Code2, RefreshCw, Save, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Copy, Check, Code2, RefreshCw, Save, ShieldCheck, AlertTriangle, Download, BookOpen, Globe, Palette, FileText } from "lucide-react";
 import { httpsCallable } from "firebase/functions";
 import { doc, onSnapshot } from "firebase/firestore";
+import jsPDF from "jspdf";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { functions, db } from "@/lib/firebase";
@@ -121,6 +123,89 @@ const WidgetInstall: React.FC = () => {
     } catch {
       toast({ title: "Copy failed", description: "Select the snippet manually.", variant: "destructive" });
     }
+  };
+
+  const downloadPdf = () => {
+    const doc = new jsPDF({ unit: "pt", format: "letter" });
+    const margin = 54;
+    const maxWidth = 612 - margin * 2;
+    let y = margin;
+
+    const writeHeading = (text: string, size = 16) => {
+      if (y > 720) { doc.addPage(); y = margin; }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(size);
+      doc.text(text, margin, y);
+      y += size + 6;
+    };
+    const writeBody = (text: string, size = 10.5) => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(size);
+      const lines = doc.splitTextToSize(text, maxWidth);
+      lines.forEach((line: string) => {
+        if (y > 740) { doc.addPage(); y = margin; }
+        doc.text(line, margin, y);
+        y += size + 3;
+      });
+      y += 4;
+    };
+    const writeCode = (text: string) => {
+      doc.setFont("courier", "normal");
+      doc.setFontSize(9);
+      const lines = doc.splitTextToSize(text, maxWidth);
+      lines.forEach((line: string) => {
+        if (y > 740) { doc.addPage(); y = margin; }
+        doc.text(line, margin, y);
+        y += 12;
+      });
+      y += 6;
+    };
+
+    writeHeading("ConvoHub Chat Widget — Installation Guide", 18);
+    writeBody(
+      `Tenant id: ${tenant}\nSite key: ${config?.siteKey || "(save the configuration to generate)"}\nGenerated: ${new Date().toUTCString()}`
+    );
+
+    writeHeading("1. What this widget does", 13);
+    writeBody(
+      "The ConvoHub widget is a small JavaScript snippet you embed on your customer-facing website. When a visitor opens it, a new conversation thread is created and routed straight into your ConvoHub inbox. Returning visitors on the same browser automatically resume their existing thread."
+    );
+
+    writeHeading("2. Install snippet", 13);
+    writeBody("Paste this just before </body> on every page where the widget should appear:");
+    writeCode(snippet);
+
+    writeHeading("3. Allow-listed origins", 13);
+    writeBody(
+      "The widget only accepts new chats from origins you explicitly list. The site key is public; security comes from this allow-list. Add every domain (and subdomain) where the snippet will load, including staging environments. Use full origins with scheme — for example:"
+    );
+    writeCode("https://www.example.com\nhttps://app.example.com\nhttps://staging.example.com");
+    writeBody(
+      "Do NOT use wildcards or paths. If you leave the list empty the widget runs anywhere, which is strongly discouraged in production."
+    );
+
+    writeHeading("4. Theme — safe customization", 13);
+    writeBody(
+      `Accent color (hex only, e.g. #E07A5F): ${color}\nBubble position: ${position === "left" ? "Bottom left" : "Bottom right"}\n\nGuidance: pick a color with at least 4.5:1 contrast against white text so the launcher button stays accessible (WCAG AA). Avoid pure red (#FF0000) — visitors associate it with errors. Test the chosen color on the actual page; the widget injects no other styles into your site, so there is no risk of leaking CSS.`
+    );
+
+    writeHeading("5. Privacy & consent", 13);
+    writeBody(
+      `Require explicit consent: ${requireConsent ? "ENABLED" : "DISABLED"}.\n\nWhen enabled, visitors must accept your privacy and terms before sending the first message. We recommend keeping this on. The widget sets only one first-party cookie/localStorage key (the thread id) and never loads third-party trackers.`
+    );
+
+    writeHeading("6. Operations", 13);
+    writeBody(
+      "• Disable the widget instantly by toggling \"Widget enabled\" off in the admin page — every installed snippet stops accepting new chats within seconds.\n• Rotate the site key if a snippet leaks. All existing installs must be redeployed with the new key.\n• Backend endpoints are rate-limited and run bot/spam checks; abusive origins are throttled automatically."
+    );
+
+    writeHeading("7. Troubleshooting", 13);
+    writeBody(
+      "Widget does not appear → check the browser console for an \"origin not allowed\" message and add the exact origin to the allow-list.\nMessages do not arrive → confirm the site key matches the latest value in this admin page.\nStyle conflicts → the widget renders inside a shadow DOM container; if it still clashes, set a higher z-index on the host page."
+    );
+
+    doc.save(`convohub-widget-install-${tenant}.pdf`);
+    toast({ title: "PDF downloaded", description: "Installation guide saved." });
   };
 
   const originsValid = originsText
@@ -261,6 +346,84 @@ const WidgetInstall: React.FC = () => {
             Each new visitor creates a fresh thread; returning visitors on the same browser resume their existing thread automatically.
             The site key is public — security comes from the allow-listed origins above.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader className="flex-row items-center justify-between gap-2">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-primary" /> Installation guide
+            </CardTitle>
+            <CardDescription>Step-by-step reference for the team installing the widget on a customer site.</CardDescription>
+          </div>
+          <Button onClick={downloadPdf} variant="outline" size="sm">
+            <Download className="mr-1 h-4 w-4" /> Download as PDF
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-5 text-sm">
+          <section className="space-y-1.5">
+            <h3 className="flex items-center gap-1.5 font-semibold text-foreground">
+              <FileText className="h-4 w-4 text-primary" /> 1. Embed the script
+            </h3>
+            <p className="text-muted-foreground">
+              Paste the snippet above immediately before the closing <code className="rounded bg-muted px-1">&lt;/body&gt;</code> tag of every page that should show the chat. The script is asynchronous, so it will not block your page load.
+            </p>
+            <ul className="ml-5 list-disc text-muted-foreground space-y-0.5">
+              <li>Do not host a copy yourself — always load it from the URL above so security patches deploy automatically.</li>
+              <li>If your site uses a Content Security Policy, allow <code className="rounded bg-muted px-1">{origin}</code> in <code className="rounded bg-muted px-1">script-src</code> and <code className="rounded bg-muted px-1">connect-src</code>.</li>
+              <li>Tag managers (GTM, Segment) work — fire the snippet on a "DOM Ready" trigger.</li>
+            </ul>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-1.5">
+            <h3 className="flex items-center gap-1.5 font-semibold text-foreground">
+              <Globe className="h-4 w-4 text-primary" /> 2. Whitelist your origins
+            </h3>
+            <p className="text-muted-foreground">
+              The widget will only create new threads from origins listed in the <strong>Security</strong> card above. The site key is public — origins are the real perimeter.
+            </p>
+            <ul className="ml-5 list-disc text-muted-foreground space-y-0.5">
+              <li>Use the full origin including scheme: <code className="rounded bg-muted px-1">https://www.example.com</code>.</li>
+              <li>Add every subdomain individually — <code className="rounded bg-muted px-1">https://example.com</code> and <code className="rounded bg-muted px-1">https://www.example.com</code> are different origins.</li>
+              <li>Include staging and preview URLs (e.g. Vercel previews) only while testing, then remove them.</li>
+              <li>No wildcards, no paths, no query strings.</li>
+              <li>Leaving the list empty allows any origin and is <strong>strongly discouraged</strong> in production.</li>
+            </ul>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-1.5">
+            <h3 className="flex items-center gap-1.5 font-semibold text-foreground">
+              <Palette className="h-4 w-4 text-primary" /> 3. Set the theme safely
+            </h3>
+            <p className="text-muted-foreground">
+              The accent color is the only style you control — the widget renders inside an isolated container so it cannot leak CSS into the host page.
+            </p>
+            <ul className="ml-5 list-disc text-muted-foreground space-y-0.5">
+              <li>Provide a 6-digit hex color (e.g. <code className="rounded bg-muted px-1">#E07A5F</code>). Other formats are rejected.</li>
+              <li>Pick a tone with at least <strong>4.5:1 contrast</strong> against white for WCAG AA compliance on the launcher button.</li>
+              <li>Avoid pure red (<code className="rounded bg-muted px-1">#FF0000</code>) — visitors associate it with errors and reduce engagement.</li>
+              <li>Position the bubble away from cookie banners or chat-bot competitors to avoid overlap.</li>
+            </ul>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-1.5">
+            <h3 className="flex items-center gap-1.5 font-semibold text-foreground">
+              <ShieldCheck className="h-4 w-4 text-primary" /> 4. Privacy, consent & rollback
+            </h3>
+            <ul className="ml-5 list-disc text-muted-foreground space-y-0.5">
+              <li>Keep <strong>Require explicit consent</strong> on so visitors must accept your privacy & terms before sending the first message.</li>
+              <li>The widget stores a single first-party identifier (thread id) — no third-party trackers.</li>
+              <li>Toggle <strong>Widget enabled</strong> off to instantly stop accepting new chats from every installed snippet.</li>
+              <li>Rotate the site key if a snippet leaks; redeploy with the new key everywhere.</li>
+            </ul>
+          </section>
         </CardContent>
       </Card>
     </div>

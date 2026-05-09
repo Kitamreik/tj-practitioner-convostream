@@ -34,7 +34,11 @@ import {
   LifeBuoy,
   RotateCcw,
   Archive as ArchiveIcon,
+  AlertCircle,
+  Loader2,
+  ShieldCheck,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import RoleBadge from "@/components/RoleBadge";
 import { getBoolPref, setBoolPrefRemote, subscribeBoolPrefRemote } from "@/lib/userPrefs";
@@ -976,6 +980,8 @@ const SettingsPage: React.FC = () => {
   const [vaultPassphrase, setVaultPassphrase] = useState("");
   const [vaultPassphraseConfirm, setVaultPassphraseConfirm] = useState("");
   const [vaultBusy, setVaultBusy] = useState(false);
+  const [vaultError, setVaultError] = useState<string | null>(null);
+  const [vaultStep, setVaultStep] = useState<"idle" | "deriving" | "writing" | "done">("idle");
 
   useEffect(() => {
     if (!isWebmaster) return;
@@ -1037,20 +1043,41 @@ const SettingsPage: React.FC = () => {
     setVaultDialogOpen(true);
   };
 
+  const passphraseStrength = (pass: string): { score: number; label: string } => {
+    let score = 0;
+    if (pass.length >= 8) score += 25;
+    if (pass.length >= 14) score += 25;
+    if (/[A-Z]/.test(pass) && /[a-z]/.test(pass)) score += 15;
+    if (/\d/.test(pass)) score += 15;
+    if (/[^A-Za-z0-9]/.test(pass)) score += 20;
+    score = Math.min(100, score);
+    const label = score < 40 ? "Weak" : score < 70 ? "Fair" : score < 90 ? "Strong" : "Excellent";
+    return { score, label };
+  };
+
   const handleVaultUnlock = async () => {
+    setVaultError(null);
     const pass = vaultPassphrase;
     if (pass.length < 8) {
-      toast({ title: "Passphrase too short", description: "Minimum 8 characters.", variant: "destructive" });
+      setVaultError("Passphrase must be at least 8 characters.");
       return;
     }
     setVaultBusy(true);
+    setVaultStep("deriving");
     try {
       if (!isVaultInitialized) {
         if (pass !== vaultPassphraseConfirm) {
-          toast({ title: "Passphrases don't match", variant: "destructive" });
+          setVaultError("Passphrases do not match. Re-enter both fields exactly.");
+          setVaultStep("idle");
+          return;
+        }
+        if (passphraseStrength(pass).score < 40) {
+          setVaultError("Passphrase is too weak. Add length, mixed case, numbers or symbols.");
+          setVaultStep("idle");
           return;
         }
         const sentinel = await buildSentinel(pass);
+        setVaultStep("writing");
         await setDoc(doc(db, "appSettings", "vaultCheck"), {
           ...sentinel,
           createdByUid: user?.uid ?? null,
@@ -1059,21 +1086,31 @@ const SettingsPage: React.FC = () => {
         });
         cachePassphrase(pass);
         setVaultUnlocked(true);
-        setVaultDialogOpen(false);
+        setVaultStep("done");
+        setTimeout(() => {
+          setVaultDialogOpen(false);
+          setVaultStep("idle");
+        }, 600);
         toast({ title: "Vault initialized", description: "Remember this passphrase — it cannot be recovered." });
       } else {
         const ok = await verifySentinel(vaultSentinel!, pass);
         if (!ok) {
-          toast({ title: "Wrong passphrase", description: "Could not unlock the vault.", variant: "destructive" });
+          setVaultError("Wrong passphrase. The vault could not be decrypted.");
+          setVaultStep("idle");
           return;
         }
         cachePassphrase(pass);
         setVaultUnlocked(true);
-        setVaultDialogOpen(false);
+        setVaultStep("done");
+        setTimeout(() => {
+          setVaultDialogOpen(false);
+          setVaultStep("idle");
+        }, 400);
         toast({ title: "Vault unlocked" });
       }
     } catch (e: any) {
-      toast({ title: "Vault error", description: e?.message, variant: "destructive" });
+      setVaultError(e?.message || "Vault operation failed.");
+      setVaultStep("idle");
     } finally {
       setVaultBusy(false);
     }
@@ -2752,6 +2789,8 @@ const SettingsPage: React.FC = () => {
                 setVaultDialogOpen(false);
                 setVaultPassphrase("");
                 setVaultPassphraseConfirm("");
+                setVaultError(null);
+                setVaultStep("idle");
               }
             }}
           >
@@ -2763,39 +2802,103 @@ const SettingsPage: React.FC = () => {
                 </DialogTitle>
                 <DialogDescription>
                   {isVaultInitialized
-                    ? "Enter your vault passphrase to decrypt managed passwords. The passphrase is held in this tab's memory only and never persisted."
-                    : "Choose a passphrase that protects every managed password. It derives an AES-GCM-256 key via PBKDF2. We do not store it anywhere — if you lose it, every entry must be re-set."}
+                    ? "Enter your vault passphrase to decrypt managed passwords. The passphrase is held in this tab's memory only and never persisted to disk."
+                    : "Pick a strong passphrase. It derives an AES-GCM-256 key via PBKDF2 (200,000 iterations) and is never sent to the server. If you lose it, every stored password must be re-set — there is no recovery."}
                 </DialogDescription>
               </DialogHeader>
+
+              {!isVaultInitialized && (
+                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+                  <div className="flex items-start gap-2">
+                    <ShieldCheck className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <div className="space-y-1">
+                      <p className="font-medium">Before you continue</p>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        <li>Use at least 14 characters with mixed case, numbers and a symbol.</li>
+                        <li>Store it in a separate password manager — it cannot be reset.</li>
+                        <li>Anyone with this passphrase can decrypt every managed password.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-3 py-2">
-                <Label htmlFor="vault-passphrase">Passphrase</Label>
-                <Input
-                  id="vault-passphrase"
-                  type="password"
-                  value={vaultPassphrase}
-                  onChange={(e) => setVaultPassphrase(e.target.value)}
-                  placeholder="At least 8 characters"
-                  autoFocus
-                />
+                <div className="space-y-1.5">
+                  <Label htmlFor="vault-passphrase">Passphrase</Label>
+                  <Input
+                    id="vault-passphrase"
+                    type="password"
+                    value={vaultPassphrase}
+                    onChange={(e) => { setVaultPassphrase(e.target.value); setVaultError(null); }}
+                    placeholder="At least 8 characters"
+                    autoFocus
+                    disabled={vaultBusy}
+                  />
+                  {!isVaultInitialized && vaultPassphrase.length > 0 && (() => {
+                    const s = passphraseStrength(vaultPassphrase);
+                    return (
+                      <div className="space-y-1">
+                        <Progress value={s.score} className="h-1.5" />
+                        <p className="text-[11px] text-muted-foreground">Strength: <span className="font-medium text-foreground">{s.label}</span></p>
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 {!isVaultInitialized && (
-                  <>
+                  <div className="space-y-1.5">
                     <Label htmlFor="vault-passphrase-confirm">Confirm passphrase</Label>
                     <Input
                       id="vault-passphrase-confirm"
                       type="password"
                       value={vaultPassphraseConfirm}
-                      onChange={(e) => setVaultPassphraseConfirm(e.target.value)}
+                      onChange={(e) => { setVaultPassphraseConfirm(e.target.value); setVaultError(null); }}
+                      disabled={vaultBusy}
                     />
-                  </>
+                    {vaultPassphraseConfirm.length > 0 && vaultPassphrase !== vaultPassphraseConfirm && (
+                      <p className="text-[11px] text-destructive">Passphrases do not match yet.</p>
+                    )}
+                  </div>
+                )}
+
+                {vaultBusy && (
+                  <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {vaultStep === "deriving" && "Deriving key (PBKDF2, 200k iterations)…"}
+                    {vaultStep === "writing" && "Writing encrypted sentinel to Firestore…"}
+                    {vaultStep === "done" && "Vault ready."}
+                  </div>
+                )}
+
+                {vaultStep === "done" && !vaultBusy && (
+                  <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4" /> Vault {isVaultInitialized ? "unlocked" : "initialized"} successfully.
+                  </div>
+                )}
+
+                {vaultError && (
+                  <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2" role="alert">
+                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <span>{vaultError}</span>
+                  </div>
                 )}
               </div>
               <DialogFooter>
                 <Button variant="ghost" onClick={() => setVaultDialogOpen(false)} disabled={vaultBusy}>
                   Cancel
                 </Button>
-                <Button onClick={handleVaultUnlock} disabled={vaultBusy || vaultPassphrase.length < 8} className="gap-1.5">
-                  <KeyRound className="h-3.5 w-3.5" />
-                  {vaultBusy ? "Working…" : isVaultInitialized ? "Unlock" : "Initialize vault"}
+                <Button
+                  onClick={handleVaultUnlock}
+                  disabled={
+                    vaultBusy ||
+                    vaultPassphrase.length < 8 ||
+                    (!isVaultInitialized && vaultPassphrase !== vaultPassphraseConfirm)
+                  }
+                  className="gap-1.5"
+                >
+                  {vaultBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                  {vaultBusy ? "Working…" : isVaultInitialized ? "Unlock vault" : "Initialize vault"}
                 </Button>
               </DialogFooter>
             </DialogContent>
