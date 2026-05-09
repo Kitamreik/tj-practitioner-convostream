@@ -34,7 +34,11 @@ import {
   LifeBuoy,
   RotateCcw,
   Archive as ArchiveIcon,
+  AlertCircle,
+  Loader2,
+  ShieldCheck,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import RoleBadge from "@/components/RoleBadge";
 import { getBoolPref, setBoolPrefRemote, subscribeBoolPrefRemote } from "@/lib/userPrefs";
