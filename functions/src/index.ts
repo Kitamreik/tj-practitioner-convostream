@@ -158,7 +158,7 @@ const SUPPORT_EMAIL = "support@convohub.dev";
 const SUPPORT_DISPLAY_NAME = "Support";
 
 export const bootstrapSupportAccount = onCall(async (request) => {
-  // Hard gate: refuse if any webmaster already exists.
+  // Hard gate #1: refuse if any webmaster already exists.
   const existingWebmasters = await db
     .collection("users")
     .where("role", "==", "webmaster")
@@ -171,9 +171,38 @@ export const bootstrapSupportAccount = onCall(async (request) => {
     );
   }
 
-  const data = (request.data ?? {}) as { initialPassword?: unknown };
+  // Hard gate #2: defense-in-depth against an attacker racing the very first
+  // legitimate operator. Any signed-in user counts — if the project already
+  // has people in it, bootstrap is OFF regardless of the webmaster check.
+  const anyUser = await db.collection("users").limit(1).get();
+  if (!anyUser.empty) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Bootstrap is disabled: the users collection is non-empty. Use promoteToWebmaster instead."
+    );
+  }
+
+  const data = (request.data ?? {}) as {
+    initialPassword?: unknown;
+    bootstrapSecret?: unknown;
+  };
   const initialPassword =
     typeof data.initialPassword === "string" ? data.initialPassword : "";
+  const suppliedSecret =
+    typeof data.bootstrapSecret === "string" ? data.bootstrapSecret : "";
+
+  // Hard gate #3: when BOOTSTRAP_SECRET is configured in the function
+  // runtime, the caller must present it. This shuts the door on anonymous
+  // bootstrap calls in production deployments.
+  const expectedSecret = (process.env.BOOTSTRAP_SECRET || "").trim();
+  if (expectedSecret) {
+    if (!suppliedSecret || suppliedSecret !== expectedSecret) {
+      throw new HttpsError(
+        "permission-denied",
+        "bootstrapSecret missing or incorrect."
+      );
+    }
+  }
 
   // Look up or create the Firebase Auth user for support@convohub.dev.
   let authUser: admin.auth.UserRecord;
@@ -2058,12 +2087,24 @@ async function readSlackWebhookUrl(): Promise<string | null> {
   const fromEnv = (process.env.SLACK_WEBHOOK_URL || "").trim();
   if (fromEnv && fromEnv.startsWith("https://hooks.slack.com/")) return fromEnv;
 
+  // Preferred storage: webmaster-only doc that no client can read.
+  try {
+    const snap = await db.doc("appSettings/slackWebhookSecret").get();
+    const url = ((snap.data() as { slackWebhookUrl?: string } | undefined)?.slackWebhookUrl || "").trim();
+    if (url && url.startsWith("https://hooks.slack.com/")) return url;
+  } catch (err) {
+    logger.warn("readSlackWebhookUrl: secret doc read failed", err);
+  }
+
+  // Legacy fallback: older deployments stored the URL on the public-readable
+  // `appSettings/webmasterContact` doc. The setSlackWebhookUrlAdmin callable
+  // now clears that field and migrates writes to the secret doc above.
   try {
     const snap = await db.doc("appSettings/webmasterContact").get();
     const url = ((snap.data() as { slackWebhookUrl?: string } | undefined)?.slackWebhookUrl || "").trim();
     if (url && url.startsWith("https://hooks.slack.com/")) return url;
   } catch (err) {
-    logger.warn("readSlackWebhookUrl: Firestore read failed", err);
+    logger.warn("readSlackWebhookUrl: legacy Firestore read failed", err);
   }
   return null;
 }
@@ -2091,9 +2132,21 @@ export const setSlackWebhookUrlAdmin = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "URL must start with https://hooks.slack.com/");
   }
 
-  await db.doc("appSettings/webmasterContact").set(
+  // Persist the secret in a webmaster-only doc that no agent can read.
+  await db.doc("appSettings/slackWebhookSecret").set(
     {
       slackWebhookUrl: raw,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: callerUid,
+    },
+    { merge: true }
+  );
+
+  // Defense-in-depth: scrub any legacy copy of the URL on the
+  // public-readable `webmasterContact` doc so older clients can't leak it.
+  await db.doc("appSettings/webmasterContact").set(
+    {
+      slackWebhookUrl: admin.firestore.FieldValue.delete(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedBy: callerUid,
     },

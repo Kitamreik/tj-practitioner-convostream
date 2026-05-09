@@ -331,6 +331,15 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if false; // server only (setSlackWebhookUrlAdmin)
     }
+    // Slack incoming-webhook URL — webmaster-only read, server-only write.
+    // The `setSlackWebhookUrlAdmin` callable writes here via the admin SDK
+    // (which bypasses these rules). Agents and admins must NEVER be able to
+    // read this doc; the public `slackAlertStatus` mirror exposes only a
+    // boolean for UI purposes.
+    match /appSettings/slackWebhookSecret {
+      allow read: if isWebmaster();
+      allow write: if false;
+    }
     match /appSettings/webmasterContact {
       // Any signed-in teammate can read so the cooldown picker renders.
       // The slackWebhookUrl field travels with this doc — clients that

@@ -45,6 +45,7 @@ const Bootstrap: React.FC = () => {
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [bootstrapSecret, setBootstrapSecret] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<CallResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -65,11 +66,14 @@ const Bootstrap: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const fn = httpsCallable<{ initialPassword: string }, CallResult>(
-        functions,
-        "bootstrapSupportAccount"
-      );
-      const res = await fn({ initialPassword: password });
+      const fn = httpsCallable<
+        { initialPassword: string; bootstrapSecret?: string },
+        CallResult
+      >(functions, "bootstrapSupportAccount");
+      const res = await fn({
+        initialPassword: password,
+        ...(bootstrapSecret.trim() ? { bootstrapSecret: bootstrapSecret.trim() } : {}),
+      });
       setResult(res.data);
       toast({
         title: "Bootstrap complete",
@@ -170,6 +174,23 @@ const Bootstrap: React.FC = () => {
                   minLength={8}
                   maxLength={128}
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="bootstrap-secret">Bootstrap secret (optional)</Label>
+                <Input
+                  id="bootstrap-secret"
+                  type="password"
+                  autoComplete="off"
+                  value={bootstrapSecret}
+                  onChange={(e) => setBootstrapSecret(e.target.value)}
+                  placeholder="Required if BOOTSTRAP_SECRET is set on the function"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Set <code className="font-mono">BOOTSTRAP_SECRET</code> in the function runtime
+                  (e.g. <code className="font-mono">firebase functions:secrets:set BOOTSTRAP_SECRET</code>)
+                  to require this value and block anonymous bootstrap calls.
+                </p>
               </div>
 
               {errorMsg && (
