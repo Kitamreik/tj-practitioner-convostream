@@ -191,6 +191,7 @@ const Bootstrap: React.FC = () => {
                   (e.g. <code className="font-mono">firebase functions:secrets:set BOOTSTRAP_SECRET</code>)
                   to require this value and block anonymous bootstrap calls.
                 </p>
+              </div>
 
               {errorMsg && (
                 <Alert variant="destructive">
