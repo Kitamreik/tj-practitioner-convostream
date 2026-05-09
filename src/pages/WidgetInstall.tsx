@@ -208,6 +208,7 @@ const WidgetInstall: React.FC = () => {
     toast({ title: "PDF downloaded", description: "Installation guide saved." });
   };
 
+  const originsValid = originsText
     .split(/\r?\n/)
     .map((s) => s.trim())
     .filter(Boolean)
