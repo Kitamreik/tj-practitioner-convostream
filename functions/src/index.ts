@@ -2284,8 +2284,24 @@ export const pingWebmasterSlack = onCall(CALLABLE_OPTS, async (request) => {
     throw new HttpsError("permission-denied", "Account role is not authorized to send Slack alerts.");
   }
 
-  const data = (request.data ?? {}) as { route?: unknown };
+  const data = (request.data ?? {}) as { route?: unknown; smokeTest?: unknown };
   const route = typeof data.route === "string" ? safeForSlack(data.route) : "/";
+  const smokeTest = data.smokeTest === true;
+
+  // Smoke test path: caller is verifying that the callable is reachable and
+  // the webhook is configured. Skip the rate-limit write AND the actual
+  // Slack POST so we don't burn the user's 10-min cooldown or spam the
+  // channel during deployment checks.
+  if (smokeTest) {
+    const webhookUrl = await readSlackWebhookUrl();
+    if (!webhookUrl) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Slack webhook is not configured."
+      );
+    }
+    return { ok: true, sentAt: Date.now(), nextAllowedAt: 0, smokeTest: true };
+  }
 
   // ---- Rate limit (transactional read-modify-write) --------------------------
   const rateLimitRef = db.doc(`slackAlertRateLimits/${uid}`);
