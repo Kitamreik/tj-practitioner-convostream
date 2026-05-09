@@ -123,7 +123,47 @@ interface Conversation {
   assignedAgent?: string;
   archived?: boolean;
   deletedAt?: any;
+  topic?: ConsultingTopic;
 }
+
+/**
+ * Consulting-oriented topic labels. Picked to cover the lifecycle of a
+ * client engagement (discovery → delivery → renewal) plus operational
+ * lanes that sit alongside it (billing, compliance, escalations).
+ */
+export type ConsultingTopic =
+  | "unlabeled"
+  | "discovery"
+  | "strategy"
+  | "onboarding"
+  | "roadmap"
+  | "implementation"
+  | "account-review"
+  | "renewal"
+  | "billing"
+  | "compliance"
+  | "technical-support"
+  | "follow-up"
+  | "escalation";
+
+const consultingTopics: { value: ConsultingTopic; label: string }[] = [
+  { value: "unlabeled", label: "Unlabeled" },
+  { value: "discovery", label: "Discovery call" },
+  { value: "strategy", label: "Strategy session" },
+  { value: "onboarding", label: "Onboarding" },
+  { value: "roadmap", label: "Roadmap review" },
+  { value: "implementation", label: "Implementation" },
+  { value: "account-review", label: "Account review" },
+  { value: "renewal", label: "Renewal & retention" },
+  { value: "billing", label: "Billing & contracts" },
+  { value: "compliance", label: "Compliance & risk" },
+  { value: "technical-support", label: "Technical support" },
+  { value: "follow-up", label: "Follow-up" },
+  { value: "escalation", label: "Escalation" },
+];
+
+const topicLabel = (t?: ConsultingTopic) =>
+  consultingTopics.find((x) => x.value === (t ?? "unlabeled"))?.label ?? "Unlabeled";
 
 interface ConversationMessage {
   id: string;
@@ -926,6 +966,21 @@ const Conversations: React.FC = () => {
       }
     }
     toast({ title: "Channel updated", description: `Switched to ${newChannel.toUpperCase()}.` });
+  };
+
+  const handleChangeTopic = async (newTopic: ConsultingTopic) => {
+    if (!selectedId) return;
+    setConversations((prev) =>
+      prev.map((c) => (c.id === selectedId ? { ...c, topic: newTopic } : c))
+    );
+    if (!usingFallback) {
+      try {
+        await updateDoc(doc(db, "conversations", selectedId), { topic: newTopic });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    toast({ title: "Topic updated", description: `Labeled as ${topicLabel(newTopic)}.` });
   };
 
   const handleDeleteConversation = async () => {
@@ -1776,6 +1831,23 @@ const Conversations: React.FC = () => {
                   <SelectItem value="phone">Phone</SelectItem>
                   <SelectItem value="slack">Slack</SelectItem>
                   <SelectItem value="mobile">Mobile</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Tag className="h-3 w-3 text-muted-foreground" />
+              <span className="text-muted-foreground">Topic:</span>
+              <Select
+                value={selected.topic ?? "unlabeled"}
+                onValueChange={(v) => handleChangeTopic(v as ConsultingTopic)}
+              >
+                <SelectTrigger className="h-7 w-44 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {consultingTopics.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
