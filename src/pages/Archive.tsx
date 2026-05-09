@@ -11,13 +11,21 @@ import {
   getDocs,
   writeBatch,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { Archive as ArchiveIcon, RotateCcw, Trash2, MessageCircle, User } from "lucide-react";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "@/lib/firebase";
+import {
+  Archive as ArchiveIcon,
+  RotateCcw,
+  Trash2,
+  MessageCircle,
+  Inbox,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { daysRemaining, isExpired, ARCHIVE_RETENTION_DAYS } from "@/lib/softDelete";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,8 +46,10 @@ interface ArchivedItem {
 }
 
 const Archive: React.FC = () => {
+  const { profile } = useAuth();
+  const isWebmaster = profile?.role === "webmaster";
   const [conversations, setConversations] = useState<ArchivedItem[]>([]);
-  const [people, setPeople] = useState<ArchivedItem[]>([]);
+  const [escalations, setEscalations] = useState<ArchivedItem[]>([]);
 
   useEffect(() => {
     const qConvos = query(collection(db, "conversations"), where("archived", "==", true));
@@ -62,62 +72,93 @@ const Archive: React.FC = () => {
       (err) => console.error("Archive convos error:", err)
     );
 
-    const qPeople = query(collection(db, "people"), where("archived", "==", true));
-    const unsub2 = onSnapshot(
-      qPeople,
-      (snap) => {
-        const items = snap.docs
-          .map((d) => {
-            const data = d.data();
-            return {
-              id: d.id,
-              label: data.name || "Unknown",
-              sublabel: data.email,
-              deletedAt: data.deletedAt,
-            };
-          })
-          .filter((i) => !isExpired(i.deletedAt));
-        setPeople(items);
-      },
-      (err) => console.error("Archive people error:", err)
-    );
+    let unsub2: (() => void) | null = null;
+    if (isWebmaster) {
+      const qEsc = query(collection(db, "escalationRequests"), where("archived", "==", true));
+      unsub2 = onSnapshot(
+        qEsc,
+        (snap) => {
+          const items = snap.docs
+            .map((d) => {
+              const data = d.data() as any;
+              const requester = data.requesterName || data.requesterEmail || data.requesterUid || "Unknown";
+              return {
+                id: d.id,
+                label: `${requester} — ${data.status || "pending"}`,
+                sublabel: data.reason || "(no reason)",
+                deletedAt: data.deletedAt,
+              };
+            })
+            .filter((i) => !isExpired(i.deletedAt));
+          setEscalations(items);
+        },
+        (err) => console.error("Archive escalations error:", err)
+      );
+    }
 
     return () => {
       unsub1();
-      unsub2();
+      if (unsub2) unsub2();
     };
-  }, []);
+  }, [isWebmaster]);
 
-  const restore = async (col: "conversations" | "people", id: string) => {
+  const restoreConvo = async (id: string) => {
     try {
-      await updateDoc(doc(db, col, id), { archived: false, deletedAt: null });
-      toast({ title: "Restored", description: "Item is back in your active list." });
+      await updateDoc(doc(db, "conversations", id), { archived: false, deletedAt: null });
+      toast({ title: "Restored", description: "Conversation is back in your active list." });
     } catch (e: any) {
       toast({ title: "Restore failed", description: e?.message, variant: "destructive" });
     }
   };
 
-  const purge = async (col: "conversations" | "people", id: string) => {
+  const purgeConvo = async (id: string) => {
     try {
-      if (col === "conversations") {
-        const msgsSnap = await getDocs(collection(db, "conversations", id, "messages"));
-        const batch = writeBatch(db);
-        msgsSnap.docs.forEach((d) => batch.delete(d.ref));
-        await batch.commit();
-      }
-      await deleteDoc(doc(db, col, id));
-      toast({ title: "Permanently deleted", description: "Item has been wiped." });
+      const msgsSnap = await getDocs(collection(db, "conversations", id, "messages"));
+      const batch = writeBatch(db);
+      msgsSnap.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+      await deleteDoc(doc(db, "conversations", id));
+      toast({ title: "Permanently deleted", description: "Conversation has been wiped." });
     } catch (e: any) {
       toast({ title: "Delete failed", description: e?.message, variant: "destructive" });
     }
   };
 
-  const renderList = (items: ArchivedItem[], col: "conversations" | "people", icon: React.ReactNode) => {
+  const restoreEscalation = async (id: string) => {
+    try {
+      const fn = httpsCallable<{ requestId: string; action: "restore" }, { ok: boolean }>(
+        functions,
+        "manageEscalationRequest"
+      );
+      await fn({ requestId: id, action: "restore" });
+      toast({ title: "Escalation restored", description: "Back in the active queue." });
+    } catch (e: any) {
+      toast({ title: "Restore failed", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const purgeEscalation = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "escalationRequests", id));
+      toast({ title: "Permanently deleted", description: "Escalation request removed." });
+    } catch (e: any) {
+      toast({ title: "Delete failed", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const renderList = (
+    items: ArchivedItem[],
+    icon: React.ReactNode,
+    onRestore: (id: string) => void,
+    onPurge: (id: string) => void
+  ) => {
     if (items.length === 0) {
       return (
         <div className="rounded-xl border border-dashed border-border p-10 text-center">
           <ArchiveIcon className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">Nothing archived. Deleted items appear here for {ARCHIVE_RETENTION_DAYS} days.</p>
+          <p className="text-sm text-muted-foreground">
+            Nothing archived. Archived items appear here for {ARCHIVE_RETENTION_DAYS} days.
+          </p>
         </div>
       );
     }
@@ -144,33 +185,31 @@ const Archive: React.FC = () => {
                 </Badge>
               </div>
               <div className="flex flex-shrink-0 gap-2">
-                <Button size="sm" variant="outline" onClick={() => restore(col, item.id)} className="gap-1.5">
+                <Button size="sm" variant="outline" onClick={() => onRestore(item.id)} className="gap-1.5">
                   <RotateCcw className="h-3.5 w-3.5" /> Restore
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button size="icon" variant="ghost" className="h-9 w-9 text-destructive hover:bg-destructive/10 hover:text-destructive" aria-label="Delete forever">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-9 w-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="Delete forever"
+                    >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete forever?</AlertDialogTitle>
-                      <AlertDialogDescription className="space-y-2">
-                        {col === "people" && (
-                          <span className="block font-medium text-foreground">
-                            Archiving and removing contacts should only be done if the client requested disengagement.
-                          </span>
-                        )}
-                        <span className="block">
-                          This permanently removes <strong>{item.label}</strong>. It cannot be restored.
-                        </span>
+                      <AlertDialogDescription>
+                        This permanently removes <strong>{item.label}</strong>. It cannot be restored.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
                       <AlertDialogAction
-                        onClick={() => purge(col, item.id)}
+                        onClick={() => onPurge(item.id)}
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       >
                         Delete forever
@@ -201,13 +240,21 @@ const Archive: React.FC = () => {
             <MessageCircle className="h-3.5 w-3.5" /> Conversations
             {conversations.length > 0 && <Badge variant="secondary" className="ml-1">{conversations.length}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="people" className="gap-1.5">
-            <User className="h-3.5 w-3.5" /> People
-            {people.length > 0 && <Badge variant="secondary" className="ml-1">{people.length}</Badge>}
-          </TabsTrigger>
+          {isWebmaster && (
+            <TabsTrigger value="escalations" className="gap-1.5">
+              <Inbox className="h-3.5 w-3.5" /> Escalations
+              {escalations.length > 0 && <Badge variant="secondary" className="ml-1">{escalations.length}</Badge>}
+            </TabsTrigger>
+          )}
         </TabsList>
-        <TabsContent value="conversations">{renderList(conversations, "conversations", <MessageCircle className="h-4 w-4" />)}</TabsContent>
-        <TabsContent value="people">{renderList(people, "people", <User className="h-4 w-4" />)}</TabsContent>
+        <TabsContent value="conversations">
+          {renderList(conversations, <MessageCircle className="h-4 w-4" />, restoreConvo, purgeConvo)}
+        </TabsContent>
+        {isWebmaster && (
+          <TabsContent value="escalations">
+            {renderList(escalations, <Inbox className="h-4 w-4" />, restoreEscalation, purgeEscalation)}
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
