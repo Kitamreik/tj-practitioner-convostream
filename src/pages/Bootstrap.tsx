@@ -176,6 +176,22 @@ const Bootstrap: React.FC = () => {
                 />
               </div>
 
+              <div className="space-y-1.5">
+                <Label htmlFor="bootstrap-secret">Bootstrap secret (optional)</Label>
+                <Input
+                  id="bootstrap-secret"
+                  type="password"
+                  autoComplete="off"
+                  value={bootstrapSecret}
+                  onChange={(e) => setBootstrapSecret(e.target.value)}
+                  placeholder="Required if BOOTSTRAP_SECRET is set on the function"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Set <code className="font-mono">BOOTSTRAP_SECRET</code> in the function runtime
+                  (e.g. <code className="font-mono">firebase functions:secrets:set BOOTSTRAP_SECRET</code>)
+                  to require this value and block anonymous bootstrap calls.
+                </p>
+
               {errorMsg && (
                 <Alert variant="destructive">
                   <AlertDescription>{errorMsg}</AlertDescription>
