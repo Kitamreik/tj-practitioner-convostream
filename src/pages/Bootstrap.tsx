@@ -45,6 +45,7 @@ const Bootstrap: React.FC = () => {
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [bootstrapSecret, setBootstrapSecret] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<CallResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
