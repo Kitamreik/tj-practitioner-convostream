@@ -570,7 +570,8 @@ export const manageEscalationRequest = onCall(async (request) => {
   return { ok: true, action };
 });
 
-
+/**
+ * Webmaster-only: permanently delete a user account (Auth + Firestore profile).
  * Refuses to delete the caller's own account.
  *
  * Request: { targetUid: string }
