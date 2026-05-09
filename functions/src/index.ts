@@ -158,7 +158,7 @@ const SUPPORT_EMAIL = "support@convohub.dev";
 const SUPPORT_DISPLAY_NAME = "Support";
 
 export const bootstrapSupportAccount = onCall(async (request) => {
-  // Hard gate: refuse if any webmaster already exists.
+  // Hard gate #1: refuse if any webmaster already exists.
   const existingWebmasters = await db
     .collection("users")
     .where("role", "==", "webmaster")
@@ -171,9 +171,38 @@ export const bootstrapSupportAccount = onCall(async (request) => {
     );
   }
 
-  const data = (request.data ?? {}) as { initialPassword?: unknown };
+  // Hard gate #2: defense-in-depth against an attacker racing the very first
+  // legitimate operator. Any signed-in user counts — if the project already
+  // has people in it, bootstrap is OFF regardless of the webmaster check.
+  const anyUser = await db.collection("users").limit(1).get();
+  if (!anyUser.empty) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Bootstrap is disabled: the users collection is non-empty. Use promoteToWebmaster instead."
+    );
+  }
+
+  const data = (request.data ?? {}) as {
+    initialPassword?: unknown;
+    bootstrapSecret?: unknown;
+  };
   const initialPassword =
     typeof data.initialPassword === "string" ? data.initialPassword : "";
+  const suppliedSecret =
+    typeof data.bootstrapSecret === "string" ? data.bootstrapSecret : "";
+
+  // Hard gate #3: when BOOTSTRAP_SECRET is configured in the function
+  // runtime, the caller must present it. This shuts the door on anonymous
+  // bootstrap calls in production deployments.
+  const expectedSecret = (process.env.BOOTSTRAP_SECRET || "").trim();
+  if (expectedSecret) {
+    if (!suppliedSecret || suppliedSecret !== expectedSecret) {
+      throw new HttpsError(
+        "permission-denied",
+        "bootstrapSecret missing or incorrect."
+      );
+    }
+  }
 
   // Look up or create the Firebase Auth user for support@convohub.dev.
   let authUser: admin.auth.UserRecord;
