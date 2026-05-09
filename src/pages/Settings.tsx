@@ -72,10 +72,17 @@ import { toast } from "@/hooks/use-toast";
 import { httpsCallable } from "firebase/functions";
 import { functions, db } from "@/lib/firebase";
 import { subscribeLocalAgents, type LocalAgent } from "@/lib/localAgents";
+import "@/lib/managedPasswords"; // side-effect: purges legacy localStorage keys
 import {
-  setLocalManagedPassword,
-  getLocalManagedPassword,
-} from "@/lib/managedPasswords";
+  encryptWithPassphrase,
+  decryptWithPassphrase,
+  buildSentinel,
+  verifySentinel,
+  cachePassphrase,
+  getCachedPassphrase,
+  clearVault,
+  type EncryptedBlob,
+} from "@/lib/passwordVault";
 import {
   collection,
   query,
