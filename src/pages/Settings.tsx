@@ -2233,26 +2233,60 @@ const SettingsPage: React.FC = () => {
                       )}
                       <p className="text-[10px] text-muted-foreground mt-1">{formatTime(req.createdAt)}</p>
                     </div>
-                    {req.status === "pending" ? <div className="flex gap-2 flex-shrink-0 sm:w-auto w-full">
+                    <div className="flex flex-wrap gap-2 flex-shrink-0 sm:w-auto w-full">
+                      {req.status === "pending" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 flex-1 sm:flex-none"
+                            disabled={decidingId === req.id}
+                            onClick={() => decide(req.id, "deny")}
+                          >
+                            <X className="h-3.5 w-3.5" /> Deny
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="gap-1 flex-1 sm:flex-none"
+                            disabled={decidingId === req.id}
+                            onClick={() => decide(req.id, "approve")}
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            {decidingId === req.id ? "…" : "Approve"}
+                          </Button>
+                        </>
+                      )}
+                      {req.status !== "resolved" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 flex-1 sm:flex-none"
+                          disabled={managingId === req.id}
+                          onClick={() => manageEscalation(req.id, "resolve")}
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Resolve
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 flex-1 sm:flex-none"
+                          disabled={managingId === req.id}
+                          onClick={() => manageEscalation(req.id, "reopen")}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" /> Reopen
+                        </Button>
+                      )}
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="ghost"
                         className="gap-1 flex-1 sm:flex-none"
-                        disabled={decidingId === req.id}
-                        onClick={() => decide(req.id, "deny")}
+                        disabled={managingId === req.id}
+                        onClick={() => manageEscalation(req.id, "archive")}
                       >
-                        <X className="h-3.5 w-3.5" /> Deny
+                        <ArchiveIcon className="h-3.5 w-3.5" /> Archive
                       </Button>
-                      <Button
-                        size="sm"
-                        className="gap-1 flex-1 sm:flex-none"
-                        disabled={decidingId === req.id}
-                        onClick={() => decide(req.id, "approve")}
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                        {decidingId === req.id ? "…" : "Approve"}
-                      </Button>
-                    </div> : null}
+                    </div>
                   </div>
                 ))}
               </div>
