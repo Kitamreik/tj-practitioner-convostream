@@ -1851,6 +1851,7 @@ const Conversations: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
               <SlackAlertButton />
               <Button
                 size="sm"
