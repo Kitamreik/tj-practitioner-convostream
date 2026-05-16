@@ -338,6 +338,12 @@ const StaffUpdates: React.FC = () => {
         )}
       </div>
 
+      {isWebmaster && (
+        <div className="mb-6">
+          <FlaggedTermsManager />
+        </div>
+      )}
+
       {error && (
         <p className="mb-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
           {error}
