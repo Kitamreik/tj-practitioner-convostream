@@ -82,7 +82,8 @@ service cloud.firestore {
           || request.resource.data.role == 'agent'
           || isWebmaster()
         )
-        && !('escalatedAccess' in request.resource.data);
+        && !('escalatedAccess' in request.resource.data)
+        && !('supportAccess' in request.resource.data);
 
       // Update: self can update profile fields but cannot mutate `role`,
       // `escalatedAccess`, or `supportAccess`. Webmasters can update anything.
