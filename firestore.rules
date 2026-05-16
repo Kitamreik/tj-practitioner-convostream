@@ -564,5 +564,23 @@ service cloud.firestore {
           )
         );
     }
+
+    // -------- security_findings/{id} — webmaster security dashboard --------
+    // Tracks known security findings (severity, status, affected collections,
+    // re-scan timestamps). Webmaster-only — no other role can read or write.
+    match /security_findings/{id} {
+      allow read, create, update, delete: if isWebmaster();
+    }
+
+    // -------- security_alerts/{id} — append-only alert stream --------
+    // Suspicious activity: failed login streaks, privilege-flag write
+    // attempts, etc. Written by Cloud Functions (admin SDK bypass) and by
+    // any signed-in user reporting their own client-side detection (e.g.
+    // the AuthContext failed-login path). Webmaster-only reads/deletes.
+    match /security_alerts/{id} {
+      allow create: if isSignedIn();
+      allow read, delete: if isWebmaster();
+      allow update: if false;
+    }
   }
 }
