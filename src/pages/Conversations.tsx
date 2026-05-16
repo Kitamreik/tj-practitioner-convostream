@@ -843,12 +843,15 @@ const Conversations: React.FC = () => {
     // archived items can be resolved too) so that view stays a complete record.
     if (!showArchived && c.status === "resolved") return false;
     if (mineOnly && (c.assignedAgent || "").toLowerCase() !== myAgentName) return false;
-    const lowerSearch = search.toLowerCase();
+    const lowerSearch = search.trim().toLowerCase();
     const matchesBasic =
+      !lowerSearch ||
       c.customerName.toLowerCase().includes(lowerSearch) ||
-      c.lastMessage.toLowerCase().includes(lowerSearch);
+      c.lastMessage.toLowerCase().includes(lowerSearch) ||
+      (c.customerEmail || "").toLowerCase().includes(lowerSearch) ||
+      (c.customerPhone || "").toLowerCase().includes(lowerSearch);
     // Full-text search across cached message contents
-    const matchesMessages = !matchesBasic && search.length >= 2 &&
+    const matchesMessages = !matchesBasic && lowerSearch.length >= 2 &&
       (allMessages[c.id] || []).some((m) => m.text.toLowerCase().includes(lowerSearch));
     const matchesSearch = matchesBasic || matchesMessages;
     const matchesStatus = statusFilter === "all" || c.status === statusFilter;
