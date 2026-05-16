@@ -9,7 +9,18 @@ import {
   Wrench,
   Activity,
   Lock,
+  ShieldAlert,
+  Mail,
+  Filter,
+  X,
+  CalendarIcon,
+  ClipboardList,
 } from "lucide-react";
+import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import SupportEmailDialog from "@/components/SupportEmailDialog";
 import {
   collection,
   addDoc,
