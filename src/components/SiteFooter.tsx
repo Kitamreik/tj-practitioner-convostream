@@ -70,6 +70,18 @@ const SiteFooter: React.FC<{ variant?: "app" | "public" }> = ({ variant = "app" 
           <h3 className="text-sm font-semibold text-foreground">Contact</h3>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
             <li>
+              <SupportEmailDialog
+                trigger={
+                  <button
+                    type="button"
+                    className="text-left hover:text-primary"
+                  >
+                    Email support (templates)
+                  </button>
+                }
+              />
+            </li>
+            <li>
               <a href="mailto:support@convohub.dev" className="hover:text-primary">
                 support@convohub.dev
               </a>
