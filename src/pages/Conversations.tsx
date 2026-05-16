@@ -79,6 +79,7 @@ import { restoreItem } from "@/lib/softDelete";
 import { getBoolPref, setBoolPref } from "@/lib/userPrefs";
 import { subscribeLocalAgents } from "@/lib/localAgents";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import NewConversationDialog from "@/components/NewConversationDialog";
 import ConversationTemplates, { type MessageTemplate } from "@/components/ConversationTemplates";
 import EditPersonDialog, { type EditablePerson } from "@/components/EditPersonDialog";
