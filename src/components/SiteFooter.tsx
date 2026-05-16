@@ -69,13 +69,13 @@ const SiteFooter: React.FC<{ variant?: "app" | "public" }> = ({ variant = "app" 
         <div>
           <h3 className="text-sm font-semibold text-foreground">Contact</h3>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-            <li>Kit TJ Services ClientHub
-              <SupportEmKit TJ Services ClientHubg
+            <li>
+              <SupportEmailDialog
                 trigger={
                   <button
                     type="button"
-                    className="text-leKit TJ Services ClientHub:text-primary"
-                  >Kit TJ Services ClientHub
+                    className="text-left hover:text-primary"
+                  >
                     Email support (templates)
                   </button>
                 }
@@ -93,7 +93,7 @@ const SiteFooter: React.FC<{ variant?: "app" | "public" }> = ({ variant = "app" 
             </li>
             <li>
               <button
-                type="button"Kit TJ Services ClientHub
+                type="button"
                 onClick={openConsentBanner}
                 className="text-left hover:text-primary"
               >
