@@ -148,15 +148,20 @@ const SupportEmailDialog: React.FC<Props> = ({
     setOpen(false);
   };
 
+  // In controlled mode without a trigger, omit the DialogTrigger entirely.
+  const controlled = openProp !== undefined;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger ?? (
-          <Button variant="ghost" size="sm" className="gap-1.5">
-            <Mail className="h-3.5 w-3.5" /> Email support
-          </Button>
-        )}
-      </DialogTrigger>
+      {!controlled || trigger ? (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <Button variant="ghost" size="sm" className="gap-1.5">
+              <Mail className="h-3.5 w-3.5" /> Email support
+            </Button>
+          )}
+        </DialogTrigger>
+      ) : null}
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
