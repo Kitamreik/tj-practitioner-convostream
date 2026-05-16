@@ -1342,6 +1342,38 @@ export const enforceUserRoleOnWrite = onDocumentWritten(
 
     if (Object.keys(updates).length > 0) {
       await after.ref.update(updates);
+      // Emit a security alert whenever we had to scrub a client-supplied
+      // privilege flag or revert a privileged-field write. These are the
+      // strongest signal of an unauthorized escalation attempt and feed the
+      // /security dashboard + CSV export.
+      const flagged =
+        "supportAccess" in updates ||
+        "escalatedAccess" in updates ||
+        ("role" in updates && before?.exists);
+      if (flagged) {
+        try {
+          await admin.firestore().collection("security_alerts").add({
+            kind: !before?.exists ? "privilege_flag_strip" : "privilege_flag_revert",
+            severity: "warn",
+            summary: !before?.exists
+              ? `Stripped client-supplied privilege flag on signup (${event.params.uid})`
+              : `Reverted client-driven privilege change on users/${event.params.uid}`,
+            subjectUid: event.params.uid,
+            subjectEmail: (afterData.email as string) || (beforeData?.email as string) || null,
+            detail: {
+              attempted: {
+                role: afterData.role ?? null,
+                supportAccess: afterData.supportAccess ?? null,
+                escalatedAccess: afterData.escalatedAccess ?? null,
+              },
+              reverted: updates,
+            },
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        } catch (e) {
+          logger.warn("enforceUserRoleOnWrite: failed to write security_alert", { e });
+        }
+      }
     }
   }
 );

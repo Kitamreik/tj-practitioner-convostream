@@ -57,6 +57,7 @@ const navItems: NavItem[] = [
   { label: "Call Analytics", icon: <Mic className="h-5 w-5" />, path: "/call-analytics" },
   { label: "Integrations", icon: <Plug className="h-5 w-5" />, path: "/integrations", webmasterOrEscalated: true },
   { label: "Audit Logs", icon: <Shield className="h-5 w-5" />, path: "/audit", roles: ["webmaster"] },
+  { label: "Security", icon: <Shield className="h-5 w-5" />, path: "/security", roles: ["webmaster"] },
   { label: "Gmail API", icon: <Mail className="h-5 w-5" />, path: "/gmail", webmasterOrEscalated: true },
   { label: "Archive", icon: <ArchiveIcon className="h-5 w-5" />, path: "/archive" },
   { label: "Settings", icon: <Settings className="h-5 w-5" />, path: "/settings" },
