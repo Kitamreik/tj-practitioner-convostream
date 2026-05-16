@@ -320,6 +320,12 @@ const Analytics: React.FC = () => {
         <p className="text-muted-foreground mt-1">Performance overview of your support operations</p>
       </div>
 
+      {isPrivileged && (
+        <div className="mb-8">
+          <FlagAnalyticsPanel />
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
         {stats.map((stat, i) => (
           <motion.div
