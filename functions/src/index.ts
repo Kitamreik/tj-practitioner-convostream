@@ -1293,6 +1293,20 @@ export const enforceUserRoleOnWrite = onDocumentWritten(
           attemptedRole: newRole,
         });
       }
+      // Strip any client-supplied privilege flags on create. These can only
+      // be granted via server-authored writes (`_serverRoleWrite: true`).
+      if (afterData.supportAccess !== undefined) {
+        updates.supportAccess = admin.firestore.FieldValue.delete();
+        logger.warn("enforceUserRoleOnWrite: stripped client supportAccess on create", {
+          uid: event.params.uid,
+        });
+      }
+      if (afterData.escalatedAccess !== undefined) {
+        updates.escalatedAccess = admin.firestore.FieldValue.delete();
+        logger.warn("enforceUserRoleOnWrite: stripped client escalatedAccess on create", {
+          uid: event.params.uid,
+        });
+      }
     } else {
       // UPDATE: revert any client-driven change to `role`.
       if (newRole !== oldRole) {
@@ -1301,6 +1315,27 @@ export const enforceUserRoleOnWrite = onDocumentWritten(
           uid: event.params.uid,
           from: oldRole,
           to: newRole,
+        });
+      }
+      // Revert any client-driven change to privilege flags.
+      const oldSupport = beforeData?.supportAccess;
+      const newSupport = afterData.supportAccess;
+      if (newSupport !== oldSupport) {
+        updates.supportAccess = oldSupport === undefined
+          ? admin.firestore.FieldValue.delete()
+          : oldSupport;
+        logger.warn("enforceUserRoleOnWrite: reverted client supportAccess change", {
+          uid: event.params.uid,
+        });
+      }
+      const oldEscalated = beforeData?.escalatedAccess;
+      const newEscalated = afterData.escalatedAccess;
+      if (newEscalated !== oldEscalated) {
+        updates.escalatedAccess = oldEscalated === undefined
+          ? admin.firestore.FieldValue.delete()
+          : oldEscalated;
+        logger.warn("enforceUserRoleOnWrite: reverted client escalatedAccess change", {
+          uid: event.params.uid,
         });
       }
     }
