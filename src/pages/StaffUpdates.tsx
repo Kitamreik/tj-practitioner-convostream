@@ -150,6 +150,18 @@ const StaffUpdates: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // Filters
+  const [kindFilter, setKindFilter] = useState<"all" | "flag_alert" | "announcement">("all");
+  const [termFilter, setTermFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+
+  // Per-card review-notes drafts (local to the card UI).
+  const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
+  const [reviewBusy, setReviewBusy] = useState<string | null>(null);
+  // Per-card email-support dialog state.
+  const [emailFor, setEmailFor] = useState<StaffUpdate | null>(null);
+
   useEffect(() => {
     const q = query(collection(db, "staff_updates"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(
