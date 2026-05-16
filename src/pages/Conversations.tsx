@@ -866,8 +866,68 @@ const Conversations: React.FC = () => {
     setReplyText(filled);
   };
 
-  const hasActiveFilters = statusFilter !== "all" || channelFilter !== "all";
-  const clearFilters = () => { setStatusFilter("all"); setChannelFilter("all"); };
+  const hasActiveFilters =
+    statusFilter !== "all" || channelFilter !== "all" || topicFilter !== "all";
+  const clearFilters = () => {
+    setStatusFilter("all");
+    setChannelFilter("all");
+    setTopicFilter("all");
+  };
+
+  // Bulk selection helpers
+  const toggleSelectMode = () => {
+    setSelectMode((v) => {
+      if (v) setSelectedIds(new Set());
+      return !v;
+    });
+  };
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const selectAllVisible = () => {
+    setSelectedIds(new Set(filtered.map((c) => c.id)));
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkSetTopic = async (newTopic: ConsultingTopic) => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    setBulkBusy(true);
+    // Optimistic update
+    setConversations((prev) =>
+      prev.map((c) => (selectedIds.has(c.id) ? { ...c, topic: newTopic } : c))
+    );
+    if (!usingFallback) {
+      try {
+        const batch = writeBatch(db);
+        ids.forEach((id) =>
+          batch.update(doc(db, "conversations", id), { topic: newTopic })
+        );
+        await batch.commit();
+      } catch (e) {
+        console.error("Bulk topic update failed:", e);
+        toast({
+          title: "Bulk update failed",
+          description: "Some conversations may not have been updated.",
+          variant: "destructive",
+        });
+        setBulkBusy(false);
+        return;
+      }
+    }
+    toast({
+      title: "Topics updated",
+      description: `Labeled ${ids.length} conversation${ids.length === 1 ? "" : "s"} as ${topicLabel(newTopic)}.`,
+    });
+    setBulkBusy(false);
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  };
 
   const handleAssignAgent = async (convoId: string, agent: string | null) => {
     // Optimistic update
