@@ -19,6 +19,8 @@ import {
   subscribeThreadMessages,
   TYPING_FRESH_MS,
 } from "@/lib/chat";
+import { detectFlaggedTerms, useFlaggedTerms } from "@/lib/flaggedTerms";
+import { postFlagAlert } from "@/lib/flagAlert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
