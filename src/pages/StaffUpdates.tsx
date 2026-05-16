@@ -65,6 +65,7 @@ import FlaggedTermsManager from "@/components/FlaggedTermsManager";
  */
 
 type UpdateStatus = "ongoing" | "maintenance" | "resolved";
+export type FlagReviewStatus = "open" | "in_review" | "resolved";
 
 interface StaffUpdate {
   id: string;
@@ -80,7 +81,28 @@ interface StaffUpdate {
   context?: string;
   conversationId?: string | null;
   threadId?: string | null;
+  // flag_alert review tracking
+  reviewStatus?: FlagReviewStatus;
+  resolutionNotes?: string;
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedAt?: any;
 }
+
+const REVIEW_META: Record<FlagReviewStatus, { label: string; className: string }> = {
+  open: {
+    label: "Open",
+    className: "bg-destructive/10 text-destructive border-destructive/30",
+  },
+  in_review: {
+    label: "In review",
+    className: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30",
+  },
+  resolved: {
+    label: "Resolved",
+    className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+  },
+};
 
 const STATUS_META: Record<
   UpdateStatus,
