@@ -721,6 +721,15 @@ const StaffUpdates: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {emailFor && (
+        <SupportEmailDialog
+          open={!!emailFor}
+          onOpenChange={(o) => { if (!o) setEmailFor(null); }}
+          initialSubject={buildEmailDraft(emailFor).subject}
+          initialBody={buildEmailDraft(emailFor).body}
+        />
+      )}
     </div>
   );
 };
