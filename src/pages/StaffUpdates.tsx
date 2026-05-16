@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { notifyAllUsers } from "@/lib/notifyAll";
+import FlaggedTermsManager from "@/components/FlaggedTermsManager";
 
 /**
  * Staff Updates — webmaster-authored announcements for the team. Everyone
