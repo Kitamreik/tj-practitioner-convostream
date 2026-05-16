@@ -434,6 +434,10 @@ const Conversations: React.FC = () => {
   };
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
+  const [topicFilter, setTopicFilter] = useState<string>("all");
+  const [selectMode, setSelectMode] = useState<boolean>(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   // "Show only my assigned conversations" filter for agents/admins.
   const [mineOnly, setMineOnly] = useState<boolean>(false);
