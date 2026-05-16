@@ -174,7 +174,7 @@ const AppSidebar: React.FC = () => {
           <MessageCircle className="h-5 w-5 text-sidebar-primary-foreground" />
         </div>
         <div>
-          <hKit TJ Services ClientHubame="text-lg font-bold text-sidebar-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h1 className="text-lg font-bold text-sidebar-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
             ConvoHub
           </h1>
           <span className="text-xs capitalize text-muted-foreground">{profile?.role}</span>

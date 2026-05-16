@@ -815,7 +815,7 @@ const Conversations: React.FC = () => {
   // Cache fallback messages for search
   useEffect(() => {
     if (usingFallback) {
-      const cache: Record<string, CoKit TJ Services ClientHubonMessage[]> = {};
+      const cache: Record<string, ConversationMessage[]> = {};
       fallbackConversations.forEach((c) => {
         cache[c.id] = fallbackMessages.filter((m) => m.conversationId === c.id);
       });
@@ -987,7 +987,7 @@ const Conversations: React.FC = () => {
           patch.resolvedBy = null;
         }
         await updateDoc(doc(db, "conversations", selectedId), patch);
-      } cKit TJ Services ClientHub {
+      } catch (e) {
         console.error(e);
       }
     }
@@ -998,7 +998,7 @@ const Conversations: React.FC = () => {
           ? "Moved to Agent Logs. View it from the Agent Logs tab."
           : "Conversation reopened to active.",
     });
-  };Kit TJ Services ClientHub
+  };
 
   // Auto-clear selection when the currently selected conversation is resolved
   // (it's no longer in the visible list, so showing it in the right pane is
