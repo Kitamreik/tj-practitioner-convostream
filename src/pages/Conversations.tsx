@@ -110,6 +110,8 @@ import {
   buildSlackSlugIndex,
   slugifyConversationName,
 } from "@/lib/conversationSlugs";
+import { detectFlaggedTerms, useFlaggedTerms } from "@/lib/flaggedTerms";
+import { postFlagAlert } from "@/lib/flagAlert";
 
 interface Conversation {
   id: string;
