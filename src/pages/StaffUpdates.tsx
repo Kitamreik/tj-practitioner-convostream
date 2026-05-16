@@ -63,6 +63,12 @@ interface StaffUpdate {
   createdAt?: any;
   authorUid: string;
   authorName: string;
+  kind?: "announcement" | "flag_alert";
+  screenshotDataUrl?: string | null;
+  matches?: string[];
+  context?: string;
+  conversationId?: string | null;
+  threadId?: string | null;
 }
 
 const STATUS_META: Record<
