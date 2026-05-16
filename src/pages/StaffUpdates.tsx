@@ -182,11 +182,115 @@ const StaffUpdates: React.FC = () => {
     return unsub;
   }, []);
 
-  const grouped = useMemo(() => {
-    const active = updates.filter((u) => u.status !== "resolved");
-    const resolved = updates.filter((u) => u.status === "resolved");
-    return { active, resolved };
+  // Available matched-term options derived from existing flag_alert docs.
+  const termOptions = useMemo(() => {
+    const set = new Set<string>();
+    updates.forEach((u) => {
+      if (u.kind === "flag_alert" && Array.isArray(u.matches)) {
+        u.matches.forEach((m) => set.add(String(m).toLowerCase()));
+      }
+    });
+    return Array.from(set).sort();
   }, [updates]);
+
+  const filtered = useMemo(() => {
+    return updates.filter((u) => {
+      const kindNorm = u.kind === "flag_alert" ? "flag_alert" : "announcement";
+      if (kindFilter !== "all" && kindNorm !== kindFilter) return false;
+      if (termFilter !== "all") {
+        const matches = Array.isArray(u.matches) ? u.matches.map((m) => String(m).toLowerCase()) : [];
+        if (!matches.includes(termFilter)) return false;
+      }
+      if (dateFrom || dateTo) {
+        const ts: Date | null = u.createdAt?.toDate ? u.createdAt.toDate() : null;
+        if (!ts) return false;
+        if (dateFrom && ts < dateFrom) return false;
+        if (dateTo) {
+          const end = new Date(dateTo);
+          end.setHours(23, 59, 59, 999);
+          if (ts > end) return false;
+        }
+      }
+      return true;
+    });
+  }, [updates, kindFilter, termFilter, dateFrom, dateTo]);
+
+  const grouped = useMemo(() => {
+    const active = filtered.filter((u) => u.status !== "resolved");
+    const resolved = filtered.filter((u) => u.status === "resolved");
+    return { active, resolved };
+  }, [filtered]);
+
+  const hasActiveFilters =
+    kindFilter !== "all" || termFilter !== "all" || !!dateFrom || !!dateTo;
+  const clearFilters = () => {
+    setKindFilter("all");
+    setTermFilter("all");
+    setDateFrom(undefined);
+    setDateTo(undefined);
+  };
+
+  const handleReviewStatus = async (u: StaffUpdate, next: FlagReviewStatus) => {
+    if (!profile) return;
+    setReviewBusy(u.id);
+    try {
+      await updateDoc(doc(db, "staff_updates", u.id), {
+        reviewStatus: next,
+        reviewedBy: profile.uid,
+        reviewedByName: profile.displayName || profile.email || "Agent",
+        reviewedAt: serverTimestamp(),
+      });
+    } catch (e: any) {
+      toast({ title: "Couldn't update review", description: e?.message, variant: "destructive" });
+    } finally {
+      setReviewBusy(null);
+    }
+  };
+
+  const handleSaveNotes = async (u: StaffUpdate) => {
+    if (!profile) return;
+    const notes = (notesDraft[u.id] ?? u.resolutionNotes ?? "").trim();
+    setReviewBusy(u.id);
+    try {
+      await updateDoc(doc(db, "staff_updates", u.id), {
+        resolutionNotes: notes,
+        reviewedBy: profile.uid,
+        reviewedByName: profile.displayName || profile.email || "Agent",
+        reviewedAt: serverTimestamp(),
+      });
+      toast({ title: "Notes saved" });
+    } catch (e: any) {
+      toast({ title: "Couldn't save notes", description: e?.message, variant: "destructive" });
+    } finally {
+      setReviewBusy(null);
+    }
+  };
+
+  // Build mailto prefill payload for a flag_alert.
+  const buildEmailDraft = (u: StaffUpdate) => {
+    const subject = `Escalation review: ${u.title}`;
+    const ctxLines = [
+      `Hi ConvoHub support,`,
+      ``,
+      `Forwarding a flagged communication for review.`,
+      ``,
+      `Author: ${u.authorName}`,
+      `Posted: ${u.createdAt?.toDate ? u.createdAt.toDate().toLocaleString() : "unknown"}`,
+      `Context: ${u.context || "n/a"}`,
+      `Matched terms: ${(u.matches || []).join(", ") || "n/a"}`,
+      u.conversationId ? `Conversation ID: ${u.conversationId}` : "",
+      u.threadId ? `Thread ID: ${u.threadId}` : "",
+      ``,
+      `Original alert body:`,
+      u.body || "(empty)",
+      ``,
+      `Reviewer notes:`,
+      (u.resolutionNotes || "").trim() || "(none yet)",
+      ``,
+      `Please advise on next steps.`,
+    ].filter(Boolean);
+    return { subject, body: ctxLines.join("\n") };
+  };
 
   const resetDraft = () => {
     setDraftTitle("");
