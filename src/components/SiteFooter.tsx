@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { MessageCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { openConsentBanner } from "@/lib/cookieConsent";
+import SupportEmailDialog from "@/components/SupportEmailDialog";
 
 /**
  * Global site footer rendered on every authenticated page (via AppLayout)
