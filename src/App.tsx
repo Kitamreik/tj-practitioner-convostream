@@ -26,6 +26,7 @@ import IconKey from "./pages/IconKey";
 import Chat from "./pages/Chat";
 import Bootstrap from "./pages/Bootstrap";
 import SmokeTest from "./pages/SmokeTest";
+import SecurityFindings from "./pages/SecurityFindings";
 import CallAnalytics from "./pages/CallAnalytics";
 import NotFound from "./pages/NotFound";
 import Legal from "./pages/Legal";
@@ -115,6 +116,7 @@ const App = () => (
                   <Route path="/file-recordings" element={<FileRecordings />} />
                   <Route path="/icon-key" element={<IconKey />} />
                   <Route path="/smoke-test" element={<ProtectedRoute roles={["webmaster"]}><SmokeTest /></ProtectedRoute>} />
+                  <Route path="/security" element={<ProtectedRoute roles={["webmaster"]}><SecurityFindings /></ProtectedRoute>} />
                   <Route path="/call-analytics" element={<CallAnalytics />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
