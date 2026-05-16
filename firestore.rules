@@ -461,8 +461,14 @@ service cloud.firestore {
       // Rules can't trivially diff field-by-field, so we accept any update
       // from a participant and rely on the rule on /messages to gate the
       // sensitive write paths (sender identity, edit-only-own, mod-delete).
+      // Participant list is immutable from the client — preventing a
+      // participant from silently adding UIDs and exposing the thread history.
       allow update: if isSignedIn()
-        && request.auth.uid in resource.data.participantUids;
+        && request.auth.uid in resource.data.participantUids
+        && request.resource.data.participantUids == resource.data.participantUids
+        && request.resource.data.participantEmails == resource.data.participantEmails
+        && request.resource.data.participantNames == resource.data.participantNames
+        && request.resource.data.createdByUid == resource.data.createdByUid;
 
       // Hard delete: forbidden — moderators use soft-archive via update.
       allow delete: if false;
