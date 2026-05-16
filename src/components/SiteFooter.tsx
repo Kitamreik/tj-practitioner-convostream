@@ -33,13 +33,13 @@ const SiteFooter: React.FC<{ variant?: "app" | "public" }> = ({ variant = "app" 
             <span
               className="text-lg font-semibold text-foreground"
               style={{ fontFamily: "'Playfair Display', serif" }}
-            >Kit TJ Services ClientHub
+            >
               Kit TJ Services ClientHub
             </span>
           </div>
           <p className="mt-3 text-sm text-muted-foreground">
             Customer conversations, kept warm and continuous.
-          </p>Kit TJ Services ClientHub
+          </p>
           <p className="mt-3 text-xs text-muted-foreground">© {year} Kit TJ Services ClientHub. All rights reserved.</p>
         </div>
 
