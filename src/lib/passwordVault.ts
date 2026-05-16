@@ -28,7 +28,7 @@
 
 const VAULT_ALGO = "AES-GCM-256/PBKDF2-SHA256";
 const VAULT_ITERATIONS = 200_000;
-const SENTINEL = "Kit TJ Services ClientHub-vault-v1-ok";
+const SENTINEL = "ConvoHub-vault-v1-ok";
 
 export interface EncryptedBlob {
   ciphertext: string; // base64

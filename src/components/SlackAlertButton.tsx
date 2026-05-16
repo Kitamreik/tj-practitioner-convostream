@@ -8,7 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { pingWebmasterSlackAlert } from "@/lib/notifyWebmaster";
 
 const RATE_LIMIT_MS = 10 * 60 * 1000;
-const LOCAL_KEY_NEXT_ALLOWED_PREFIX = "Kit TJ Services ClientHub.slackAlertNextAllowed.";
+const LOCAL_KEY_NEXT_ALLOWED_PREFIX = "ConvoHub.slackAlertNextAllowed.";
 
 interface Props {
   className?: string;

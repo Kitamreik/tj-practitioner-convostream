@@ -74,7 +74,7 @@ describe("smsLimits — computeSmsLimits", () => {
 describe("smsLimits — applyTemplateVars", () => {
   it("substitutes name/agent/company tokens", () => {
     const out = applyTemplateVars("Hi {{name}}, {{agent}} at {{company}}", "Alex");
-    expect(out).toBe("Hi Webmaster, Alex at Kit TJ Services ClientHub");
+    expect(out).toBe("Hi Webmaster, Alex at ConvoHub");
   });
 
   it("leaves unrelated braces alone", () => {

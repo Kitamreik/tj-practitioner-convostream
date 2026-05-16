@@ -1,16 +1,16 @@
-/* Kit TJ Services ClientHub embeddable chat widget v1
- * Vanilla JS — no framework dependency. Loads from /widget/v1/Kit TJ Services ClientHub-widget.js
+/* ConvoHub embeddable chat widget v1
+ * Vanilla JS — no framework dependency. Loads from /widget/v1/convohub-widget.js
  * Reads data-tenant, data-color, data-endpoint from its own <script> tag.
- * Persists session in localStorage key "Kit TJ Services ClientHub.widget.session".
+ * Persists session in localStorage key "ConvoHub.widget.session".
  */
 (function () {
-  if (window.__Kit TJ Services ClientHubWidgetLoaded) return;
-  window.__Kit TJ Services ClientHubWidgetLoaded = true;
+  if (window.__convoHubWidgetLoaded) return;
+  window.__convoHubWidgetLoaded = true;
 
   var script = document.currentScript || (function () {
     var scripts = document.getElementsByTagName("script");
     for (var i = scripts.length - 1; i >= 0; i--) {
-      if ((scripts[i].src || "").indexOf("Kit TJ Services ClientHub-widget.js") !== -1) return scripts[i];
+      if ((scripts[i].src || "").indexOf("convohub-widget.js") !== -1) return scripts[i];
     }
     return null;
   })();
@@ -25,7 +25,7 @@
   var PROJECT = (script && script.getAttribute("data-project")) || "convo-hub-71514";
   var FN_BASE = "https://" + REGION + "-" + PROJECT + ".cloudfunctions.net";
 
-  var SESSION_KEY = "Kit TJ Services ClientHub.widget.session";
+  var SESSION_KEY = "ConvoHub.widget.session";
   function loadSession() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) { return null; }
   }
@@ -38,7 +38,7 @@
 
   // Shadow DOM container
   var host = document.createElement("div");
-  host.id = "Kit TJ Services ClientHub-widget-host";
+  host.id = "convohub-widget-host";
   host.style.cssText = "all:initial;position:fixed;z-index:2147483646;bottom:0;right:0;";
   document.body.appendChild(host);
   var root = host.attachShadow({ mode: "open" });
@@ -134,7 +134,7 @@
       var fd = new FormData(form);
       fetch(FN_BASE + "/createWidgetConversation", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Kit TJ Services ClientHub-Site-Key": SITE_KEY },
+        headers: { "Content-Type": "application/json", "X-ConvoHub-Site-Key": SITE_KEY },
         body: JSON.stringify({
           tenantId: TENANT,
           siteKey: SITE_KEY,

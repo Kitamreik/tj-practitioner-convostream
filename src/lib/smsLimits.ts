@@ -117,7 +117,7 @@ export function applyTemplateVars(body: string, agentName: string): string {
   return body
     .replace(/\{\{name\}\}/g, "Webmaster")
     .replace(/\{\{agent\}\}/g, agentName)
-    .replace(/\{\{company\}\}/g, "Kit TJ Services ClientHub");
+    .replace(/\{\{company\}\}/g, "ConvoHub");
 }
 
 export function buildContextLine(name: string, route: string): string {

@@ -13,7 +13,7 @@
  * legacy keys that were written by older builds.
  */
 
-const KEY_PREFIX = "Kit TJ Services ClientHub.managedPassword.";
+const KEY_PREFIX = "ConvoHub.managedPassword.";
 
 function purgeLegacyKeys(): void {
   try {

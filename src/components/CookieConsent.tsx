@@ -57,7 +57,7 @@ const CookieConsent: React.FC = () => {
               We use cookies
             </p>
             <p className="text-muted-foreground">
-              Kit TJ Services ClientHub uses essential cookies to keep you signed in and remember your
+              ConvoHub uses essential cookies to keep you signed in and remember your
               preferences. With your consent we also use optional analytics cookies to
               improve the product. See our{" "}
               <Link to="/legal/cookies" className="underline hover:text-primary">
@@ -85,7 +85,7 @@ const CookieConsent: React.FC = () => {
                   <span>
                     <span className="font-medium">Analytics</span>
                     <span className="ml-2 text-xs text-muted-foreground">
-                      Anonymous usage to improve Kit TJ Services ClientHub.
+                      Anonymous usage to improve ConvoHub.
                     </span>
                   </span>
                   <Switch
