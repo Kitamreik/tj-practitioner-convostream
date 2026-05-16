@@ -7,7 +7,7 @@
  * Staff Updates (ongoing / maintenance / resolved) so the team can flag
  * actionable recordings.
  *
- * Storage: localStorage under `convohub:fileRecordings:v1`. Pictures are
+ * Storage: localStorage under `Kit TJ Services ClientHub:fileRecordings:v1`. Pictures are
  * stored as small base64 data URLs (caller is responsible for keeping them
  * under a reasonable size). Videos are reference-only (URL).
  *
@@ -45,7 +45,7 @@ export interface FileRecording {
   notes: RecordingNote[];
 }
 
-const KEY = "convohub:fileRecordings:v1";
+const KEY = "Kit TJ Services ClientHub:fileRecordings:v1";
 
 function read(): FileRecording[] {
   try {

@@ -44,7 +44,7 @@ const WidgetInstall: React.FC = () => {
   const [rotating, setRotating] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://app.convohub.dev";
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://app.Kit TJ Services ClientHub.dev";
 
   // Live-load existing config so two admins editing in parallel converge.
   useEffect(() => {
@@ -72,7 +72,7 @@ const WidgetInstall: React.FC = () => {
 
   const snippet = useMemo(() => {
     const siteKey = config?.siteKey || "<saved-on-first-save>";
-    return `<!-- ConvoHub chat widget -->\n<script async\n  src="${origin}/widget/v1/convohub-widget.js"\n  data-tenant="${tenant}"\n  data-site-key="${siteKey}"\n  data-color="${color}"></script>`;
+    return `<!-- Kit TJ Services ClientHub chat widget -->\n<script async\n  src="${origin}/widget/v1/Kit TJ Services ClientHub-widget.js"\n  data-tenant="${tenant}"\n  data-site-key="${siteKey}"\n  data-color="${color}"></script>`;
   }, [origin, tenant, color, config?.siteKey]);
 
   const save = async () => {
@@ -161,14 +161,14 @@ const WidgetInstall: React.FC = () => {
       y += 6;
     };
 
-    writeHeading("ConvoHub Chat Widget — Installation Guide", 18);
+    writeHeading("Kit TJ Services ClientHub Chat Widget — Installation Guide", 18);
     writeBody(
       `Tenant id: ${tenant}\nSite key: ${config?.siteKey || "(save the configuration to generate)"}\nGenerated: ${new Date().toUTCString()}`
     );
 
     writeHeading("1. What this widget does", 13);
     writeBody(
-      "The ConvoHub widget is a small JavaScript snippet you embed on your customer-facing website. When a visitor opens it, a new conversation thread is created and routed straight into your ConvoHub inbox. Returning visitors on the same browser automatically resume their existing thread."
+      "The Kit TJ Services ClientHub widget is a small JavaScript snippet you embed on your customer-facing website. When a visitor opens it, a new conversation thread is created and routed straight into your Kit TJ Services ClientHub inbox. Returning visitors on the same browser automatically resume their existing thread."
     );
 
     writeHeading("2. Install snippet", 13);
@@ -204,7 +204,7 @@ const WidgetInstall: React.FC = () => {
       "Widget does not appear → check the browser console for an \"origin not allowed\" message and add the exact origin to the allow-list.\nMessages do not arrive → confirm the site key matches the latest value in this admin page.\nStyle conflicts → the widget renders inside a shadow DOM container; if it still clashes, set a higher z-index on the host page."
     );
 
-    doc.save(`convohub-widget-install-${tenant}.pdf`);
+    doc.save(`Kit TJ Services ClientHub-widget-install-${tenant}.pdf`);
     toast({ title: "PDF downloaded", description: "Installation guide saved." });
   };
 

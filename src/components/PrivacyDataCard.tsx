@@ -39,7 +39,7 @@ const PrivacyDataCard: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `convohub-export-${user.uid}.json`;
+      a.download = `Kit TJ Services ClientHub-export-${user.uid}.json`;
       a.click();
       URL.revokeObjectURL(url);
       toast({ title: "Export ready", description: "Your data has been downloaded." });
@@ -109,8 +109,8 @@ const PrivacyDataCard: React.FC = () => {
                 <AlertDialogDescription>
                   Your account will be marked for deletion and permanently removed
                   in 30 days. You can cancel by signing in again and contacting{" "}
-                  <a href="mailto:privacy@convohub.dev" className="underline">
-                    privacy@convohub.dev
+                  <a href="mailto:privacy@Kit TJ Services ClientHub.dev" className="underline">
+                    privacy@Kit TJ Services ClientHub.dev
                   </a>{" "}
                   before the deletion date.
                 </AlertDialogDescription>

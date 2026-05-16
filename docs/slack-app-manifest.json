@@ -1,13 +1,13 @@
 {
-  "_comment": "ConvoHub custom Slack app manifest. After deploying the slackEvents Cloud Function, replace REQUEST_URL_PLACEHOLDER below with the deployed URL (e.g. https://us-central1-convo-hub-71514.cloudfunctions.net/slackEvents) and paste this whole JSON into https://api.slack.com/apps → 'Create New App' → 'From an app manifest'.",
+  "_comment": "Kit TJ Services ClientHub custom Slack app manifest. After deploying the slackEvents Cloud Function, replace REQUEST_URL_PLACEHOLDER below with the deployed URL (e.g. https://us-central1-convo-hub-71514.cloudfunctions.net/slackEvents) and paste this whole JSON into https://api.slack.com/apps → 'Create New App' → 'From an app manifest'.",
   "display_information": {
-    "name": "ConvoHub",
-    "description": "Pulls inbound Slack messages into the ConvoHub agent dashboard.",
+    "name": "Kit TJ Services ClientHub",
+    "description": "Pulls inbound Slack messages into the Kit TJ Services ClientHub agent dashboard.",
     "background_color": "#1e1b18"
   },
   "features": {
     "bot_user": {
-      "display_name": "ConvoHub",
+      "display_name": "Kit TJ Services ClientHub",
       "always_online": true
     }
   },

@@ -34,7 +34,7 @@ import {
 /**
  * Support call-center landing page.
  *
- * Shown at `/` ONLY for the Support account (support@convohub.dev). Every
+ * Shown at `/` ONLY for the Support account (support@Kit TJ Services ClientHub.dev). Every
  * other role still sees the full Conversations inbox at `/`.
  *
  * The page provides:

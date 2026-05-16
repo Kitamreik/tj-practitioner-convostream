@@ -18,7 +18,7 @@ const DOCS: Record<string, Doc> = {
     body: (
       <>
         <p>
-          These Terms of Service ("Terms") govern your access to and use of ConvoHub
+          These Terms of Service ("Terms") govern your access to and use of Kit TJ Services ClientHub
           (the "Service"). By creating an account or using the Service you agree to
           these Terms.
         </p>
@@ -38,7 +38,7 @@ const DOCS: Record<string, Doc> = {
         <h2>3. Customer data</h2>
         <p>
           You retain ownership of conversations, messages, and customer information you
-          submit ("Customer Data"). You grant ConvoHub a limited license to host,
+          submit ("Customer Data"). You grant Kit TJ Services ClientHub a limited license to host,
           process, and transmit Customer Data solely to provide the Service.
         </p>
         <h2>4. Service availability</h2>
@@ -56,7 +56,7 @@ const DOCS: Record<string, Doc> = {
         <h2>6. Disclaimer & liability</h2>
         <p>
           The Service is provided "as is" without warranties of any kind. To the
-          maximum extent permitted by law, ConvoHub's aggregate liability for any
+          maximum extent permitted by law, Kit TJ Services ClientHub's aggregate liability for any
           claim arising out of these Terms is limited to fees paid in the 12 months
           preceding the claim.
         </p>
@@ -67,7 +67,7 @@ const DOCS: Record<string, Doc> = {
         </p>
         <h2>8. Contact</h2>
         <p>
-          Questions: <a href="mailto:legal@convohub.dev">legal@convohub.dev</a>.
+          Questions: <a href="mailto:legal@Kit TJ Services ClientHub.dev">legal@Kit TJ Services ClientHub.dev</a>.
         </p>
       </>
     ),
@@ -77,7 +77,7 @@ const DOCS: Record<string, Doc> = {
     body: (
       <>
         <p>
-          This Privacy Policy explains how ConvoHub collects, uses, and shares
+          This Privacy Policy explains how Kit TJ Services ClientHub collects, uses, and shares
           personal information.
         </p>
         <h2>Information we collect</h2>
@@ -122,7 +122,7 @@ const DOCS: Record<string, Doc> = {
         </p>
         <h2>Contact</h2>
         <p>
-          Privacy requests: <a href="mailto:privacy@convohub.dev">privacy@convohub.dev</a>.
+          Privacy requests: <a href="mailto:privacy@Kit TJ Services ClientHub.dev">privacy@Kit TJ Services ClientHub.dev</a>.
         </p>
       </>
     ),
@@ -132,15 +132,15 @@ const DOCS: Record<string, Doc> = {
     body: (
       <>
         <p>
-          ConvoHub uses cookies and equivalent local-storage entries to operate the
+          Kit TJ Services ClientHub uses cookies and equivalent local-storage entries to operate the
           Service and, with your consent, to measure usage.
         </p>
         <h2>Essential</h2>
         <ul>
           <li><code>firebase:authUser:*</code> — keeps you signed in.</li>
-          <li><code>convohub.theme</code> — remembers light/dark preference.</li>
-          <li><code>convohub.consent.v1</code> — records your cookie choices.</li>
-          <li><code>convohub.widget.session</code> — resumes a customer chat thread on the embeddable widget.</li>
+          <li><code>Kit TJ Services ClientHub.theme</code> — remembers light/dark preference.</li>
+          <li><code>Kit TJ Services ClientHub.consent.v1</code> — records your cookie choices.</li>
+          <li><code>Kit TJ Services ClientHub.widget.session</code> — resumes a customer chat thread on the embeddable widget.</li>
         </ul>
         <h2>Optional (analytics)</h2>
         <p>
@@ -162,12 +162,12 @@ const DOCS: Record<string, Doc> = {
       <>
         <p>
           This Data Processing Addendum ("DPA") forms part of the Terms of Service
-          between ConvoHub ("Processor") and the Customer ("Controller") for the
+          between Kit TJ Services ClientHub ("Processor") and the Customer ("Controller") for the
           processing of personal data on behalf of the Controller.
         </p>
         <h2>Subject matter and duration</h2>
         <p>
-          ConvoHub processes Customer Data to provide the Service for the duration of
+          Kit TJ Services ClientHub processes Customer Data to provide the Service for the duration of
           the agreement plus the 30-day retention window.
         </p>
         <h2>Nature and purpose</h2>
@@ -199,17 +199,17 @@ const DOCS: Record<string, Doc> = {
         </p>
         <h2>Sub-processor breach</h2>
         <p>
-          ConvoHub will notify Controller without undue delay (within 72 hours) of a
+          Kit TJ Services ClientHub will notify Controller without undue delay (within 72 hours) of a
           confirmed personal data breach.
         </p>
         <h2>Audit</h2>
         <p>
-          Controller may request a summary of ConvoHub's most recent security review
+          Controller may request a summary of Kit TJ Services ClientHub's most recent security review
           once per 12-month period.
         </p>
         <p>
           A countersigned PDF copy is available on request:{" "}
-          <a href="mailto:privacy@convohub.dev">privacy@convohub.dev</a>.
+          <a href="mailto:privacy@Kit TJ Services ClientHub.dev">privacy@Kit TJ Services ClientHub.dev</a>.
         </p>
       </>
     ),
@@ -228,7 +228,7 @@ const DOCS: Record<string, Doc> = {
         </ul>
         <p>
           Suspected violations may result in suspension or termination. Report abuse
-          to <a href="mailto:abuse@convohub.dev">abuse@convohub.dev</a>.
+          to <a href="mailto:abuse@Kit TJ Services ClientHub.dev">abuse@Kit TJ Services ClientHub.dev</a>.
         </p>
       </>
     ),
@@ -252,7 +252,7 @@ const LegalPage: React.FC = () => {
               className="text-lg font-semibold text-foreground"
               style={{ fontFamily: "'Playfair Display', serif" }}
             >
-              ConvoHub
+              Kit TJ Services ClientHub
             </span>
           </Link>
           <Link

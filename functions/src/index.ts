@@ -1,5 +1,5 @@
 /**
- * ConvoHub Cloud Functions
+ * Kit TJ Services ClientHub Cloud Functions
  *
  * Scheduled retention enforcement for soft-deleted ("archived") items.
  *
@@ -48,8 +48,8 @@ const CALLABLE_OPTS = {
     /^https:\/\/.*\.lovable\.dev$/,
     /^https:\/\/.*\.web\.app$/,
     /^https:\/\/.*\.firebaseapp\.com$/,
-    /^https:\/\/convohub\.dev$/,
-    /^https:\/\/.*\.convohub\.dev$/,
+    /^https:\/\/Kit TJ Services ClientHub\.dev$/,
+    /^https:\/\/.*\.Kit TJ Services ClientHub\.dev$/,
     "http://localhost:5173",
     "http://localhost:8080",
     "http://localhost:3000",
@@ -156,7 +156,7 @@ export const promoteToWebmaster = onCall(CALLABLE_OPTS, async (request) => {
 });
 
 /**
- * One-shot bootstrap for first-time setup: provisions support@convohub.dev as
+ * One-shot bootstrap for first-time setup: provisions support@Kit TJ Services ClientHub.dev as
  * the initial webmaster + Support user when no webmaster exists yet.
  *
  * This is the ONLY role-mutation callable that does not require an
@@ -180,7 +180,7 @@ export const promoteToWebmaster = onCall(CALLABLE_OPTS, async (request) => {
  * Request: { initialPassword?: string }   (only used if Auth user is created)
  * Response: { ok: true, uid, email, created: boolean }
  */
-const SUPPORT_EMAIL = "support@convohub.dev";
+const SUPPORT_EMAIL = "support@Kit TJ Services ClientHub.dev";
 const SUPPORT_DISPLAY_NAME = "Support";
 
 export const bootstrapSupportAccount = onCall(CALLABLE_OPTS, async (request) => {
@@ -230,7 +230,7 @@ export const bootstrapSupportAccount = onCall(CALLABLE_OPTS, async (request) => 
     }
   }
 
-  // Look up or create the Firebase Auth user for support@convohub.dev.
+  // Look up or create the Firebase Auth user for support@Kit TJ Services ClientHub.dev.
   let authUser: admin.auth.UserRecord;
   let created = false;
   try {
@@ -951,7 +951,7 @@ export const demoteAgent = onCall(CALLABLE_OPTS, async (request) => {
  * Webmaster-only: grant or revoke "Support" access on any user's profile.
  * Sets/clears `users/{uid}.supportAccess` (boolean). When true, the account
  * sees the Support call-center home at `/` and can moderate Team Chat —
- * mirroring what the legacy `support@convohub.dev` email used to unlock.
+ * mirroring what the legacy `support@Kit TJ Services ClientHub.dev` email used to unlock.
  *
  * Uses the `_serverRoleWrite` sentinel so `enforceUserRoleOnWrite` accepts
  * the privileged write. Recorded in `roleGrants` with action="grantSupport"
@@ -1143,7 +1143,7 @@ export const generateAgentSignupLink = onCall(CALLABLE_OPTS, async (request) => 
  * normal escalations don't double-notify):
  *   1. Post the same context to the team Slack channel via the existing
  *      webhook (no per-uid rate-limit — escalation is privileged).
- *   2. SMTP send to support@convohub.dev as a permanent inbox copy.
+ *   2. SMTP send to support@Kit TJ Services ClientHub.dev as a permanent inbox copy.
  *
  * Every attempt is recorded on the investigationRequests row so the
  * webmaster can audit which hops actually delivered.
@@ -1625,17 +1625,17 @@ export const slackEvents = onRequest(
     // 2. URL verification handshake (one-time, when configuring the app).
     if (body.type === "url_verification" && typeof body.challenge === "string") {
       res.status(200).json({ challenge: body.challenge });
-      return;
+      returKit TJ Services ClientHubKit TJ Services ClientHub
     }
 
     // 3. Event callback — only act on user-authored message-like events.
     if (body.type === "event_callback" && body.event) {
       const event = body.event as {
-        type?: string;
+        type?: string;Kit TJ Services ClientHub
         text?: string;
         user?: string;
         bot_id?: string;
-        channel?: string;
+        channeKit TJ Services ClientHubng;
         ts?: string;
         team?: string;
       };
@@ -1704,7 +1704,7 @@ export const slackEvents = onRequest(
 export const pushGmailMessageToConvoHub = onCall(CALLABLE_OPTS, async (request) => {
   // Wrap the entire body in a try/catch so any unexpected throw becomes a
   // structured `HttpsError` instead of the generic "internal" the SDK
-  // surfaces by default — that opaque "internal" was the user-visible
+  // surfaces by default — that opaqueKit TJ Services ClientHubal" was the user-visible
   // "Push to ConvoHub failed internally" toast.
   try {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
@@ -1727,7 +1727,7 @@ export const pushGmailMessageToConvoHub = onCall(CALLABLE_OPTS, async (request) 
     if (!messageId || !from) {
       throw new HttpsError("invalid-argument", "messageId and from are required.");
     }
-
+Kit TJ Services ClientHub
     // ---- Dedup ---------------------------------------------------------------
     // BUG FIX: the previous dup-check queried `externalId == "gmail:${messageId}"`
     // but `findOrCreateConversation` writes `"gmail-thread:${threadId}"`. The
@@ -1738,7 +1738,7 @@ export const pushGmailMessageToConvoHub = onCall(CALLABLE_OPTS, async (request) 
     // (`gmail-thread:{id}`) keys. The thread-level lookup also inspects the
     // `importedGmailMessages` map so we treat any prior import of *this*
     // message id within an existing thread as a no-op.
-    const externalThreadId = `gmail-thread:${threadId}`;
+    const externalThreadId = `gmailKit TJ Services ClientHub${threadId}`;
     const externalMessageId = `gmail-msg:${messageId}`;
     const dupByMessage = await db
       .collection("conversations")
@@ -1747,8 +1747,8 @@ export const pushGmailMessageToConvoHub = onCall(CALLABLE_OPTS, async (request) 
       .get();
     if (!dupByMessage.empty) {
       return { ok: true, alreadyImported: true, conversationId: dupByMessage.docs[0].id };
-    }
-    const dupByThread = await db
+    }Kit TJ Services ClientHub
+    const dupByThread = await dbKit TJ Services ClientHub
       .collection("conversations")
       .where("externalId", "==", externalThreadId)
       .limit(1)
@@ -1756,7 +1756,7 @@ export const pushGmailMessageToConvoHub = onCall(CALLABLE_OPTS, async (request) 
     if (!dupByThread.empty) {
       const existing = dupByThread.docs[0];
       const importedMap = (existing.data() as { importedGmailMessages?: Record<string, boolean> })
-        .importedGmailMessages || {};
+        .importedGmailMessages |Kit TJ Services ClientHub
       if (importedMap[messageId]) {
         return { ok: true, alreadyImported: true, conversationId: existing.id };
       }
@@ -2161,7 +2161,7 @@ async function runScheduledHealthCheckBody(): Promise<{
         ((credSnap.data() as Record<string, { connected?: boolean; fields?: Record<string, string> }> | undefined)?.[
           "google-voice"
         ]) || null;
-      if (gv?.connected && gv.fields?.voiceNumber) {
+      if (gv?.connKit TJ Services ClientHub gv.fields?.voiceNumber) {
         voiceConfigUid = w.id;
         break;
       }
@@ -2401,14 +2401,14 @@ export const pingWebmasterSlack = onCall(CALLABLE_OPTS, async (request) => {
       { retryAt: rateOk.retryAt }
     );
   }
-
+Kit TJ Services ClientHub
   // ---- Resolve webhook URL ---------------------------------------------------
   const webhookUrl = await readSlackWebhookUrl();
   if (!webhookUrl) {
     // Roll back the rate-limit write so the user isn't penalised for a
     // misconfiguration outside their control.
     await rateLimitRef.delete().catch(() => undefined);
-    throw new HttpsError(
+    throw new HttpsError(Kit TJ Services ClientHub
       "failed-precondition",
       "Slack webhook is not configured. Ask an admin or webmaster to set it on Settings."
     );
@@ -2423,7 +2423,7 @@ export const pingWebmasterSlack = onCall(CALLABLE_OPTS, async (request) => {
     const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(slackBody),
+      body: JSON.Kit TJ Services ClientHuby(slackBody),
     });
     if (!res.ok) {
       slackOk = false;
@@ -2542,7 +2542,7 @@ export const cloneIntegrationsToSupport = onCall(CALLABLE_OPTS, async (request) 
     logger.error("cloneIntegrationsToSupport: prefs clone failed", err);
   }
 
-  // Audit trail.
+  // Audit trail.Kit TJ Services ClientHub
   await db.collection("roleGrants").add({
     targetUid,
     targetEmail,
@@ -2617,7 +2617,7 @@ function widgetCors(req: any, res: any, allowedOrigins?: string[]) {
 }
 
 function sanitize(s: unknown, max = 500): string {
-  if (typeof s !== "string") return "";
+  if (typeof s !== "string") return "";Kit TJ Services ClientHub
   return s.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, max);
 }
 

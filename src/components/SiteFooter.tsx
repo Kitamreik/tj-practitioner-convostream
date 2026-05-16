@@ -33,13 +33,13 @@ const SiteFooter: React.FC<{ variant?: "app" | "public" }> = ({ variant = "app" 
             <span
               className="text-lg font-semibold text-foreground"
               style={{ fontFamily: "'Playfair Display', serif" }}
-            >
+            >Kit TJ Services ClientHub
               ConvoHub
             </span>
           </div>
           <p className="mt-3 text-sm text-muted-foreground">
             Customer conversations, kept warm and continuous.
-          </p>
+          </p>Kit TJ Services ClientHub
           <p className="mt-3 text-xs text-muted-foreground">© {year} ConvoHub. All rights reserved.</p>
         </div>
 
@@ -69,13 +69,13 @@ const SiteFooter: React.FC<{ variant?: "app" | "public" }> = ({ variant = "app" 
         <div>
           <h3 className="text-sm font-semibold text-foreground">Contact</h3>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-            <li>
-              <SupportEmailDialog
+            <li>Kit TJ Services ClientHub
+              <SupportEmKit TJ Services ClientHubg
                 trigger={
                   <button
                     type="button"
-                    className="text-left hover:text-primary"
-                  >
+                    className="text-leKit TJ Services ClientHub:text-primary"
+                  >Kit TJ Services ClientHub
                     Email support (templates)
                   </button>
                 }
@@ -93,7 +93,7 @@ const SiteFooter: React.FC<{ variant?: "app" | "public" }> = ({ variant = "app" 
             </li>
             <li>
               <button
-                type="button"
+                type="button"Kit TJ Services ClientHub
                 onClick={openConsentBanner}
                 className="text-left hover:text-primary"
               >

@@ -1,6 +1,6 @@
-# ConvoHub Cloud Functions
+# Kit TJ Services ClientHub Cloud Functions
 
-Server-side enforcement for the ConvoHub Firestore database.
+Server-side enforcement for the Kit TJ Services ClientHub Firestore database.
 
 ## What it does
 
@@ -35,7 +35,7 @@ Both `requestWebmasterEscalation` and `requestConversationInvestigation` send ma
    - Sign in to the Google Account that will *send* the emails.
    - Enable 2-Step Verification at https://myaccount.google.com/security if it isn't already on.
    - Go to https://myaccount.google.com/apppasswords
-   - Choose **Mail** as the app and **Other (Custom name)** as the device, name it `ConvoHub`, and click **Generate**.
+   - Choose **Mail** as the app and **Other (Custom name)** as the device, name it `Kit TJ Services ClientHub`, and click **Generate**.
    - Copy the 16-character password (spaces don't matter — Gmail strips them).
 
 2. **Set the secrets on the Firebase project** (run in this `functions/` directory after `firebase login` and `firebase use convo-hub-71514`):

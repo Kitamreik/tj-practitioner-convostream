@@ -25,8 +25,8 @@ export default defineConfig(({ mode }) => ({
       },
       includeAssets: ["icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"],
       manifest: {
-        name: "TJ ConvoHub",
-        short_name: "ConvoHub",
+        name: "TJ Kit TJ Services ClientHub",
+        short_name: "Kit TJ Services ClientHub",
         description: "Social platform for client centered conversations.",
         theme_color: "#f97316",
         background_color: "#fffaf5",

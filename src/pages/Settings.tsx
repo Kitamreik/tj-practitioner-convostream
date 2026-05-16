@@ -176,7 +176,7 @@ const SettingsPage: React.FC = () => {
 
   // Resizable nav-pane width (desktop + webmaster only). Mirrors the pattern in
   // Conversations: persisted in localStorage, bounded to a sensible range.
-  const NAV_WIDTH_KEY = "convohub.settings.navWidth";
+  const NAV_WIDTH_KEY = "Kit TJ Services ClientHub.settings.navWidth";
   const [navWidth, setNavWidth] = useState<number>(() => {
     if (typeof window === "undefined") return 240;
     const stored = Number(localStorage.getItem(NAV_WIDTH_KEY));
@@ -263,11 +263,11 @@ const SettingsPage: React.FC = () => {
   };
 
   // ---- Provision Support (webmaster only) ----
-  // One-click flow that grants webmaster role to support@convohub.dev AND
+  // One-click flow that grants webmaster role to support@Kit TJ Services ClientHub.dev AND
   // clones the calling webmaster's integrations + UI prefs into that account
   // via the `cloneIntegrationsToSupport` callable. The Support account must
   // already exist (sign up via /login first).
-  const SUPPORT_EMAIL = "support@convohub.dev";
+  const SUPPORT_EMAIL = "support@Kit TJ Services ClientHub.dev";
   const [provisioningSupport, setProvisioningSupport] = useState(false);
 
   const handleProvisionSupport = async () => {
@@ -694,7 +694,7 @@ const SettingsPage: React.FC = () => {
 
   // Manually-added local agents (webmaster's localStorage). Merged into the
   // Reassign target list so reassignment can target an agent that hasn't
-  // signed up yet (e.g. agent1@convohub.dev seeded by default).
+  // signed up yet (e.g. agent1@Kit TJ Services ClientHub.dev seeded by default).
   const [localAgents, setLocalAgents] = useState<LocalAgent[]>([]);
   useEffect(() => subscribeLocalAgents(setLocalAgents), []);
 
@@ -829,7 +829,7 @@ const SettingsPage: React.FC = () => {
       toast({
         title: "No agent to assign to",
         description:
-          "Create or sign in at least one agent account first (e.g. agent1@convohub.dev), then re-run Seed demo data.",
+          "Create or sign in at least one agent account first (e.g. agent1@Kit TJ Services ClientHub.dev), then re-run Seed demo data.",
         variant: "destructive",
       });
       return;
@@ -1770,7 +1770,7 @@ const SettingsPage: React.FC = () => {
               Background Gmail ingestion
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
-              When enabled, ConvoHub silently polls your Gmail INBOX every ~2 minutes and pushes new messages into the Conversations queue. Pausing here stops polling without revoking your Google OAuth consent — flip it back on any time to resume.
+              When enabled, Kit TJ Services ClientHub silently polls your Gmail INBOX every ~2 minutes and pushes new messages into the Conversations queue. Pausing here stops polling without revoking your Google OAuth consent — flip it back on any time to resume.
             </p>
             <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
               <div className="space-y-1 min-w-0">
@@ -2166,7 +2166,7 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Webmaster-only: Provision Support account (support@convohub.dev) */}
+        {/* Webmaster-only: Provision Support account (support@Kit TJ Services ClientHub.dev) */}
         {isWebmaster && (() => {
           const supportAccount = accounts.find(
             (a) => a.email.trim().toLowerCase() === SUPPORT_EMAIL

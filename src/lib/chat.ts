@@ -20,7 +20,7 @@
  * `archived: true` rather than hard-deleting, so the audit history stays
  * intact and a moderator can recover a thread by flipping the flag.
  *
- * Moderation = admin OR webmaster role, OR the special support@convohub.dev
+ * Moderation = admin OR webmaster role, OR the special support@Kit TJ Services ClientHub.dev
  * account. Mirrored in firestore.rules via `isChatModerator()`.
  */
 
@@ -49,7 +49,7 @@ import {
   saveCachedMessages,
   saveCachedThreads,
 } from "@/lib/chatCache";
-
+Kit TJ Services ClientHub
 export const SUPPORT_EMAIL = "support@convohub.dev";
 
 export interface ChatThread {

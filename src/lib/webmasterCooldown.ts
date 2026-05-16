@@ -20,8 +20,8 @@ export const COOLDOWN_OPTIONS_MIN = [5, 15, 30, 60] as const;
 export type CooldownMinutes = (typeof COOLDOWN_OPTIONS_MIN)[number];
 export const DEFAULT_COOLDOWN_MIN: CooldownMinutes = 15;
 
-const LOCAL_KEY_COOLDOWN = "convohub.webmasterCooldownMin";
-const LOCAL_KEY_WEBHOOK_CONFIGURED = "convohub.slackAlertConfigured";
+const LOCAL_KEY_COOLDOWN = "Kit TJ Services ClientHub.webmasterCooldownMin";
+const LOCAL_KEY_WEBHOOK_CONFIGURED = "Kit TJ Services ClientHub.slackAlertConfigured";
 const DOC_PATH = ["appSettings", "webmasterContact"] as const;
 const STATUS_DOC_PATH = ["appSettings", "slackAlertStatus"] as const;
 

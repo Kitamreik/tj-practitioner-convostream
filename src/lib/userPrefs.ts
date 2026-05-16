@@ -20,8 +20,8 @@
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-const NAMESPACE = "convohub.prefs";
-const EVENT_NAME = "convohub:pref-change";
+const NAMESPACE = "Kit TJ Services ClientHub.prefs";
+const EVENT_NAME = "Kit TJ Services ClientHub:pref-change";
 
 function makeKey(uid: string | null | undefined, key: string): string {
   return `${NAMESPACE}:${uid || "anon"}:${key}`;

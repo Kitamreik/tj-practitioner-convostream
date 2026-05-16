@@ -14,7 +14,7 @@
  * same list. Firestore rules still gate who can WRITE roles server-side; this
  * local store is purely a UI convenience.
  */
-const STORAGE_KEY = "convohub.localAgents.v1";
+const STORAGE_KEY = "Kit TJ Services ClientHub.localAgents.v1";
 
 export interface LocalAgent {
   /** Stable id — usually email-derived. Prefixed `local:` to avoid clashing
@@ -29,14 +29,14 @@ export interface LocalAgent {
 /** Defaults seeded on first load so the demo accounts always show up. */
 const DEFAULTS: LocalAgent[] = [
   {
-    id: "local:agent1@convohub.dev",
-    email: "agent1@convohub.dev",
+    id: "local:agent1@Kit TJ Services ClientHub.dev",
+    email: "agent1@Kit TJ Services ClientHub.dev",
     displayName: "Agent One",
     createdAt: "2025-01-01T00:00:00.000Z",
   },
   {
-    id: "local:agent2@convohub.dev",
-    email: "agent2@convohub.dev",
+    id: "local:agent2@Kit TJ Services ClientHub.dev",
+    email: "agent2@Kit TJ Services ClientHub.dev",
     displayName: "Agent Two",
     createdAt: "2025-01-01T00:00:00.000Z",
   },
@@ -82,7 +82,7 @@ function write(next: LocalAgent[]): void {
   // but we also dispatch a local CustomEvent so same-tab subscribers update
   // even when they're using the storage-event path.
   try {
-    window.dispatchEvent(new CustomEvent("convohub:localAgentsChanged"));
+    window.dispatchEvent(new CustomEvent("Kit TJ Services ClientHub:localAgentsChanged"));
   } catch {
     /* ignore (non-browser env) */
   }
@@ -131,14 +131,14 @@ export function subscribeLocalAgents(listener: Listener): () => void {
   };
   const onCustom = () => listener(read());
   window.addEventListener("storage", onStorage);
-  window.addEventListener("convohub:localAgentsChanged", onCustom as EventListener);
+  window.addEventListener("Kit TJ Services ClientHub:localAgentsChanged", onCustom as EventListener);
   // Fire once immediately so consumers don't need a separate initial read.
   listener(read());
   return () => {
     listeners.delete(listener);
     window.removeEventListener("storage", onStorage);
     window.removeEventListener(
-      "convohub:localAgentsChanged",
+      "Kit TJ Services ClientHub:localAgentsChanged",
       onCustom as EventListener
     );
   };

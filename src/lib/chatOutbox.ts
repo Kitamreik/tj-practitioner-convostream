@@ -34,7 +34,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-const OUTBOX_KEY = (uid: string) => `convohub.chat.outbox.v1.${uid}`;
+const OUTBOX_KEY = (uid: string) => `Kit TJ Services ClientHub.chat.outbox.v1.${uid}`;
 
 export interface OutboxEntry {
   /** Stable client-generated id; matches the optimistic cache row's id. */

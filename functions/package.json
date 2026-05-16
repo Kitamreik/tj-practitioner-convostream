@@ -1,6 +1,6 @@
 {
-  "name": "convohub-functions",
-  "description": "Firebase Cloud Functions for ConvoHub — scheduled retention purge.",
+  "name": "Kit TJ Services ClientHub-functions",
+  "description": "Firebase Cloud Functions for Kit TJ Services ClientHub — scheduled retention purge.",
   "engines": {
     "node": "20"
   },

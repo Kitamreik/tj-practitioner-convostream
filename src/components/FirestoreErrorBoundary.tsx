@@ -50,7 +50,7 @@ class FirestoreErrorBoundary extends React.Component<
 
     const title = this.state.isFirestore ? "Reconnecting…" : "Something went wrong";
     const body = this.state.isFirestore
-      ? "We lost the realtime connection to ConvoHub. This usually clears up after a quick reload."
+      ? "We lost the realtime connection to Kit TJ Services ClientHub. This usually clears up after a quick reload."
       : "An unexpected error interrupted the page. Reloading should bring you back.";
 
     return (
@@ -68,7 +68,7 @@ class FirestoreErrorBoundary extends React.Component<
           <p className="mb-6 text-sm text-muted-foreground">{body}</p>
           <Button onClick={this.handleReload} className="gap-2">
             <RefreshCw className="h-4 w-4" />
-            Reload ConvoHub
+            Reload Kit TJ Services ClientHub
           </Button>
           {this.state.message && (
             <details className="mt-6 text-left text-xs text-muted-foreground/80">

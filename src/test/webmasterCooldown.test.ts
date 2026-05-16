@@ -21,27 +21,27 @@ describe("webmasterCooldown — local mirrors", () => {
   });
 
   it("ignores invalid stored values and falls back to default", () => {
-    localStorage.setItem("convohub.webmasterCooldownMin", "999");
+    localStorage.setItem("Kit TJ Services ClientHub.webmasterCooldownMin", "999");
     expect(getLocalCooldownMin()).toBe(DEFAULT_COOLDOWN_MIN);
 
-    localStorage.setItem("convohub.webmasterCooldownMin", "not-a-number");
+    localStorage.setItem("Kit TJ Services ClientHub.webmasterCooldownMin", "not-a-number");
     expect(getLocalCooldownMin()).toBe(DEFAULT_COOLDOWN_MIN);
   });
 
   it("accepts every value in COOLDOWN_OPTIONS_MIN", () => {
     for (const opt of COOLDOWN_OPTIONS_MIN) {
-      localStorage.setItem("convohub.webmasterCooldownMin", String(opt));
+      localStorage.setItem("Kit TJ Services ClientHub.webmasterCooldownMin", String(opt));
       expect(getLocalCooldownMin()).toBe(opt);
     }
   });
 
   it("treats the slack-configured flag as boolean '1'/'0'", () => {
     expect(getLocalSlackAlertConfigured()).toBe(false);
-    localStorage.setItem("convohub.slackAlertConfigured", "1");
+    localStorage.setItem("Kit TJ Services ClientHub.slackAlertConfigured", "1");
     expect(getLocalSlackAlertConfigured()).toBe(true);
-    localStorage.setItem("convohub.slackAlertConfigured", "0");
+    localStorage.setItem("Kit TJ Services ClientHub.slackAlertConfigured", "0");
     expect(getLocalSlackAlertConfigured()).toBe(false);
-    localStorage.setItem("convohub.slackAlertConfigured", "true");
+    localStorage.setItem("Kit TJ Services ClientHub.slackAlertConfigured", "true");
     // Strict "1" comparison — anything else is false.
     expect(getLocalSlackAlertConfigured()).toBe(false);
   });

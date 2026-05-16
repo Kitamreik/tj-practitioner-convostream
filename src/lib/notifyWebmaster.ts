@@ -41,7 +41,7 @@ export interface NotifyWebmasterInput {
 }
 
 /**
- * Send the fixed "review ConvoHub" alert to the team Slack channel via the
+ * Send the fixed "review Kit TJ Services ClientHub" alert to the team Slack channel via the
  * server-side proxy. Returns true on successful delivery, false otherwise
  * (e.g. webhook not configured, rate-limited, transient Slack error).
  *

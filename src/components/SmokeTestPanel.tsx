@@ -436,7 +436,7 @@ const SmokeTestPanel: React.FC<Props> = ({ embedded = false }) => {
           </li>
           <li>
             In the Google Voice forwarder (Apps Script / Zapier / custom relay), add an
-            <code className="mx-1 rounded bg-muted px-1 font-mono text-[10px]">X-ConvoHub-Signature</code>
+            <code className="mx-1 rounded bg-muted px-1 font-mono text-[10px]">X-Kit TJ Services ClientHub-Signature</code>
             header containing
             <code className="mx-1 rounded bg-muted px-1 font-mono text-[10px]">
               HMAC-SHA256(body, GOOGLE_VOICE_WEBHOOK_SECRET)

@@ -3,7 +3,7 @@
  *
  * Calls the `bootstrapSupportAccount` Cloud Function, which:
  *   - Refuses to run if any user already has role="webmaster".
- *   - Creates support@convohub.dev in Firebase Auth (using the password
+ *   - Creates support@Kit TJ Services ClientHub.dev in Firebase Auth (using the password
  *     entered here) if it doesn't already exist.
  *   - Sets that account's profile to role=webmaster + supportAccess=true.
  *
@@ -26,7 +26,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, ShieldCheck } from "lucide-react";
 
-const SUPPORT_EMAIL = "support@convohub.dev";
+const SUPPORT_EMAIL = "support@Kit TJ Services ClientHub.dev";
 
 const passwordSchema = z
   .string()
@@ -111,7 +111,7 @@ const Bootstrap: React.FC = () => {
           </div>
           <CardTitle className="font-display text-2xl">First-time setup</CardTitle>
           <CardDescription>
-            Provision the initial Support &amp; webmaster account for ConvoHub. This page is only
+            Provision the initial Support &amp; webmaster account for Kit TJ Services ClientHub. This page is only
             usable until the first webmaster exists.
           </CardDescription>
         </CardHeader>
@@ -200,7 +200,7 @@ const Bootstrap: React.FC = () => {
               )}
 
               <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting ? "Provisioning…" : "Provision support@convohub.dev"}
+                {submitting ? "Provisioning…" : "Provision support@Kit TJ Services ClientHub.dev"}
               </Button>
 
               <p className="text-center text-xs text-muted-foreground">

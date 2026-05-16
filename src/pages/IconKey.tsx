@@ -1,5 +1,5 @@
 /**
- * IconKey — a single page that documents every icon used across ConvoHub
+ * IconKey — a single page that documents every icon used across Kit TJ Services ClientHub
  * (channels, conversation status, navigation, broadcast types). The
  * description for each icon is editable by admins and webmasters and
  * persists to `iconDescriptions/{iconKey}` so the team can keep the legend
@@ -61,7 +61,7 @@ const ICON_ROWS: IconRow[] = [
     group: "Channel",
     icon: <Footprints className="h-5 w-5" />,
     defaultDescription:
-      "Conversation created directly from the ConvoHub conversation page — typically by an agent capturing a thread on the move.",
+      "Conversation created directly from the Kit TJ Services ClientHub conversation page — typically by an agent capturing a thread on the move.",
   },
   {
     key: "channel-email",
@@ -127,7 +127,7 @@ const ICON_ROWS: IconRow[] = [
   { key: "nav-analytics", label: "Analytics", group: "Navigation", icon: <BarChart3 className="h-5 w-5" />, defaultDescription: "Volume and response-time charts across channels." },
   { key: "nav-archive", label: "Archive", group: "Navigation", icon: <ArchiveIcon className="h-5 w-5" />, defaultDescription: "Archived conversations kept out of the main inbox." },
   { key: "nav-settings", label: "Settings", group: "Navigation", icon: <SettingsIcon className="h-5 w-5" />, defaultDescription: "Personal profile, theme, and notification preferences." },
-  { key: "nav-icon-key", label: "Icon Key", group: "Navigation", icon: <KeyRound className="h-5 w-5" />, defaultDescription: "This page — legend for every icon in ConvoHub." },
+  { key: "nav-icon-key", label: "Icon Key", group: "Navigation", icon: <KeyRound className="h-5 w-5" />, defaultDescription: "This page — legend for every icon in Kit TJ Services ClientHub." },
 
   // ---- Broadcast / contextual ----
   { key: "broadcast-notes", label: "Conversation notes", group: "Broadcast", icon: <StickyNote className="h-5 w-5 text-warning" />, defaultDescription: "Shared notes attached to a conversation. Number badge = note count." },
@@ -250,7 +250,7 @@ const IconKey: React.FC = () => {
           Icon Key
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Reference for every icon used across ConvoHub.{" "}
+          Reference for every icon used across Kit TJ Services ClientHub.{" "}
           {canEdit ? (
             <span className="text-foreground font-medium">
               You can edit any description — changes persist for the whole team.

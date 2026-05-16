@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Firebase Storage rules for ConvoHub.
+// Firebase Storage rules for Kit TJ Services ClientHub.
 // Default-deny everything; explicitly allow the call recording path.
 service firebase.storage {
   match /b/{bucket}/o {
