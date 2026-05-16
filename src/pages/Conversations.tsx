@@ -441,6 +441,7 @@ const Conversations: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const { terms: flaggedTerms } = useFlaggedTerms();
   // "Show only my assigned conversations" filter for agents/admins.
   const [mineOnly, setMineOnly] = useState<boolean>(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
