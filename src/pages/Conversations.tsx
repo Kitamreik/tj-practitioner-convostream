@@ -1251,6 +1251,17 @@ const Conversations: React.FC = () => {
                 <SelectItem value="mobile">Mobile</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={topicFilter} onValueChange={setTopicFilter}>
+              <SelectTrigger className="h-8 text-xs flex-1">
+                <SelectValue placeholder="Topic" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Topics</SelectItem>
+                {consultingTopics.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0" onClick={clearFilters}>
                 <X className="h-3.5 w-3.5" />
