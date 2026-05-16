@@ -853,7 +853,9 @@ const Conversations: React.FC = () => {
     const matchesSearch = matchesBasic || matchesMessages;
     const matchesStatus = statusFilter === "all" || c.status === statusFilter;
     const matchesChannel = channelFilter === "all" || c.channel === channelFilter;
-    return matchesSearch && matchesStatus && matchesChannel;
+    const matchesTopic =
+      topicFilter === "all" || (c.topic ?? "unlabeled") === topicFilter;
+    return matchesSearch && matchesStatus && matchesChannel && matchesTopic;
   });
 
   const handleInsertTemplate = (template: MessageTemplate) => {
