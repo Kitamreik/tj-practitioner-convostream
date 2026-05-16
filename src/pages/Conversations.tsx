@@ -1350,13 +1350,34 @@ const Conversations: React.FC = () => {
         )}
 
         <PullToRefresh onRefresh={handleRefresh} className="flex-1" disabled={!isMobile}>
-          {filtered.map((convo) => (
+          {filtered.map((convo) => {
+            const isChecked = selectedIds.has(convo.id);
+            return (
             <button
               key={convo.id}
-              onClick={() => setSelectedId(convo.id)}
-              className={`w-full border-b border-border p-4 text-left transition-colors ${selectedId === convo.id ? "bg-accent/30" : "hover:bg-muted/50"}`}
+              onClick={() => {
+                if (selectMode) toggleSelected(convo.id);
+                else setSelectedId(convo.id);
+              }}
+              aria-pressed={selectMode ? isChecked : undefined}
+              className={`w-full border-b border-border p-4 text-left transition-colors ${
+                selectMode && isChecked
+                  ? "bg-primary/10"
+                  : selectedId === convo.id
+                  ? "bg-accent/30"
+                  : "hover:bg-muted/50"
+              }`}
             >
               <div className="flex items-start gap-3">
+                {selectMode && (
+                  <div className="flex h-10 items-center" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={isChecked}
+                      onCheckedChange={() => toggleSelected(convo.id)}
+                      aria-label={`Select conversation with ${convo.customerName}`}
+                    />
+                  </div>
+                )}
                 <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
                   {convo.customerName.charAt(0)}
                 </div>
@@ -1372,6 +1393,15 @@ const Conversations: React.FC = () => {
                       {convo.channel.toUpperCase()}
                     </Badge>
                     <span className={`inline-flex h-5 items-center rounded-full px-1.5 text-[10px] font-medium ${statusColors[convo.status]}`}>{convo.status}</span>
+                    {convo.topic && convo.topic !== "unlabeled" && (
+                      <span
+                        className="inline-flex h-5 items-center gap-1 rounded-full border border-accent/40 bg-accent/20 px-1.5 text-[10px] font-medium text-accent-foreground"
+                        title={`Topic: ${topicLabel(convo.topic)}`}
+                      >
+                        <Tag className="h-2.5 w-2.5" />
+                        {topicLabel(convo.topic)}
+                      </span>
+                    )}
                     {convo.assignedAgent && (
                       <span className="inline-flex h-5 items-center gap-1 rounded-full bg-primary/5 px-1.5 text-[10px] text-primary">
                         <UserCheck className="h-2.5 w-2.5" />{convo.assignedAgent.split(" ")[0]}
