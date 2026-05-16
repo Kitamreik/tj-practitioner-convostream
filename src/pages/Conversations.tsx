@@ -1284,6 +1284,51 @@ const Conversations: React.FC = () => {
           </div>
         </div>
 
+        {/* Bulk topic action bar — visible when select mode is on. */}
+        {selectMode && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-accent/30 px-4 py-2 text-xs">
+            <span className="font-medium text-foreground">
+              {selectedIds.size} selected
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={selectAllVisible}
+              disabled={filtered.length === 0}
+            >
+              Select all ({filtered.length})
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={clearSelection}
+              disabled={selectedIds.size === 0}
+            >
+              Clear
+            </Button>
+            <div className="ml-auto flex items-center gap-1.5">
+              <Tag className="h-3 w-3 text-muted-foreground" />
+              <span className="text-muted-foreground">Set topic:</span>
+              <Select
+                value=""
+                onValueChange={(v) => handleBulkSetTopic(v as ConsultingTopic)}
+                disabled={selectedIds.size === 0 || bulkBusy}
+              >
+                <SelectTrigger className="h-7 w-44 text-xs">
+                  <SelectValue placeholder={bulkBusy ? "Updating…" : "Choose topic"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {consultingTopics.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
         {/* Agent/admin banner: shows their open assignment count and a one-click filter. */}
         {showMineBanner && (
           <div className="flex items-center gap-2 border-b border-border bg-primary/5 px-4 py-2">
