@@ -9,7 +9,18 @@ import {
   Wrench,
   Activity,
   Lock,
+  ShieldAlert,
+  Mail,
+  Filter,
+  X,
+  CalendarIcon,
+  ClipboardList,
 } from "lucide-react";
+import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import SupportEmailDialog from "@/components/SupportEmailDialog";
 import {
   collection,
   addDoc,
@@ -54,6 +65,7 @@ import FlaggedTermsManager from "@/components/FlaggedTermsManager";
  */
 
 type UpdateStatus = "ongoing" | "maintenance" | "resolved";
+export type FlagReviewStatus = "open" | "in_review" | "resolved";
 
 interface StaffUpdate {
   id: string;
@@ -69,7 +81,28 @@ interface StaffUpdate {
   context?: string;
   conversationId?: string | null;
   threadId?: string | null;
+  // flag_alert review tracking
+  reviewStatus?: FlagReviewStatus;
+  resolutionNotes?: string;
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedAt?: any;
 }
+
+const REVIEW_META: Record<FlagReviewStatus, { label: string; className: string }> = {
+  open: {
+    label: "Open",
+    className: "bg-destructive/10 text-destructive border-destructive/30",
+  },
+  in_review: {
+    label: "In review",
+    className: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30",
+  },
+  resolved: {
+    label: "Resolved",
+    className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+  },
+};
 
 const STATUS_META: Record<
   UpdateStatus,
@@ -117,6 +150,18 @@ const StaffUpdates: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // Filters
+  const [kindFilter, setKindFilter] = useState<"all" | "flag_alert" | "announcement">("all");
+  const [termFilter, setTermFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+
+  // Per-card review-notes drafts (local to the card UI).
+  const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
+  const [reviewBusy, setReviewBusy] = useState<string | null>(null);
+  // Per-card email-support dialog state.
+  const [emailFor, setEmailFor] = useState<StaffUpdate | null>(null);
+
   useEffect(() => {
     const q = query(collection(db, "staff_updates"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(
@@ -137,11 +182,115 @@ const StaffUpdates: React.FC = () => {
     return unsub;
   }, []);
 
-  const grouped = useMemo(() => {
-    const active = updates.filter((u) => u.status !== "resolved");
-    const resolved = updates.filter((u) => u.status === "resolved");
-    return { active, resolved };
+  // Available matched-term options derived from existing flag_alert docs.
+  const termOptions = useMemo(() => {
+    const set = new Set<string>();
+    updates.forEach((u) => {
+      if (u.kind === "flag_alert" && Array.isArray(u.matches)) {
+        u.matches.forEach((m) => set.add(String(m).toLowerCase()));
+      }
+    });
+    return Array.from(set).sort();
   }, [updates]);
+
+  const filtered = useMemo(() => {
+    return updates.filter((u) => {
+      const kindNorm = u.kind === "flag_alert" ? "flag_alert" : "announcement";
+      if (kindFilter !== "all" && kindNorm !== kindFilter) return false;
+      if (termFilter !== "all") {
+        const matches = Array.isArray(u.matches) ? u.matches.map((m) => String(m).toLowerCase()) : [];
+        if (!matches.includes(termFilter)) return false;
+      }
+      if (dateFrom || dateTo) {
+        const ts: Date | null = u.createdAt?.toDate ? u.createdAt.toDate() : null;
+        if (!ts) return false;
+        if (dateFrom && ts < dateFrom) return false;
+        if (dateTo) {
+          const end = new Date(dateTo);
+          end.setHours(23, 59, 59, 999);
+          if (ts > end) return false;
+        }
+      }
+      return true;
+    });
+  }, [updates, kindFilter, termFilter, dateFrom, dateTo]);
+
+  const grouped = useMemo(() => {
+    const active = filtered.filter((u) => u.status !== "resolved");
+    const resolved = filtered.filter((u) => u.status === "resolved");
+    return { active, resolved };
+  }, [filtered]);
+
+  const hasActiveFilters =
+    kindFilter !== "all" || termFilter !== "all" || !!dateFrom || !!dateTo;
+  const clearFilters = () => {
+    setKindFilter("all");
+    setTermFilter("all");
+    setDateFrom(undefined);
+    setDateTo(undefined);
+  };
+
+  const handleReviewStatus = async (u: StaffUpdate, next: FlagReviewStatus) => {
+    if (!profile) return;
+    setReviewBusy(u.id);
+    try {
+      await updateDoc(doc(db, "staff_updates", u.id), {
+        reviewStatus: next,
+        reviewedBy: profile.uid,
+        reviewedByName: profile.displayName || profile.email || "Agent",
+        reviewedAt: serverTimestamp(),
+      });
+    } catch (e: any) {
+      toast({ title: "Couldn't update review", description: e?.message, variant: "destructive" });
+    } finally {
+      setReviewBusy(null);
+    }
+  };
+
+  const handleSaveNotes = async (u: StaffUpdate) => {
+    if (!profile) return;
+    const notes = (notesDraft[u.id] ?? u.resolutionNotes ?? "").trim();
+    setReviewBusy(u.id);
+    try {
+      await updateDoc(doc(db, "staff_updates", u.id), {
+        resolutionNotes: notes,
+        reviewedBy: profile.uid,
+        reviewedByName: profile.displayName || profile.email || "Agent",
+        reviewedAt: serverTimestamp(),
+      });
+      toast({ title: "Notes saved" });
+    } catch (e: any) {
+      toast({ title: "Couldn't save notes", description: e?.message, variant: "destructive" });
+    } finally {
+      setReviewBusy(null);
+    }
+  };
+
+  // Build mailto prefill payload for a flag_alert.
+  const buildEmailDraft = (u: StaffUpdate) => {
+    const subject = `Escalation review: ${u.title}`;
+    const ctxLines = [
+      `Hi ConvoHub support,`,
+      ``,
+      `Forwarding a flagged communication for review.`,
+      ``,
+      `Author: ${u.authorName}`,
+      `Posted: ${u.createdAt?.toDate ? u.createdAt.toDate().toLocaleString() : "unknown"}`,
+      `Context: ${u.context || "n/a"}`,
+      `Matched terms: ${(u.matches || []).join(", ") || "n/a"}`,
+      u.conversationId ? `Conversation ID: ${u.conversationId}` : "",
+      u.threadId ? `Thread ID: ${u.threadId}` : "",
+      ``,
+      `Original alert body:`,
+      u.body || "(empty)",
+      ``,
+      `Reviewer notes:`,
+      (u.resolutionNotes || "").trim() || "(none yet)",
+      ``,
+      `Please advise on next steps.`,
+    ].filter(Boolean);
+    return { subject, body: ctxLines.join("\n") };
+  };
 
   const resetDraft = () => {
     setDraftTitle("");
@@ -309,6 +458,75 @@ const StaffUpdates: React.FC = () => {
             />
           </a>
         )}
+        {u.kind === "flag_alert" && (() => {
+          const review = (u.reviewStatus ?? "open") as FlagReviewStatus;
+          const meta = REVIEW_META[review];
+          const draft = notesDraft[u.id] ?? u.resolutionNotes ?? "";
+          return (
+            <div className="mt-4 rounded-lg border border-border bg-background/40 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-semibold text-foreground">Review</span>
+                  <Badge variant="outline" className={`text-[10px] ${meta.className}`}>
+                    {meta.label}
+                  </Badge>
+                  {u.reviewedByName && (
+                    <span className="text-[10px] text-muted-foreground">
+                      by {u.reviewedByName}
+                      {u.reviewedAt?.toDate ? ` · ${formatRelative(u.reviewedAt)}` : ""}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Select
+                    value={review}
+                    onValueChange={(v) => handleReviewStatus(u, v as FlagReviewStatus)}
+                    disabled={reviewBusy === u.id}
+                  >
+                    <SelectTrigger className="h-7 w-[120px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="open">Open</SelectItem>
+                      <SelectItem value="in_review">In review</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={() => setEmailFor(u)}
+                  >
+                    <Mail className="h-3 w-3" /> Email support
+                  </Button>
+                </div>
+              </div>
+              <Textarea
+                value={draft}
+                onChange={(e) =>
+                  setNotesDraft((prev) => ({ ...prev, [u.id]: e.target.value }))
+                }
+                placeholder="Resolution notes — what action did you take?"
+                className="min-h-[60px] text-xs"
+                disabled={reviewBusy === u.id}
+              />
+              <div className="mt-2 flex justify-end">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs gap-1.5"
+                  onClick={() => handleSaveNotes(u)}
+                  disabled={reviewBusy === u.id || draft === (u.resolutionNotes ?? "")}
+                >
+                  {reviewBusy === u.id && <Loader2 className="h-3 w-3 animate-spin" />}
+                  Save notes
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
       </motion.div>
     );
   };
@@ -343,6 +561,65 @@ const StaffUpdates: React.FC = () => {
           <FlaggedTermsManager />
         </div>
       )}
+
+      <div className="mb-4 rounded-lg border border-border bg-card/60 p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+          <Select value={kindFilter} onValueChange={(v) => setKindFilter(v as any)}>
+            <SelectTrigger className="h-8 w-[150px] text-xs">
+              <SelectValue placeholder="Kind" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All kinds</SelectItem>
+              <SelectItem value="announcement">Announcements</SelectItem>
+              <SelectItem value="flag_alert">Flag alerts</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={termFilter} onValueChange={setTermFilter}>
+            <SelectTrigger className="h-8 w-[160px] text-xs">
+              <SelectValue placeholder="Matched term" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All terms</SelectItem>
+              {termOptions.map((t) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn("h-8 gap-1.5 text-xs", !dateFrom && "text-muted-foreground")}>
+                <CalendarIcon className="h-3.5 w-3.5" />
+                {dateFrom ? format(dateFrom, "MMM d") : "From"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className={cn("p-3 pointer-events-auto")} />
+            </PopoverContent>
+          </Popover>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn("h-8 gap-1.5 text-xs", !dateTo && "text-muted-foreground")}>
+                <CalendarIcon className="h-3.5 w-3.5" />
+                {dateTo ? format(dateTo, "MMM d") : "To"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className={cn("p-3 pointer-events-auto")} />
+            </PopoverContent>
+          </Popover>
+          <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+            <span>
+              <span className="font-medium text-foreground">{filtered.length}</span> of {updates.length}
+            </span>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={clearFilters}>
+                <X className="h-3.5 w-3.5" /> Clear
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
 
       {error && (
         <p className="mb-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
@@ -444,6 +721,15 @@ const StaffUpdates: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {emailFor && (
+        <SupportEmailDialog
+          open={!!emailFor}
+          onOpenChange={(o) => { if (!o) setEmailFor(null); }}
+          initialSubject={buildEmailDraft(emailFor).subject}
+          initialBody={buildEmailDraft(emailFor).body}
+        />
+      )}
     </div>
   );
 };

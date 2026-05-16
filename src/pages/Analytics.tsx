@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { subscribeLocalAgents } from "@/lib/localAgents";
 import { useAuth } from "@/contexts/AuthContext";
 import { loadAllIntegrations, type IntegrationConfig } from "@/lib/integrationsStore";
+import FlagAnalyticsPanel from "@/components/FlagAnalyticsPanel";
 
 interface AgentWorkloadData {
   name: string;
@@ -51,7 +52,8 @@ const stats = [
 ];
 
 const Analytics: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const isPrivileged = profile?.role === "admin" || profile?.role === "webmaster";
   const [agentWorkload, setAgentWorkload] = useState<AgentWorkloadData[]>([]);
   const [voiceActivity, setVoiceActivity] = useState<VoiceActivity[]>(fallbackVoiceActivity);
   const [voiceLive, setVoiceLive] = useState(false);
@@ -317,6 +319,12 @@ const Analytics: React.FC = () => {
         </h1>
         <p className="text-muted-foreground mt-1">Performance overview of your support operations</p>
       </div>
+
+      {isPrivileged && (
+        <div className="mb-8">
+          <FlagAnalyticsPanel />
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
         {stats.map((stat, i) => (
