@@ -870,11 +870,19 @@ const Conversations: React.FC = () => {
   };
 
   const hasActiveFilters =
-    statusFilter !== "all" || channelFilter !== "all" || topicFilter !== "all";
+    statusFilter !== "all" ||
+    channelFilter !== "all" ||
+    topicFilter !== "all" ||
+    search.trim().length > 0 ||
+    selectMode ||
+    selectedIds.size > 0;
   const clearFilters = () => {
     setStatusFilter("all");
     setChannelFilter("all");
     setTopicFilter("all");
+    setSearch("");
+    setSelectedIds(new Set());
+    setSelectMode(false);
   };
 
   // Bulk selection helpers
