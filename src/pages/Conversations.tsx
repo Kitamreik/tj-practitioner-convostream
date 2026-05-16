@@ -843,12 +843,15 @@ const Conversations: React.FC = () => {
     // archived items can be resolved too) so that view stays a complete record.
     if (!showArchived && c.status === "resolved") return false;
     if (mineOnly && (c.assignedAgent || "").toLowerCase() !== myAgentName) return false;
-    const lowerSearch = search.toLowerCase();
+    const lowerSearch = search.trim().toLowerCase();
     const matchesBasic =
+      !lowerSearch ||
       c.customerName.toLowerCase().includes(lowerSearch) ||
-      c.lastMessage.toLowerCase().includes(lowerSearch);
+      c.lastMessage.toLowerCase().includes(lowerSearch) ||
+      (c.customerEmail || "").toLowerCase().includes(lowerSearch) ||
+      (c.customerPhone || "").toLowerCase().includes(lowerSearch);
     // Full-text search across cached message contents
-    const matchesMessages = !matchesBasic && search.length >= 2 &&
+    const matchesMessages = !matchesBasic && lowerSearch.length >= 2 &&
       (allMessages[c.id] || []).some((m) => m.text.toLowerCase().includes(lowerSearch));
     const matchesSearch = matchesBasic || matchesMessages;
     const matchesStatus = statusFilter === "all" || c.status === statusFilter;
@@ -867,11 +870,19 @@ const Conversations: React.FC = () => {
   };
 
   const hasActiveFilters =
-    statusFilter !== "all" || channelFilter !== "all" || topicFilter !== "all";
+    statusFilter !== "all" ||
+    channelFilter !== "all" ||
+    topicFilter !== "all" ||
+    search.trim().length > 0 ||
+    selectMode ||
+    selectedIds.size > 0;
   const clearFilters = () => {
     setStatusFilter("all");
     setChannelFilter("all");
     setTopicFilter("all");
+    setSearch("");
+    setSelectedIds(new Set());
+    setSelectMode(false);
   };
 
   // Bulk selection helpers
@@ -1224,7 +1235,12 @@ const Conversations: React.FC = () => {
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search conversations..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input
+              placeholder="Search name, email, phone, or message…"
+              className="pl-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-2 mt-3">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -1262,9 +1278,27 @@ const Conversations: React.FC = () => {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex items-center justify-between gap-2 mt-2 text-xs text-muted-foreground">
+            <span aria-live="polite">
+              <span className="font-medium text-foreground">{filtered.length}</span>{" "}
+              {filtered.length === 1 ? "result" : "results"}
+              {conversations.length !== filtered.length && (
+                <span className="text-muted-foreground/70"> of {conversations.length}</span>
+              )}
+              {selectedIds.size > 0 && (
+                <span className="ml-2 text-foreground">· {selectedIds.size} selected</span>
+              )}
+            </span>
             {hasActiveFilters && (
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0" onClick={clearFilters}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs"
+                onClick={clearFilters}
+              >
                 <X className="h-3.5 w-3.5" />
+                Clear filters
               </Button>
             )}
           </div>
