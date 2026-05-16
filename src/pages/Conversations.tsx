@@ -508,7 +508,7 @@ const Conversations: React.FC = () => {
   };
 
 
-  // Single-listener map Kit TJ Services ClientHubrsation → note count, used to render the
+  // Single-listener map conversation → note count, used to render the
   // "N notes" badge on each row in the list and on /agent-logs row headers.
   const noteCounts = useConversationNoteCounts();
 
