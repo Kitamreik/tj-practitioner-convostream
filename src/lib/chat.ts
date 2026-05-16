@@ -123,20 +123,21 @@ export async function openOrCreateDmThread(args: {
 }): Promise<string> {
   const id = dmThreadId(args.selfUid, args.otherUid);
   const ref = doc(db, "chatThreads", id);
-  // setDoc with merge so the second caller doesn't clobber lastMessage*.
-  await setDoc(
-    ref,
-    {
-      participantUids: [args.selfUid, args.otherUid].sort(),
-      participantEmails: [args.selfEmail, args.otherEmail],
-      participantNames: [args.selfName, args.otherName],
-      createdByUid: args.selfUid,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      archived: false,
-    },
-    { merge: true }
-  );
+  // Read-first so we only write the doc when it's truly new. Re-running
+  // setDoc(merge) on an existing thread would re-write participant fields
+  // and createdAt, which the hardened firestore.rules now (correctly)
+  // reject — the participant list is immutable post-create.
+  const existing = await getDoc(ref);
+  if (existing.exists()) return id;
+  await setDoc(ref, {
+    participantUids: [args.selfUid, args.otherUid].sort(),
+    participantEmails: [args.selfEmail, args.otherEmail],
+    participantNames: [args.selfName, args.otherName],
+    createdByUid: args.selfUid,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    archived: false,
+  });
   return id;
 }
 
