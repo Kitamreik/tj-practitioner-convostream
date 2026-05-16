@@ -91,14 +91,46 @@ const TEMPLATES: SupportTemplate[] = [
 
 interface Props {
   trigger?: React.ReactNode;
+  /** Controlled mode — if provided, parent owns open state. */
+  open?: boolean;
+  onOpenChange?: (o: boolean) => void;
+  /** Pre-filled subject (overrides template subject). */
+  initialSubject?: string;
+  /** Pre-filled body (overrides template body). Monitoring notice is still appended. */
+  initialBody?: string;
 }
 
-const SupportEmailDialog: React.FC<Props> = ({ trigger }) => {
-  const [open, setOpen] = useState(false);
-  const [templateId, setTemplateId] = useState<string>(TEMPLATES[0].id);
+const SupportEmailDialog: React.FC<Props> = ({
+  trigger,
+  open: openProp,
+  onOpenChange,
+  initialSubject,
+  initialBody,
+}) => {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = openProp ?? uncontrolledOpen;
+  const setOpen = (o: boolean) => {
+    if (onOpenChange) onOpenChange(o);
+    else setUncontrolledOpen(o);
+  };
+
+  const [templateId, setTemplateId] = useState<string>(
+    initialBody || initialSubject ? "blank" : TEMPLATES[0].id
+  );
   const tpl = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
-  const [subject, setSubject] = useState(tpl.subject);
-  const [body, setBody] = useState(tpl.body);
+  const [subject, setSubject] = useState(initialSubject ?? tpl.subject);
+  const [body, setBody] = useState(initialBody ?? tpl.body);
+
+  // When opened with new prefill values (controlled mode), sync them in.
+  React.useEffect(() => {
+    if (!open) return;
+    if (initialSubject !== undefined) setSubject(initialSubject);
+    if (initialBody !== undefined) setBody(initialBody);
+    if (initialBody !== undefined || initialSubject !== undefined) {
+      setTemplateId("blank");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialSubject, initialBody]);
 
   const applyTemplate = (id: string) => {
     setTemplateId(id);
