@@ -458,6 +458,75 @@ const StaffUpdates: React.FC = () => {
             />
           </a>
         )}
+        {u.kind === "flag_alert" && (() => {
+          const review = (u.reviewStatus ?? "open") as FlagReviewStatus;
+          const meta = REVIEW_META[review];
+          const draft = notesDraft[u.id] ?? u.resolutionNotes ?? "";
+          return (
+            <div className="mt-4 rounded-lg border border-border bg-background/40 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-semibold text-foreground">Review</span>
+                  <Badge variant="outline" className={`text-[10px] ${meta.className}`}>
+                    {meta.label}
+                  </Badge>
+                  {u.reviewedByName && (
+                    <span className="text-[10px] text-muted-foreground">
+                      by {u.reviewedByName}
+                      {u.reviewedAt?.toDate ? ` · ${formatRelative(u.reviewedAt)}` : ""}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Select
+                    value={review}
+                    onValueChange={(v) => handleReviewStatus(u, v as FlagReviewStatus)}
+                    disabled={reviewBusy === u.id}
+                  >
+                    <SelectTrigger className="h-7 w-[120px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="open">Open</SelectItem>
+                      <SelectItem value="in_review">In review</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={() => setEmailFor(u)}
+                  >
+                    <Mail className="h-3 w-3" /> Email support
+                  </Button>
+                </div>
+              </div>
+              <Textarea
+                value={draft}
+                onChange={(e) =>
+                  setNotesDraft((prev) => ({ ...prev, [u.id]: e.target.value }))
+                }
+                placeholder="Resolution notes — what action did you take?"
+                className="min-h-[60px] text-xs"
+                disabled={reviewBusy === u.id}
+              />
+              <div className="mt-2 flex justify-end">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs gap-1.5"
+                  onClick={() => handleSaveNotes(u)}
+                  disabled={reviewBusy === u.id || draft === (u.resolutionNotes ?? "")}
+                >
+                  {reviewBusy === u.id && <Loader2 className="h-3 w-3 animate-spin" />}
+                  Save notes
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
       </motion.div>
     );
   };
