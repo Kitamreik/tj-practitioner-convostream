@@ -52,7 +52,8 @@ const stats = [
 ];
 
 const Analytics: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const isPrivileged = profile?.role === "admin" || profile?.role === "webmaster";
   const [agentWorkload, setAgentWorkload] = useState<AgentWorkloadData[]>([]);
   const [voiceActivity, setVoiceActivity] = useState<VoiceActivity[]>(fallbackVoiceActivity);
   const [voiceLive, setVoiceLive] = useState(false);
