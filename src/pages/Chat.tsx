@@ -243,6 +243,7 @@ const ChatPage: React.FC = () => {
   // ---- composer ------------------------------------------------------------
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const { terms: flaggedTerms } = useFlaggedTerms();
   // Throttle typing pings: at most one Firestore write per ~3s while the
   // user is actively composing. Each ping refreshes our `typingState[uid]`
   // timestamp on the thread; consumers use TYPING_FRESH_MS (5s) freshness.
