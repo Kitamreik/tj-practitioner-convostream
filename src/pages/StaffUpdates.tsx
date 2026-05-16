@@ -286,6 +286,29 @@ const StaffUpdates: React.FC = () => {
             {u.body}
           </p>
         )}
+        {u.kind === "flag_alert" && u.matches && u.matches.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {u.matches.map((m) => (
+              <Badge key={m} variant="destructive" className="text-[10px]">
+                {m}
+              </Badge>
+            ))}
+          </div>
+        )}
+        {u.kind === "flag_alert" && u.screenshotDataUrl && (
+          <a
+            href={u.screenshotDataUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 block overflow-hidden rounded-lg border border-border"
+          >
+            <img
+              src={u.screenshotDataUrl}
+              alt="Screenshot of flagged communication"
+              className="w-full"
+            />
+          </a>
+        )}
       </motion.div>
     );
   };
