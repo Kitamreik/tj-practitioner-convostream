@@ -1451,7 +1451,6 @@ const Conversations: React.FC = () => {
                 </div>
               </div>
             </button>
-            </button>
             );
           })}
         </PullToRefresh>
