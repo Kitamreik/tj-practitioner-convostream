@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { subscribeLocalAgents } from "@/lib/localAgents";
 import { useAuth } from "@/contexts/AuthContext";
 import { loadAllIntegrations, type IntegrationConfig } from "@/lib/integrationsStore";
+import FlagAnalyticsPanel from "@/components/FlagAnalyticsPanel";
 
 interface AgentWorkloadData {
   name: string;
