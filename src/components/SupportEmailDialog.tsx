@@ -34,7 +34,7 @@ import {
 const SUPPORT_ADDRESS = "support@convohub.dev";
 
 const MONITORING_NOTICE =
-  "\n\n— Please note: all communications with ConvoHub support are monitored " +
+  "\n\n— Please note: all communications with Kit TJ Services ClientHub support are monitored " +
   "for quality, training, and safety purposes. Abuse, harassment, or other " +
   "misuse will result in escalation protocols enforced by our agents.";
 
@@ -51,41 +51,41 @@ const TEMPLATES: SupportTemplate[] = [
     label: "Billing question",
     subject: "Billing question — account [your account name]",
     body:
-      "Hi ConvoHub team,\n\nI have a question about a recent charge / invoice on my account.\n\nDetails:\n- Account / workspace: \n- Date of charge: \n- Amount: \n- What I'm asking about: \n\nThanks!",
+      "Hi Kit TJ Services ClientHub team,\n\nI have a question about a recent charge / invoice on my account.\n\nDetails:\n- Account / workspace: \n- Date of charge: \n- Amount: \n- What I'm asking about: \n\nThanks!",
   },
   {
     id: "bug",
     label: "Report a bug",
     subject: "Bug report — [short description]",
     body:
-      "Hi ConvoHub team,\n\nI ran into a problem and wanted to report it.\n\nWhat I was doing: \nWhat I expected: \nWhat actually happened: \nBrowser / device: \nScreenshot (optional): \n\nThanks!",
+      "Hi Kit TJ Services ClientHub team,\n\nI ran into a problem and wanted to report it.\n\nWhat I was doing: \nWhat I expected: \nWhat actually happened: \nBrowser / device: \nScreenshot (optional): \n\nThanks!",
   },
   {
     id: "feature",
     label: "Feature request",
     subject: "Feature request — [short title]",
     body:
-      "Hi ConvoHub team,\n\nI'd love to see the following feature added:\n\nWhat I want to do: \nWhy it would help: \nAny workarounds I've tried: \n\nThanks!",
+      "Hi Kit TJ Services ClientHub team,\n\nI'd love to see the following feature added:\n\nWhat I want to do: \nWhy it would help: \nAny workarounds I've tried: \n\nThanks!",
   },
   {
     id: "account",
     label: "Account access issue",
     subject: "Account access issue",
     body:
-      "Hi ConvoHub team,\n\nI'm having trouble accessing my account.\n\nEmail on the account: \nWhat happens when I try to sign in: \nWhen it started: \n\nThanks!",
+      "Hi Kit TJ Services ClientHub team,\n\nI'm having trouble accessing my account.\n\nEmail on the account: \nWhat happens when I try to sign in: \nWhen it started: \n\nThanks!",
   },
   {
     id: "abuse",
     label: "Report abuse / safety concern",
     subject: "Safety report",
     body:
-      "Hi ConvoHub team,\n\nI'd like to report a safety or abuse concern.\n\nWhat happened: \nWho was involved: \nWhen: \nAny relevant links or message IDs: \n\nThanks for looking into this.",
+      "Hi Kit TJ Services ClientHub team,\n\nI'd like to report a safety or abuse concern.\n\nWhat happened: \nWho was involved: \nWhen: \nAny relevant links or message IDs: \n\nThanks for looking into this.",
   },
   {
     id: "blank",
     label: "Other — start blank",
     subject: "",
-    body: "Hi ConvoHub team,\n\n",
+    body: "Hi Kit TJ Services ClientHub team,\n\n",
   },
 ];
 
@@ -166,7 +166,7 @@ const SupportEmailDialog: React.FC<Props> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-4 w-4 text-primary" />
-            Email ConvoHub support
+            Email Kit TJ Services ClientHub support
           </DialogTitle>
           <DialogDescription>
             Pick a template, edit as needed, and we'll open your mail client
@@ -209,7 +209,7 @@ const SupportEmailDialog: React.FC<Props> = ({
           <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
             <ShieldAlert className="h-4 w-4 mt-0.5 flex-shrink-0" />
             <p>
-              All communications with ConvoHub support are <strong>monitored</strong>{" "}
+              All communications with Kit TJ Services ClientHub support are <strong>monitored</strong>{" "}
               for quality, training, and safety. Abuse or misuse will result in
               escalation protocols enforced by our agents. This notice is
               appended automatically to your message.

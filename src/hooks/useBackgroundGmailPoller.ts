@@ -11,7 +11,7 @@ import { getBoolPref, subscribeBoolPrefRemote } from "@/lib/userPrefs";
 export const BG_GMAIL_INGEST_PREF = "bgGmailIngest";
 
 /**
- * Background Gmail → ConvoHub poller.
+ * Background Gmail → Kit TJ Services ClientHub poller.
  *
  * Runs whenever a webmaster is signed in with Gmail API credentials saved.
  * Every ~2 minutes it:
@@ -112,7 +112,7 @@ export function useBackgroundGmailPoller() {
   useEffect(() => {
     if (!user || !profile) return;
     // Only webmasters poll in the background. Agents/admins continue to use
-    // the manual Push to ConvoHub button on /gmail-api.
+    // the manual Push to Kit TJ Services ClientHub button on /gmail-api.
     if (profile.role !== "webmaster") return;
     // Honor the opt-in toggle on /settings.
     if (!enabled) return;

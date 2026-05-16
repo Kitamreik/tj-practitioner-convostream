@@ -26,7 +26,7 @@ const Login: React.FC = () => {
       if (isSignUp) {
         // Role is assigned server-side; never accept client-supplied role at signup.
         await signUp(email, password, displayName);
-        toast({ title: "Account created", description: "Welcome to ConvoHub!" });
+        toast({ title: "Account created", description: "Welcome to Kit TJ Services ClientHub!" });
       } else {
         await signIn(email, password);
         toast({ title: "Welcome back", description: "Signed in successfully." });
@@ -57,7 +57,7 @@ const Login: React.FC = () => {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary">
             <MessageCircle className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">ConvoHub</h1>
+          <h1 className="text-3xl font-bold text-foreground">Kit TJ Services ClientHub</h1>
           <p className="mt-2 text-muted-foreground">People-centered conversations and enhancing client relations.</p>
         </div>
 

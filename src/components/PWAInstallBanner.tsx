@@ -4,7 +4,7 @@ import { X, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-const DISMISS_KEY = "ConvoHub-pwa-install-dismissed-at";
+const DISMISS_KEY = "Kit TJ Services ClientHub-pwa-install-dismissed-at";
 const DISMISS_DAYS = 7;
 
 interface BeforeInstallPromptEvent extends Event {
@@ -63,7 +63,7 @@ const PWAInstallBanner: React.FC = () => {
             <Download className="h-5 w-5" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-foreground">Add ConvoHub to your home screen</p>
+            <p className="text-sm font-semibold text-foreground">Add Kit TJ Services ClientHub to your home screen</p>
             <p className="text-xs text-muted-foreground mt-0.5">Faster access, offline support, and a full-screen experience.</p>
             <div className="flex gap-2 mt-3">
               <Button size="sm" onClick={handleInstall} className="gap-1.5">

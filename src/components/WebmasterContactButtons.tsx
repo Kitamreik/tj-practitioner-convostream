@@ -74,7 +74,7 @@ const LONG_PRESS_MS = 500;
  *
  * Each template body supports {{name}}, {{agent}}, {{company}} variables
  * — we substitute the webmaster as {{name}}, the current user as {{agent}},
- * and "ConvoHub" as {{company}} before launching the SMS composer.
+ * and "Kit TJ Services ClientHub" as {{company}} before launching the SMS composer.
  */
 interface SmsTemplate {
   id: string;
@@ -112,7 +112,7 @@ const STARTER_SMS_TEMPLATES: SmsTemplate[] = [
     id: "wm-sms-handoff",
     locked: true,
     name: "Hand off engagement",
-    body: "Hi {{name}}, {{agent}} at {{company}}. I need to hand off a client engagement to you — notes are in ConvoHub under their thread. Let me know when you've picked it up.",
+    body: "Hi {{name}}, {{agent}} at {{company}}. I need to hand off a client engagement to you — notes are in Kit TJ Services ClientHub under their thread. Let me know when you've picked it up.",
   },
   {
     id: "wm-sms-second-opinion",
@@ -675,7 +675,7 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
                   <div className="border-b border-border p-3">
                     <p className="text-xs font-medium text-foreground">Choose an SMS template</p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      Variables auto-fill: {"{{name}}"} → Webmaster, {"{{agent}}"} → you, {"{{company}}"} → ConvoHub.
+                      Variables auto-fill: {"{{name}}"} → Webmaster, {"{{agent}}"} → you, {"{{company}}"} → Kit TJ Services ClientHub.
                     </p>
                   </div>
                   <div className="max-h-72 overflow-auto p-2">

@@ -1,6 +1,6 @@
 {
-  "name": "TJ ConvoHub",
-  "short_name": "ConvoHub",
+  "name": "TJ Kit TJ Services ClientHub",
+  "short_name": "Kit TJ Services ClientHub",
   "description": "Social platform for client centered conversations.",
   "start_url": "/",
   "scope": "/",
