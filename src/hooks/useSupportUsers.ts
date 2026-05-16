@@ -7,7 +7,7 @@
  * the Settings agent table. Subscribed once at the providers layer; the
  * snapshot is small (one boolean field per user doc).
  *
- * Also includes the legacy `support@Kit TJ Services ClientHub.dev` email so accounts that
+ * Also includes the legacy `support@convohub.dev` email so accounts that
  * never had the explicit `supportAccess` flag flipped still light up — this
  * mirrors the rule used by `canModerateChat()` in `@/lib/chat`.
  */

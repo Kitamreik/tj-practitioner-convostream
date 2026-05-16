@@ -65,7 +65,7 @@ const ResetPassword: React.FC = () => {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary">
             <MessageCircle className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">Kit TJ Services ClientHub</h1>
+          <h1 className="text-3xl font-bold text-foreground">ConvoHub</h1>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-8 shadow-lg">

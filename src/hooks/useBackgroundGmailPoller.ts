@@ -11,7 +11,7 @@ import { getBoolPref, subscribeBoolPrefRemote } from "@/lib/userPrefs";
 export const BG_GMAIL_INGEST_PREF = "bgGmailIngest";
 
 /**
- * Background Gmail → Kit TJ Services ClientHub poller.
+ * Background Gmail → ConvoHub poller.
  *
  * Runs whenever a webmaster is signed in with Gmail API credentials saved.
  * Every ~2 minutes it:
@@ -19,7 +19,7 @@ export const BG_GMAIL_INGEST_PREF = "bgGmailIngest";
  *      the prior consent the webmaster gave on /gmail-api).
  *   2. Lists INBOX message ids more recent than the last seen id.
  *   3. For each new id fetches minimal headers and calls the existing
- *      `pushGmailMessageToKit TJ Services ClientHub` callable, which dedups server-side on
+ *      `pushGmailMessageToConvoHub` callable, which dedups server-side on
  *      `gmail-msg:{id}` / `gmail-thread:{id}`.
  *
  * The hook is intentionally a no-op until consent has been granted at least
@@ -40,7 +40,7 @@ const POLL_MS = 2 * 60 * 1000;
 const MAX_PER_TICK = 10;
 // Per-uid set of message ids we've already pushed in this browser session.
 // Server-side dedup is authoritative; this just avoids redundant network calls.
-const SEEN_KEY = (uid: string) => `Kit TJ Services ClientHub.bgPoller.seen:${uid}`;
+const SEEN_KEY = (uid: string) => `ConvoHub.bgPoller.seen:${uid}`;
 
 declare global {
   interface Window {
@@ -112,7 +112,7 @@ export function useBackgroundGmailPoller() {
   useEffect(() => {
     if (!user || !profile) return;
     // Only webmasters poll in the background. Agents/admins continue to use
-    // the manual Push to Kit TJ Services ClientHub button on /gmail-api.
+    // the manual Push to ConvoHub button on /gmail-api.
     if (profile.role !== "webmaster") return;
     // Honor the opt-in toggle on /settings.
     if (!enabled) return;
@@ -131,7 +131,7 @@ export function useBackgroundGmailPoller() {
         snippet: string;
       },
       { ok: boolean; conversationId: string; alreadyImported: boolean }
-    >(functions, "pushGmailMessageToKit TJ Services ClientHub");
+    >(functions, "pushGmailMessageToConvoHub");
 
     async function ensureInitialized(): Promise<{ clientId: string; apiKey: string } | null> {
       const all = await loadAllIntegrations(uid);

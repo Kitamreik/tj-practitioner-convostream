@@ -63,7 +63,7 @@ const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 /**
  * The `/` route renders the Support call-center home for every signed-in
  * role. The Home page is role-aware (greeting, KPIs, quick actions) so an
- * agent, admin, or webmaster all get the same call-center laKit TJ Services ClientHubperience
+ * agent, admin, or webmaster all get the same call-center laConvoHubperience
  * mirrored from the original Support UI. The legacy support@convohub.dev /
  * `supportAccess` flag is no longer required to see this view.
  */

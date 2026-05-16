@@ -27,9 +27,9 @@
 import { Timestamp } from "firebase/firestore";
 import type { ChatMessage, ChatThread } from "@/lib/chat";
 
-const THREADS_KEY = (uid: string) => `Kit TJ Services ClientHub.chat.threads.v1.${uid}`;
+const THREADS_KEY = (uid: string) => `ConvoHub.chat.threads.v1.${uid}`;
 const MESSAGES_KEY = (uid: string, threadId: string) =>
-  `Kit TJ Services ClientHub.chat.messages.v1.${uid}.${threadId}`;
+  `ConvoHub.chat.messages.v1.${uid}.${threadId}`;
 
 /** Per-uid cap so a chatty account doesn't blow past the ~5MB quota. */
 const MAX_THREADS_CACHED = 100;
@@ -230,7 +230,7 @@ export function appendOptimisticMessage(
 export function clearCachedChat(uid: string): void {
   if (!uid) return;
   try {
-    const prefix = `Kit TJ Services ClientHub.chat.`;
+    const prefix = `ConvoHub.chat.`;
     const toRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);

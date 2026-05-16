@@ -1,13 +1,13 @@
 /**
  * Cookie / tracking consent management.
  *
- * Stores the user's choice in localStorage under `Kit TJ Services ClientHub.consent.v1`.
+ * Stores the user's choice in localStorage under `ConvoHub.consent.v1`.
  * Essential cookies (auth, theme, widget session) are always-on; analytics
  * cookies require explicit opt-in. The footer "Cookie preferences" link
- * dispatches `Kit TJ Services ClientHub:open-consent` to re-open the banner.
+ * dispatches `ConvoHub:open-consent` to re-open the banner.
  */
-export const CONSENT_KEY = "Kit TJ Services ClientHub.consent.v1";
-export const CONSENT_OPEN_EVENT = "Kit TJ Services ClientHub:open-consent";
+export const CONSENT_KEY = "ConvoHub.consent.v1";
+export const CONSENT_OPEN_EVENT = "ConvoHub:open-consent";
 
 export interface ConsentRecord {
   essential: true;
