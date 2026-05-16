@@ -556,7 +556,7 @@ const Conversations: React.FC = () => {
     const title = `Conversation with ${selected.customerName}`;
     const shareData: ShareData = {
       title,
-      text: `${title} on ConvoHub`,
+      text: `${title} on Kit TJ Services ClientHub`,
       url,
     };
     // Web Share API: only use when the browser can actually share this payload.
@@ -868,7 +868,7 @@ const Conversations: React.FC = () => {
     const filled = template.body
       .replace(/\{\{name\}\}/g, selected?.customerName || "Customer")
       .replace(/\{\{agent\}\}/g, profile?.displayName || "Agent")
-      .replace(/\{\{company\}\}/g, "ConvoHub");
+      .replace(/\{\{company\}\}/g, "Kit TJ Services ClientHub");
     setReplyText(filled);
   };
 
@@ -1146,7 +1146,7 @@ const Conversations: React.FC = () => {
       // Outbound Slack: if this conversation originated from a Slack channel,
       // mirror the agent's reply back into Slack via the bot token. Failures
       // are surfaced as a toast but do not block the local message — the
-      // ConvoHub thread is still the source of truth.
+      // Kit TJ Services ClientHub thread is still the source of truth.
       if (selected && selected.channel === "slack") {
         try {
           const fn = httpsCallable<
@@ -1157,7 +1157,7 @@ const Conversations: React.FC = () => {
           if (res.data.ok) {
             // Persist the Slack ts on the message so we can correlate edits /
             // reactions later, and so support engineers can trace a single
-            // ConvoHub message back to its Slack post.
+            // Kit TJ Services ClientHub message back to its Slack post.
             if (res.data.ts) {
               try {
                 await updateDoc(messageRef, {

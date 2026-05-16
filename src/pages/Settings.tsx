@@ -1770,7 +1770,7 @@ const SettingsPage: React.FC = () => {
               Background Gmail ingestion
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
-              When enabled, ConvoHub silently polls your Gmail INBOX every ~2 minutes and pushes new messages into the Conversations queue. Pausing here stops polling without revoking your Google OAuth consent — flip it back on any time to resume.
+              When enabled, Kit TJ Services ClientHub silently polls your Gmail INBOX every ~2 minutes and pushes new messages into the Conversations queue. Pausing here stops polling without revoking your Google OAuth consent — flip it back on any time to resume.
             </p>
             <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
               <div className="space-y-1 min-w-0">

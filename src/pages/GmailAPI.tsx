@@ -195,7 +195,7 @@ const GmailAPI: React.FC = () => {
   const [sendingTest, setSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [replyContext, setReplyContext] = useState<{ messageIdHeader: string; threadId: string; references: string } | null>(null);
-  // Track which Gmail message ids have been pushed to ConvoHub so we can swap
+  // Track which Gmail message ids have been pushed to Kit TJ Services ClientHub so we can swap
   // the button label without forcing a full re-fetch.
   const [pushedToConvo, setPushedToConvo] = useState<Set<string>>(new Set());
   const [pushingId, setPushingId] = useState<string | null>(null);
@@ -571,9 +571,9 @@ const GmailAPI: React.FC = () => {
       const stamp = new Date().toLocaleString();
       const raw = buildRawEmail({
         to: myEmail,
-        subject: `ConvoHub test message · ${stamp}`,
+        subject: `Kit TJ Services ClientHub test message · ${stamp}`,
         body: [
-          "This is an automated test email sent from ConvoHub.",
+          "This is an automated test email sent from Kit TJ Services ClientHub.",
           "",
           `Sent at: ${stamp}`,
           "If you can read this in your inbox, the Gmail API send pipeline is working.",
@@ -594,7 +594,7 @@ const GmailAPI: React.FC = () => {
     }
   }, [authorized, fetchMessages]);
 
-  // Push a Gmail message into ConvoHub as a Firestore conversation. The
+  // Push a Gmail message into Kit TJ Services ClientHub as a Firestore conversation. The
   // Cloud Function dedups on Gmail message id so repeat clicks are no-ops.
   const handlePushToConvoHub = useCallback(
     async (msg: GmailMessage) => {
@@ -622,7 +622,7 @@ const GmailAPI: React.FC = () => {
         });
         setPushedToConvo((s) => new Set(s).add(msg.id));
         toast({
-          title: res.data.alreadyImported ? "Already in ConvoHub" : "Pushed to ConvoHub",
+          title: res.data.alreadyImported ? "Already in Kit TJ Services ClientHub" : "Pushed to Kit TJ Services ClientHub",
           description: res.data.alreadyImported
             ? "This Gmail thread is already imported."
             : "It now shows up under Conversations.",
@@ -630,7 +630,7 @@ const GmailAPI: React.FC = () => {
       } catch (e: any) {
         toast({
           title: "Push failed",
-          description: e?.message || "Could not push to ConvoHub.",
+          description: e?.message || "Could not push to Kit TJ Services ClientHub.",
           variant: "destructive",
         });
       } finally {
@@ -942,14 +942,14 @@ const GmailAPI: React.FC = () => {
                         variant="outline"
                         className="gap-1.5"
                         disabled={pushingId === selectedMessage.id || pushedToConvo.has(selectedMessage.id)}
-                        aria-label="Push to ConvoHub"
+                        aria-label="Push to Kit TJ Services ClientHub"
                       >
                         <SendIcon className="h-4 w-4" />
                         {pushedToConvo.has(selectedMessage.id)
-                          ? "In ConvoHub"
+                          ? "In Kit TJ Services ClientHub"
                           : pushingId === selectedMessage.id
                           ? "Pushing…"
-                          : "Push to ConvoHub"}
+                          : "Push to Kit TJ Services ClientHub"}
                       </Button>
                       <Button onClick={() => openReply(selectedMessage)} size="sm" className="gap-1.5">
                         <Reply className="h-4 w-4" /> Reply

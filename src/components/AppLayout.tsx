@@ -30,9 +30,9 @@ const AppLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const title = titleMap[location.pathname] || "ConvoHub";
+  const title = titleMap[location.pathname] || "Kit TJ Services ClientHub";
 
-  // Background Gmail → ConvoHub ingestion. No-op for non-webmasters and for
+  // Background Gmail → Kit TJ Services ClientHub ingestion. No-op for non-webmasters and for
   // webmasters who haven't yet completed the one-time consent on /gmail-api.
   useBackgroundGmailPoller();
 

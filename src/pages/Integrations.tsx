@@ -57,7 +57,7 @@ const integrations: Integration[] = [
   {
     id: "google-voice",
     name: "Google Voice",
-    description: "Receive real-time call and SMS events into ConvoHub via webhook.",
+    description: "Receive real-time call and SMS events into Kit TJ Services ClientHub via webhook.",
     icon: <Phone className="h-6 w-6" />,
     provider: "Google Workspace",
     configFields: [
@@ -629,7 +629,7 @@ const Integrations: React.FC = () => {
           <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Gmail</p>
             <p className="text-[11px] text-muted-foreground">
-              Gmail uses your existing OAuth session — open <a href="/gmail-api" className="underline">Gmail API</a>, authorize, then click <strong>Push to ConvoHub</strong> on any inbound message to import it as a conversation.
+              Gmail uses your existing OAuth session — open <a href="/gmail-api" className="underline">Gmail API</a>, authorize, then click <strong>Push to Kit TJ Services ClientHub</strong> on any inbound message to import it as a conversation.
             </p>
           </div>
         </div>

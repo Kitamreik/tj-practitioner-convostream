@@ -111,7 +111,7 @@ const Bootstrap: React.FC = () => {
           </div>
           <CardTitle className="font-display text-2xl">First-time setup</CardTitle>
           <CardDescription>
-            Provision the initial Support &amp; webmaster account for ConvoHub. This page is only
+            Provision the initial Support &amp; webmaster account for Kit TJ Services ClientHub. This page is only
             usable until the first webmaster exists.
           </CardDescription>
         </CardHeader>

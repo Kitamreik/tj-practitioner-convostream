@@ -33,14 +33,14 @@ const SiteFooter: React.FC<{ variant?: "app" | "public" }> = ({ variant = "app" 
             <span
               className="text-lg font-semibold text-foreground"
               style={{ fontFamily: "'Playfair Display', serif" }}
-            >ConvoHub
-              ConvoHub
+            >
+              Kit TJ Services ClientHub
             </span>
           </div>
           <p className="mt-3 text-sm text-muted-foreground">
             Customer conversations, kept warm and continuous.
-          </p>ConvoHub
-          <p className="mt-3 text-xs text-muted-foreground">© {year} ConvoHub. All rights reserved.</p>
+          </p>
+          <p className="mt-3 text-xs text-muted-foreground">© {year} Kit TJ Services ClientHub. All rights reserved.</p>
         </div>
 
         {signedIn && variant === "app" && (
@@ -106,7 +106,7 @@ const SiteFooter: React.FC<{ variant?: "app" | "public" }> = ({ variant = "app" 
 
       <div className="border-t border-border bg-background/40">
         <p className="mx-auto max-w-6xl px-4 py-3 text-xs text-muted-foreground">
-          We use essential cookies to run ConvoHub and optional analytics cookies with
+          We use essential cookies to run Kit TJ Services ClientHub and optional analytics cookies with
           your consent. See our{" "}
           <Link to="/legal/cookies" className="underline hover:text-primary">Cookie Policy</Link>{" "}
           for details.

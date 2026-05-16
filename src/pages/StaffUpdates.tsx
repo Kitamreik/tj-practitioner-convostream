@@ -270,7 +270,7 @@ const StaffUpdates: React.FC = () => {
   const buildEmailDraft = (u: StaffUpdate) => {
     const subject = `Escalation review: ${u.title}`;
     const ctxLines = [
-      `Hi ConvoHub support,`,
+      `Hi Kit TJ Services ClientHub support,`,
       ``,
       `Forwarding a flagged communication for review.`,
       ``,
