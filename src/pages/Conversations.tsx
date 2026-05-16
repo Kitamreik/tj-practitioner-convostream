@@ -79,6 +79,7 @@ import { restoreItem } from "@/lib/softDelete";
 import { getBoolPref, setBoolPref } from "@/lib/userPrefs";
 import { subscribeLocalAgents } from "@/lib/localAgents";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import NewConversationDialog from "@/components/NewConversationDialog";
 import ConversationTemplates, { type MessageTemplate } from "@/components/ConversationTemplates";
 import EditPersonDialog, { type EditablePerson } from "@/components/EditPersonDialog";
@@ -433,6 +434,10 @@ const Conversations: React.FC = () => {
   };
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
+  const [topicFilter, setTopicFilter] = useState<string>("all");
+  const [selectMode, setSelectMode] = useState<boolean>(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   // "Show only my assigned conversations" filter for agents/admins.
   const [mineOnly, setMineOnly] = useState<boolean>(false);
@@ -848,7 +853,9 @@ const Conversations: React.FC = () => {
     const matchesSearch = matchesBasic || matchesMessages;
     const matchesStatus = statusFilter === "all" || c.status === statusFilter;
     const matchesChannel = channelFilter === "all" || c.channel === channelFilter;
-    return matchesSearch && matchesStatus && matchesChannel;
+    const matchesTopic =
+      topicFilter === "all" || (c.topic ?? "unlabeled") === topicFilter;
+    return matchesSearch && matchesStatus && matchesChannel && matchesTopic;
   });
 
   const handleInsertTemplate = (template: MessageTemplate) => {
@@ -859,8 +866,68 @@ const Conversations: React.FC = () => {
     setReplyText(filled);
   };
 
-  const hasActiveFilters = statusFilter !== "all" || channelFilter !== "all";
-  const clearFilters = () => { setStatusFilter("all"); setChannelFilter("all"); };
+  const hasActiveFilters =
+    statusFilter !== "all" || channelFilter !== "all" || topicFilter !== "all";
+  const clearFilters = () => {
+    setStatusFilter("all");
+    setChannelFilter("all");
+    setTopicFilter("all");
+  };
+
+  // Bulk selection helpers
+  const toggleSelectMode = () => {
+    setSelectMode((v) => {
+      if (v) setSelectedIds(new Set());
+      return !v;
+    });
+  };
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const selectAllVisible = () => {
+    setSelectedIds(new Set(filtered.map((c) => c.id)));
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkSetTopic = async (newTopic: ConsultingTopic) => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    setBulkBusy(true);
+    // Optimistic update
+    setConversations((prev) =>
+      prev.map((c) => (selectedIds.has(c.id) ? { ...c, topic: newTopic } : c))
+    );
+    if (!usingFallback) {
+      try {
+        const batch = writeBatch(db);
+        ids.forEach((id) =>
+          batch.update(doc(db, "conversations", id), { topic: newTopic })
+        );
+        await batch.commit();
+      } catch (e) {
+        console.error("Bulk topic update failed:", e);
+        toast({
+          title: "Bulk update failed",
+          description: "Some conversations may not have been updated.",
+          variant: "destructive",
+        });
+        setBulkBusy(false);
+        return;
+      }
+    }
+    toast({
+      title: "Topics updated",
+      description: `Labeled ${ids.length} conversation${ids.length === 1 ? "" : "s"} as ${topicLabel(newTopic)}.`,
+    });
+    setBulkBusy(false);
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  };
 
   const handleAssignAgent = async (convoId: string, agent: string | null) => {
     // Optimistic update
@@ -1141,6 +1208,17 @@ const Conversations: React.FC = () => {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <Button
+                variant={selectMode ? "default" : "outline"}
+                size="sm"
+                className="gap-1"
+                onClick={toggleSelectMode}
+                aria-pressed={selectMode}
+                title="Select multiple conversations to bulk-update topic"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{selectMode ? "Cancel" : "Select"}</span>
+              </Button>
               <NewConversationDialog />
             </div>
           </div>
@@ -1148,7 +1226,7 @@ const Conversations: React.FC = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search conversations..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <div className="flex items-center gap-2 mt-3">
+          <div className="flex flex-wrap items-center gap-2 mt-3">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="h-8 text-xs flex-1">
                 <SelectValue placeholder="Status" />
@@ -1173,6 +1251,17 @@ const Conversations: React.FC = () => {
                 <SelectItem value="mobile">Mobile</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={topicFilter} onValueChange={setTopicFilter}>
+              <SelectTrigger className="h-8 text-xs flex-1">
+                <SelectValue placeholder="Topic" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Topics</SelectItem>
+                {consultingTopics.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0" onClick={clearFilters}>
                 <X className="h-3.5 w-3.5" />
@@ -1195,6 +1284,51 @@ const Conversations: React.FC = () => {
           </div>
         </div>
 
+        {/* Bulk topic action bar — visible when select mode is on. */}
+        {selectMode && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-accent/30 px-4 py-2 text-xs">
+            <span className="font-medium text-foreground">
+              {selectedIds.size} selected
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={selectAllVisible}
+              disabled={filtered.length === 0}
+            >
+              Select all ({filtered.length})
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={clearSelection}
+              disabled={selectedIds.size === 0}
+            >
+              Clear
+            </Button>
+            <div className="ml-auto flex items-center gap-1.5">
+              <Tag className="h-3 w-3 text-muted-foreground" />
+              <span className="text-muted-foreground">Set topic:</span>
+              <Select
+                value=""
+                onValueChange={(v) => handleBulkSetTopic(v as ConsultingTopic)}
+                disabled={selectedIds.size === 0 || bulkBusy}
+              >
+                <SelectTrigger className="h-7 w-44 text-xs">
+                  <SelectValue placeholder={bulkBusy ? "Updating…" : "Choose topic"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {consultingTopics.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
         {/* Agent/admin banner: shows their open assignment count and a one-click filter. */}
         {showMineBanner && (
           <div className="flex items-center gap-2 border-b border-border bg-primary/5 px-4 py-2">
@@ -1216,13 +1350,34 @@ const Conversations: React.FC = () => {
         )}
 
         <PullToRefresh onRefresh={handleRefresh} className="flex-1" disabled={!isMobile}>
-          {filtered.map((convo) => (
+          {filtered.map((convo) => {
+            const isChecked = selectedIds.has(convo.id);
+            return (
             <button
               key={convo.id}
-              onClick={() => setSelectedId(convo.id)}
-              className={`w-full border-b border-border p-4 text-left transition-colors ${selectedId === convo.id ? "bg-accent/30" : "hover:bg-muted/50"}`}
+              onClick={() => {
+                if (selectMode) toggleSelected(convo.id);
+                else setSelectedId(convo.id);
+              }}
+              aria-pressed={selectMode ? isChecked : undefined}
+              className={`w-full border-b border-border p-4 text-left transition-colors ${
+                selectMode && isChecked
+                  ? "bg-primary/10"
+                  : selectedId === convo.id
+                  ? "bg-accent/30"
+                  : "hover:bg-muted/50"
+              }`}
             >
               <div className="flex items-start gap-3">
+                {selectMode && (
+                  <div className="flex h-10 items-center" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={isChecked}
+                      onCheckedChange={() => toggleSelected(convo.id)}
+                      aria-label={`Select conversation with ${convo.customerName}`}
+                    />
+                  </div>
+                )}
                 <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
                   {convo.customerName.charAt(0)}
                 </div>
@@ -1238,6 +1393,15 @@ const Conversations: React.FC = () => {
                       {convo.channel.toUpperCase()}
                     </Badge>
                     <span className={`inline-flex h-5 items-center rounded-full px-1.5 text-[10px] font-medium ${statusColors[convo.status]}`}>{convo.status}</span>
+                    {convo.topic && convo.topic !== "unlabeled" && (
+                      <span
+                        className="inline-flex h-5 items-center gap-1 rounded-full border border-accent/40 bg-accent/20 px-1.5 text-[10px] font-medium text-accent-foreground"
+                        title={`Topic: ${topicLabel(convo.topic)}`}
+                      >
+                        <Tag className="h-2.5 w-2.5" />
+                        {topicLabel(convo.topic)}
+                      </span>
+                    )}
                     {convo.assignedAgent && (
                       <span className="inline-flex h-5 items-center gap-1 rounded-full bg-primary/5 px-1.5 text-[10px] text-primary">
                         <UserCheck className="h-2.5 w-2.5" />{convo.assignedAgent.split(" ")[0]}
@@ -1287,7 +1451,8 @@ const Conversations: React.FC = () => {
                 </div>
               </div>
             </button>
-          ))}
+            );
+          })}
         </PullToRefresh>
       </div>
 
