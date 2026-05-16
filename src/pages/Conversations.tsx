@@ -1117,6 +1117,29 @@ const Conversations: React.FC = () => {
       });
       setReplyText("");
 
+      // Scan outgoing reply for flagged language and notify the team.
+      try {
+        const matches = detectFlaggedTerms(textToSend, flaggedTerms);
+        if (matches.length > 0 && profile?.uid) {
+          await postFlagAlert({
+            matches,
+            text: textToSend,
+            context: "conversation-reply",
+            conversationId: selectedId,
+            authorUid: profile.uid,
+            authorName: agentName,
+            link: `/conversations/${selectedId}`,
+          });
+          toast({
+            title: "Flagged language detected",
+            description: `Posted to Staff Updates: ${matches.slice(0, 3).join(", ")}${matches.length > 3 ? "…" : ""}`,
+            variant: "destructive",
+          });
+        }
+      } catch (flagErr) {
+        console.warn("Flag alert post failed:", flagErr);
+      }
+
       // Outbound Slack: if this conversation originated from a Slack channel,
       // mirror the agent's reply back into Slack via the bot token. Failures
       // are surfaced as a toast but do not block the local message — the
