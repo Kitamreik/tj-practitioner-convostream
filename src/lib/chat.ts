@@ -49,7 +49,6 @@ import {
   saveCachedMessages,
   saveCachedThreads,
 } from "@/lib/chatCache";
-Kit TJ Services ClientHub
 export const SUPPORT_EMAIL = "support@convohub.dev";
 
 export interface ChatThread {
