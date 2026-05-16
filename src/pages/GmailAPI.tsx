@@ -596,7 +596,7 @@ const GmailAPI: React.FC = () => {
 
   // Push a Gmail message into Kit TJ Services ClientHub as a Firestore conversation. The
   // Cloud Function dedups on Gmail message id so repeat clicks are no-ops.
-  const handlePushToKit TJ Services ClientHub = useCallback(
+  const handlePushToConvoHub = useCallback(
     async (msg: GmailMessage) => {
       setPushingId(msg.id);
       try {
@@ -937,7 +937,7 @@ const GmailAPI: React.FC = () => {
                     </Button>
                     <div className="flex items-center gap-2">
                       <Button
-                        onClick={() => handlePushToKit TJ Services ClientHub(selectedMessage)}
+                        onClick={() => handlePushToConvoHub(selectedMessage)}
                         size="sm"
                         variant="outline"
                         className="gap-1.5"
