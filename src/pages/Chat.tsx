@@ -262,19 +262,41 @@ const ChatPage: React.FC = () => {
   const handleSend = async () => {
     if (!user || !profile || !activeId || !draft.trim()) return;
     setSending(true);
+    const body = draft;
     try {
       await sendChatMessage({
         threadId: activeId,
         senderUid: user.uid,
         senderName: profile.displayName,
         senderEmail: profile.email,
-        body: draft,
+        body,
       });
       setDraft("");
-      // Clear our typing flag immediately so the recipient's "typing…"
-      // label disappears without waiting for the freshness window.
       lastTypingPingRef.current = 0;
       void clearTyping(activeId, user.uid);
+
+      // Post a Staff Updates flag alert if outgoing chat contains banned words.
+      try {
+        const matches = detectFlaggedTerms(body, flaggedTerms);
+        if (matches.length > 0) {
+          await postFlagAlert({
+            matches,
+            text: body,
+            context: "team-chat",
+            threadId: activeId,
+            authorUid: user.uid,
+            authorName: profile.displayName || profile.email || "Agent",
+            link: "/chat",
+          });
+          toast({
+            title: "Flagged language detected",
+            description: `Posted to Staff Updates: ${matches.slice(0, 3).join(", ")}`,
+            variant: "destructive",
+          });
+        }
+      } catch (flagErr) {
+        console.warn("Flag alert post failed:", flagErr);
+      }
     } catch (e: any) {
       toast({ title: "Couldn't send", description: e?.message, variant: "destructive" });
     } finally {
