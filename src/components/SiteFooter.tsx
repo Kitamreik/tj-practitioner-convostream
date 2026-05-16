@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { MessageCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { openConsentBanner } from "@/lib/cookieConsent";
+import SupportEmailDialog from "@/components/SupportEmailDialog";
 
 /**
  * Global site footer rendered on every authenticated page (via AppLayout)
@@ -68,6 +69,18 @@ const SiteFooter: React.FC<{ variant?: "app" | "public" }> = ({ variant = "app" 
         <div>
           <h3 className="text-sm font-semibold text-foreground">Contact</h3>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+            <li>
+              <SupportEmailDialog
+                trigger={
+                  <button
+                    type="button"
+                    className="text-left hover:text-primary"
+                  >
+                    Email support (templates)
+                  </button>
+                }
+              />
+            </li>
             <li>
               <a href="mailto:support@convohub.dev" className="hover:text-primary">
                 support@convohub.dev

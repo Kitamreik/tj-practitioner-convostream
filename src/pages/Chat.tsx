@@ -19,6 +19,8 @@ import {
   subscribeThreadMessages,
   TYPING_FRESH_MS,
 } from "@/lib/chat";
+import { detectFlaggedTerms, useFlaggedTerms } from "@/lib/flaggedTerms";
+import { postFlagAlert } from "@/lib/flagAlert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -241,6 +243,7 @@ const ChatPage: React.FC = () => {
   // ---- composer ------------------------------------------------------------
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const { terms: flaggedTerms } = useFlaggedTerms();
   // Throttle typing pings: at most one Firestore write per ~3s while the
   // user is actively composing. Each ping refreshes our `typingState[uid]`
   // timestamp on the thread; consumers use TYPING_FRESH_MS (5s) freshness.
@@ -259,19 +262,41 @@ const ChatPage: React.FC = () => {
   const handleSend = async () => {
     if (!user || !profile || !activeId || !draft.trim()) return;
     setSending(true);
+    const body = draft;
     try {
       await sendChatMessage({
         threadId: activeId,
         senderUid: user.uid,
         senderName: profile.displayName,
         senderEmail: profile.email,
-        body: draft,
+        body,
       });
       setDraft("");
-      // Clear our typing flag immediately so the recipient's "typing…"
-      // label disappears without waiting for the freshness window.
       lastTypingPingRef.current = 0;
       void clearTyping(activeId, user.uid);
+
+      // Post a Staff Updates flag alert if outgoing chat contains banned words.
+      try {
+        const matches = detectFlaggedTerms(body, flaggedTerms);
+        if (matches.length > 0) {
+          await postFlagAlert({
+            matches,
+            text: body,
+            context: "team-chat",
+            threadId: activeId,
+            authorUid: user.uid,
+            authorName: profile.displayName || profile.email || "Agent",
+            link: "/chat",
+          });
+          toast({
+            title: "Flagged language detected",
+            description: `Posted to Staff Updates: ${matches.slice(0, 3).join(", ")}`,
+            variant: "destructive",
+          });
+        }
+      } catch (flagErr) {
+        console.warn("Flag alert post failed:", flagErr);
+      }
     } catch (e: any) {
       toast({ title: "Couldn't send", description: e?.message, variant: "destructive" });
     } finally {

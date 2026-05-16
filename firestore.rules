@@ -239,9 +239,28 @@ service cloud.firestore {
     // tried to write, the rule rejects without the webmaster role.
     match /staff_updates/{id} {
       allow read: if isSignedIn();
-      allow create: if isWebmaster()
-        && request.resource.data.authorUid == request.auth.uid;
+      // Webmasters can post any update. Any signed-in user can post a
+      // system-generated `flag_alert` (the client-side profanity detector
+      // writes these); the rule pins authorUid to the caller and the kind
+      // must be exactly "flag_alert" to prevent abuse.
+      allow create: if (
+        isWebmaster()
+        && request.resource.data.authorUid == request.auth.uid
+      ) || (
+        isSignedIn()
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.get('kind', '') == 'flag_alert'
+      );
       allow update, delete: if isWebmaster();
+    }
+
+    // -------- flagged terms (profanity / abuse wordlist) --------
+    // Editable wordlist used by the client-side flagger. Any signed-in user
+    // needs to read the list (to scan their outgoing messages); only
+    // webmasters can add or remove terms.
+    match /flagged_terms/{id} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isWebmaster();
     }
 
     // -------- file recordings index --------

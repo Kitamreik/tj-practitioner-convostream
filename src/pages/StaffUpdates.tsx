@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { notifyAllUsers } from "@/lib/notifyAll";
+import FlaggedTermsManager from "@/components/FlaggedTermsManager";
 
 /**
  * Staff Updates — webmaster-authored announcements for the team. Everyone
@@ -62,6 +63,12 @@ interface StaffUpdate {
   createdAt?: any;
   authorUid: string;
   authorName: string;
+  kind?: "announcement" | "flag_alert";
+  screenshotDataUrl?: string | null;
+  matches?: string[];
+  context?: string;
+  conversationId?: string | null;
+  threadId?: string | null;
 }
 
 const STATUS_META: Record<
@@ -279,6 +286,29 @@ const StaffUpdates: React.FC = () => {
             {u.body}
           </p>
         )}
+        {u.kind === "flag_alert" && u.matches && u.matches.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {u.matches.map((m) => (
+              <Badge key={m} variant="destructive" className="text-[10px]">
+                {m}
+              </Badge>
+            ))}
+          </div>
+        )}
+        {u.kind === "flag_alert" && u.screenshotDataUrl && (
+          <a
+            href={u.screenshotDataUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 block overflow-hidden rounded-lg border border-border"
+          >
+            <img
+              src={u.screenshotDataUrl}
+              alt="Screenshot of flagged communication"
+              className="w-full"
+            />
+          </a>
+        )}
       </motion.div>
     );
   };
@@ -307,6 +337,12 @@ const StaffUpdates: React.FC = () => {
           </Badge>
         )}
       </div>
+
+      {isWebmaster && (
+        <div className="mb-6">
+          <FlaggedTermsManager />
+        </div>
+      )}
 
       {error && (
         <p className="mb-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
