@@ -251,7 +251,18 @@ service cloud.firestore {
         && request.resource.data.authorUid == request.auth.uid
         && request.resource.data.get('kind', '') == 'flag_alert'
       );
-      allow update, delete: if isWebmaster();
+      // Webmasters can update any field. Any signed-in user may update
+      // ONLY the review-tracking fields on an existing flag_alert
+      // (reviewStatus / resolutionNotes / reviewedBy / reviewedAt) so the
+      // team can triage alerts without needing webmaster role.
+      allow update: if isWebmaster() || (
+        isSignedIn()
+        && resource != null
+        && resource.data.get('kind', '') == 'flag_alert'
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['reviewStatus','resolutionNotes','reviewedBy','reviewedAt','reviewedByName'])
+      );
+      allow delete: if isWebmaster();
     }
 
     // -------- flagged terms (profanity / abuse wordlist) --------
