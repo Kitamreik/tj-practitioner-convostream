@@ -206,7 +206,7 @@ const BottomNav: React.FC = () => {
           <div className="grid grid-cols-2 gap-2 py-4">
             {moreItems
               .filter((i) => {
-                if (i.roles && !(profile && i.roles.includes(profile.role))) return false;
+                if (i.roles && !(profile && (i.roles as string[]).includes(profile.role))) return false;
                 if (i.webmasterOrEscalated && !escalated) return false;
                 return true;
               })
