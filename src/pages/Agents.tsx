@@ -43,7 +43,7 @@ interface AgentRow {
   uid: string;
   email: string;
   displayName: string;
-  role: "agent" | "admin" | "webmaster";
+  role: "agent" | "admin" | "webmaster" | "customer";
   escalatedAccess?: boolean;
   createdAt?: any;
   /** True when this row is a manually-added local agent (no Firestore doc). */
@@ -63,12 +63,14 @@ const roleLabel: Record<AgentRow["role"], string> = {
   agent: "Agent",
   admin: "Admin",
   webmaster: "Webmaster",
+  customer: "Customer",
 };
 
 const roleVariant: Record<AgentRow["role"], "default" | "secondary" | "outline"> = {
   agent: "secondary",
   admin: "default",
   webmaster: "outline",
+  customer: "outline",
 };
 
 const Agents: React.FC = () => {

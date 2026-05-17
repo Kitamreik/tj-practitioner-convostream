@@ -110,8 +110,8 @@ export interface AgentRoleChangeEntry {
   personId: string;
   name: string;
   email?: string;
-  fromRole: "agent" | "admin" | "webmaster";
-  toRole: "agent" | "admin" | "webmaster";
+  fromRole: "agent" | "admin" | "webmaster" | "customer";
+  toRole: "agent" | "admin" | "webmaster" | "customer";
   actor: string;
 }
 

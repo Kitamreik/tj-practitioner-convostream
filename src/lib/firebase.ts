@@ -6,6 +6,11 @@ import {
   type Firestore,
 } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
+import {
+  initializeAppCheck,
+  ReCaptchaV3Provider,
+  type AppCheck,
+} from "firebase/app-check";
 
 // Firebase web config — values are publishable, but we read them from
 // `import.meta.env` so deploys can swap projects (staging/prod) without a
@@ -20,31 +25,53 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID ?? "1:188671429501:web:6cc334bd11784ccdc79a14",
 };
 
-// Reuse the existing FirebaseApp across Vite HMR reloads. Calling
-// `initializeApp` twice (or importing this module under two different
-// specifiers) creates a second Firestore client that shares the same listen
-// channel as the first, which manifests as the "INTERNAL ASSERTION FAILED
-// (ID: ca9 / b815) — Unexpected state" crash on watch-stream target changes.
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 
-// Use `initializeFirestore` with auto-detected long polling. The Lovable
-// preview proxy occasionally drops the WebChannel stream mid-flight; auto
-// long-polling lets the SDK fall back transparently and prevents the
-// duplicate-target-ADD race that triggers the ca9/b815 assertion. Guard
-// against double-initialization in the same way as `initializeApp`.
+// -------- Firebase App Check (reCAPTCHA v3) --------
+// Reduces abuse of the public widget, contact form, and callable Cloud
+// Functions by attaching an attestation token to every Firebase request.
+// Enabled when `VITE_RECAPTCHA_V3_SITE_KEY` is set in the environment;
+// otherwise we no-op so local dev / preview deploys keep working before the
+// webmaster has registered a site key in Firebase Console → App Check.
+//
+// Server enforcement: Cloud Functions opt-in via `enforceAppCheck: true` in
+// the callable options (see `functions/src/index.ts`).
+let _appCheck: AppCheck | null = null;
+const RECAPTCHA_V3_SITE_KEY = import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY as string | undefined;
+if (typeof window !== "undefined" && RECAPTCHA_V3_SITE_KEY) {
+  try {
+    // Debug token: when running in the Lovable preview or localhost, allow a
+    // debug token so engineers can exercise enforced endpoints without a
+    // real reCAPTCHA challenge. Set
+    // `self.FIREBASE_APPCHECK_DEBUG_TOKEN = true` in DevTools to enroll.
+    if (
+      import.meta.env.DEV &&
+      typeof (globalThis as Record<string, unknown>).FIREBASE_APPCHECK_DEBUG_TOKEN === "undefined"
+    ) {
+      (globalThis as Record<string, unknown>).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    }
+    _appCheck = initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(RECAPTCHA_V3_SITE_KEY),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (err) {
+    // Most commonly: App Check already initialized via HMR. Safe to ignore.
+    console.warn("App Check init skipped:", err);
+  }
+}
+export const appCheck = _appCheck;
+
 let _db: Firestore;
 try {
   _db = initializeFirestore(app, {
     experimentalAutoDetectLongPolling: true,
   });
 } catch {
-  // Already initialized (e.g. via HMR) — reuse the existing instance.
   _db = getFirestore(app);
 }
 export const db = _db;
 
-// Cloud Functions client — default region us-central1 matches firebase-functions v2.
 export const functions = getFunctions(app);
 export default app;
