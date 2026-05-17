@@ -33,6 +33,10 @@ import Legal from "./pages/Legal";
 import WidgetInstall from "./pages/WidgetInstall";
 import CookieConsent from "./components/CookieConsent";
 import FirestoreErrorBoundary from "./components/FirestoreErrorBoundary";
+import PortalLogin from "./pages/portal/PortalLogin";
+import PortalSignup from "./pages/portal/PortalSignup";
+import PortalConversations from "./pages/portal/PortalConversations";
+import PortalThread from "./pages/portal/PortalThread";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +49,9 @@ const ProtectedRoute: React.FC<{
   const { user, profile, loading } = useAuth();
   if (loading) return <div className="flex h-screen items-center justify-center text-muted-foreground">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
+  // Customers must never reach internal/agent routes — bounce them to the
+  // customer portal instead.
+  if (profile?.role === "customer") return <Navigate to="/portal/conversations" replace />;
   // Gate: any signed-in user whose account is pending or rejected goes to the
   // /pending-approval landing page until a webmaster/admin reviews them.
   // Webmasters bypass the gate so they can always reach Settings to review.
