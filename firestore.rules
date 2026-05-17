@@ -136,18 +136,50 @@ service cloud.firestore {
 
     // -------- conversations + messages + notes --------
     match /conversations/{convoId} {
-      allow read, write: if isSignedIn();
+      // Internal team: full read/write. Customers: read-only and only if
+      // they own the thread (customerUid matches their auth uid).
+      allow read: if isInternal()
+        || (isCustomer()
+            && resource != null
+            && resource.data.get('customerUid', '') == request.auth.uid);
+      // Customers may only update narrow fields (e.g. unreadByCustomer
+      // counter); they cannot mutate routing/ownership. Internal users
+      // retain full write access.
+      allow create: if isInternal();
+      allow update: if isInternal()
+        || (isCustomer()
+            && resource != null
+            && resource.data.get('customerUid', '') == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['unreadByCustomer', 'lastCustomerViewedAt']));
+      allow delete: if isInternal();
+
       match /messages/{msgId} {
-        allow read, write: if isSignedIn();
+        // Same scoping as the parent thread.
+        allow read: if isInternal()
+          || (isCustomer()
+              && get(/databases/$(database)/documents/conversations/$(convoId))
+                   .data.get('customerUid', '') == request.auth.uid);
+        // Customers cannot create new messages from the portal (the chat
+        // widget pipes through `postWidgetMessage` Cloud Function instead).
+        allow create: if isInternal();
+        // Updates: internal users can mutate freely; customers can ONLY
+        // patch the rating fields on an existing message in their thread.
+        allow update: if isInternal()
+          || (
+            isCustomer()
+            && get(/databases/$(database)/documents/conversations/$(convoId))
+                 .data.get('customerUid', '') == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['rating', 'ratingStars', 'ratingNote', 'ratedByUid', 'ratedAt'])
+          );
+        allow delete: if isInternal();
       }
-      // Conversation notes — shared annotations visible to the whole team.
-      // Any signed-in teammate can create/read/edit a note. Deletes are
-      // restricted to admins and webmasters so agents can't accidentally
-      // erase context the rest of the team relies on. UI mirrors this by
-      // hiding the trash button for plain agents.
+      // Conversation notes — internal team only. Customers must never see
+      // private agent annotations.
       match /notes/{noteId} {
-        allow read, create, update: if isSignedIn();
-        allow delete: if isSignedIn() && (
+        allow read, create, update: if isInternal();
+        allow delete: if isInternal() && (
           (
             exists(/databases/$(database)/documents/users/$(request.auth.uid))
             && (
@@ -161,7 +193,26 @@ service cloud.firestore {
 
     // -------- people --------
     match /people/{personId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isInternal();
+    }
+
+    // -------- customerSignupLog/{id} — admin-visible portal signup log -----
+    // Auto-approved customer signups append a row here for visibility. Reads
+    // are limited to internal team; create is open to authed signups (the
+    // doc carries the caller's own uid for auditing).
+    match /customerSignupLog/{id} {
+      allow read: if isInternal();
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // -------- widgetActivity/{id} — public-widget telemetry ----------------
+    // Written by widget Cloud Functions via admin SDK (admin SDK bypasses
+    // rules). Internal team reads for analytics; no client writes.
+    match /widgetActivity/{id} {
+      allow read: if isInternal();
+      allow write: if false;
     }
 
     // -------- per-user notifications --------
