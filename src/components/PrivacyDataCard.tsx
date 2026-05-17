@@ -39,7 +39,7 @@ const PrivacyDataCard: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `ConvoHub-export-${user.uid}.json`;
+      a.download = `KitTJServices-export-${user.uid}.json`;
       a.click();
       URL.revokeObjectURL(url);
       toast({ title: "Export ready", description: "Your data has been downloaded." });
