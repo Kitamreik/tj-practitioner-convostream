@@ -1869,7 +1869,7 @@ const SettingsPage: React.FC = () => {
                     className="gap-1.5"
                   >
                     <Send className="h-4 w-4" />
-                    {testingSlackWebhook ? "Pinging…" : "Test ping"}
+                    {testingSlackWebhook ? "Pinging…" : "Test Slack alert"}
                   </Button>
                 )}
                 {slackConfigured && (
