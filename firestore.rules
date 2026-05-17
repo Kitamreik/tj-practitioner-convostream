@@ -41,6 +41,22 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // True when the signed-in caller has the `customer` role. Customers
+    // belong to the public portal — they must never have read/write access
+    // to internal collections (audit logs, agent rosters, integrations,
+    // notifications fan-out, etc.). Internal-only rules pair `isSignedIn()`
+    // with `!isCustomer()`.
+    function isCustomer() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'customer';
+    }
+
+    // Convenience: any internal teammate role (anything except customer).
+    function isInternal() {
+      return isSignedIn() && !isCustomer();
+    }
+
     // True when the incoming write does NOT touch the `role` field, OR the
     // value being written matches what's already there.
     function roleUnchanged() {
