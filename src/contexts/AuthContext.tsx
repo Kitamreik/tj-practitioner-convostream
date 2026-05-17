@@ -146,6 +146,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   firebaseUser.displayName?.trim() ||
                   (firebaseUser.email ? firebaseUser.email.split("@")[0] : "Unnamed user"),
                 createdAt: new Date(),
+                // Legacy accounts that pre-date the approval gate are auto-approved
+                // — otherwise we'd lock out the entire existing team.
+                approvalStatus: "approved",
               };
               await setDoc(doc(db, "users", firebaseUser.uid), {
                 ...fallback,
