@@ -2480,6 +2480,10 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
 
+        {/* Signup verification — webmaster + admin */}
+        <SignupApprovalsPanel />
+        <AgentRosterPanel />
+
         {/* Shared rename-agent dialog (controlled) */}
         {isWebmaster && (
           <Dialog
