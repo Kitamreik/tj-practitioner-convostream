@@ -150,7 +150,7 @@ const AppSidebar: React.FC = () => {
     : "Not yet run";
 
   const filteredNav = navItems.filter((item) => {
-    if (item.roles && !(profile && item.roles.includes(profile.role))) return false;
+    if (item.roles && !(profile && (item.roles as string[]).includes(profile.role))) return false;
     if (item.webmasterOrEscalated) {
       const allowed = profile?.role === "webmaster" || profile?.escalatedAccess === true;
       if (!allowed) return false;
