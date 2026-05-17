@@ -29,6 +29,12 @@ const COPY: Record<UserRole, { label: string; tooltip: string; tone: string; Ico
     tone: "border-border bg-muted text-foreground",
     Icon: UserIcon,
   },
+  customer: {
+    label: "Customer",
+    tooltip: "Customer portal — view your conversation history and rate replies.",
+    tone: "border-border bg-muted text-foreground",
+    Icon: UserIcon,
+  },
 };
 
 interface Props {
