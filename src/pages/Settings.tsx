@@ -48,6 +48,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { AccountActionsMenu } from "@/components/AccountActionsMenu";
 import PrivacyDataCard from "@/components/PrivacyDataCard";
 import EnvVarsPanel from "@/components/EnvVarsPanel";
+import AgentRosterPanel from "@/components/AgentRosterPanel";
+import SignupApprovalsPanel from "@/components/SignupApprovalsPanel";
 import CallRecordingSettings from "@/components/CallRecordingSettings";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
