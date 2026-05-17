@@ -3098,3 +3098,122 @@ export const rotateWidgetSiteKey = onCall(CALLABLE_OPTS, async (request) => {
   });
   return { ok: true, siteKey };
 });
+
+// =============================================================================
+// Firebase Auth authorized domains — webmaster-managed via Identity Toolkit
+// Admin API. Lets a webmaster add/remove the hostnames that may receive
+// `sendPasswordResetEmail` continueURL redirects (and other Firebase Auth
+// continue URLs) without leaving the app.
+// =============================================================================
+
+import { GoogleAuth } from "google-auth-library";
+
+const identityToolkitAuth = new GoogleAuth({
+  scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+});
+
+function identityToolkitConfigUrl(): string {
+  const projectId =
+    process.env.GCLOUD_PROJECT ||
+    process.env.GCP_PROJECT ||
+    admin.app().options.projectId;
+  if (!projectId) {
+    throw new HttpsError("internal", "Project ID unavailable in runtime env.");
+  }
+  return `https://identitytoolkit.googleapis.com/admin/v2/projects/${projectId}/config`;
+}
+
+async function fetchAuthorizedDomains(): Promise<string[]> {
+  const client = await identityToolkitAuth.getClient();
+  const res = await client.request<{ authorizedDomains?: string[] }>({
+    url: identityToolkitConfigUrl(),
+    method: "GET",
+  });
+  return Array.isArray(res.data?.authorizedDomains) ? res.data!.authorizedDomains! : [];
+}
+
+function normalizeDomain(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  let v = raw.trim().toLowerCase();
+  if (!v) return null;
+  v = v.replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/:\d+$/, "");
+  // Hostname validation: labels separated by dots, alphanumeric + hyphen.
+  if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/.test(v)
+      && v !== "localhost") {
+    return null;
+  }
+  return v;
+}
+
+export const listAuthorizedDomains = onCall(CALLABLE_OPTS, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  await requireAdminOrWebmaster(request.auth.uid);
+  try {
+    const domains = await fetchAuthorizedDomains();
+    return { domains };
+  } catch (err: any) {
+    logger.error("listAuthorizedDomains failed", err);
+    throw new HttpsError("internal", err?.message || "Failed to list authorized domains.");
+  }
+});
+
+export const addAuthorizedDomain = onCall(CALLABLE_OPTS, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  await requireAdminOrWebmaster(request.auth.uid);
+  const domain = normalizeDomain((request.data as any)?.domain);
+  if (!domain) throw new HttpsError("invalid-argument", "Invalid domain.");
+  try {
+    const existing = await fetchAuthorizedDomains();
+    if (existing.includes(domain)) return { ok: true, domains: existing, alreadyPresent: true };
+    const next = [...existing, domain];
+    const client = await identityToolkitAuth.getClient();
+    await client.request({
+      url: `${identityToolkitConfigUrl()}?updateMask=authorizedDomains`,
+      method: "PATCH",
+      data: { authorizedDomains: next },
+    });
+    await db.collection("auditLogs").add({
+      action: "auth.authorizedDomain.add",
+      actor: request.auth.uid,
+      domain,
+      at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { ok: true, domains: next };
+  } catch (err: any) {
+    logger.error("addAuthorizedDomain failed", err);
+    throw new HttpsError("internal", err?.message || "Failed to add authorized domain.");
+  }
+});
+
+export const removeAuthorizedDomain = onCall(CALLABLE_OPTS, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+  await requireAdminOrWebmaster(request.auth.uid);
+  const domain = normalizeDomain((request.data as any)?.domain);
+  if (!domain) throw new HttpsError("invalid-argument", "Invalid domain.");
+  // Protect default Firebase-required domains.
+  const PROTECTED = new Set(["localhost"]);
+  if (PROTECTED.has(domain) || domain.endsWith(".firebaseapp.com") || domain.endsWith(".web.app")) {
+    throw new HttpsError("failed-precondition", "This domain is required by Firebase and cannot be removed.");
+  }
+  try {
+    const existing = await fetchAuthorizedDomains();
+    const next = existing.filter((d) => d !== domain);
+    if (next.length === existing.length) return { ok: true, domains: existing, notPresent: true };
+    const client = await identityToolkitAuth.getClient();
+    await client.request({
+      url: `${identityToolkitConfigUrl()}?updateMask=authorizedDomains`,
+      method: "PATCH",
+      data: { authorizedDomains: next },
+    });
+    await db.collection("auditLogs").add({
+      action: "auth.authorizedDomain.remove",
+      actor: request.auth.uid,
+      domain,
+      at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { ok: true, domains: next };
+  } catch (err: any) {
+    logger.error("removeAuthorizedDomain failed", err);
+    throw new HttpsError("internal", err?.message || "Failed to remove authorized domain.");
+  }
+});
