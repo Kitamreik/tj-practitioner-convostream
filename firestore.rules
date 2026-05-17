@@ -88,7 +88,7 @@ service cloud.firestore {
       // Any signed-in teammate can read profiles (used to render assignee
       // names in /agents, /conversations, /agent-logs, /analytics, and to
       // fan-out broadcast notifications).
-      allow read: if isSignedIn();
+      allow read: if isInternal();
 
       // Create: self-signup. The Cloud Function strips role; rules also forbid
       // a client-supplied non-default role unless the caller is a webmaster.
@@ -130,7 +130,7 @@ service cloud.firestore {
     // Webmaster + admin can read/write; everyone signed in can read so the
     // local-fallback cache stays warm for offline signup verification.
     match /agentRoster/{id} {
-      allow read: if isSignedIn();
+      allow read: if isInternal();
       allow create, update, delete: if isWebmaster() || isAdmin();
     }
 
@@ -255,18 +255,18 @@ service cloud.firestore {
     }
     match /noteAudit/{id} {
       allow create: if isSignedIn();
-      allow read: if isSignedIn();
+      allow read: if isInternal();
       allow delete: if isWebmaster();
       allow update: if false;
     }
     match /peopleAudit/{id} {
       allow create: if isSignedIn();
-      allow read: if isSignedIn();
+      allow read: if isInternal();
       allow delete: if isWebmaster();
       allow update: if false;
     }
     match /retentionAudit/{id} {
-      allow read: if isSignedIn();
+      allow read: if isInternal();
       allow write: if false; // server only
     }
 
@@ -312,10 +312,10 @@ service cloud.firestore {
 
     // -------- integrations / google voice activity --------
     match /googleVoiceActivity/{id} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isInternal();
     }
     match /integrations/{id} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isInternal();
     }
     // Per-user integrations credentials subcollection.
     // Path: users/{uid}/integrations/{credId} — owner-only read/write so each
@@ -330,7 +330,7 @@ service cloud.firestore {
     // status tag), or delete. Defense-in-depth: even if a malicious client
     // tried to write, the rule rejects without the webmaster role.
     match /staff_updates/{id} {
-      allow read: if isSignedIn();
+      allow read: if isInternal();
       // Webmasters can post any update. Any signed-in user can post a
       // system-generated `flag_alert` (the client-side profanity detector
       // writes these); the rule pins authorUid to the caller and the kind
@@ -362,7 +362,7 @@ service cloud.firestore {
     // needs to read the list (to scan their outgoing messages); only
     // webmasters can add or remove terms.
     match /flagged_terms/{id} {
-      allow read: if isSignedIn();
+      allow read: if isInternal();
       allow create, update, delete: if isWebmaster();
     }
 
@@ -373,7 +373,7 @@ service cloud.firestore {
     // uploader's localStorage. Any signed-in user can create their own entry;
     // admins/webmasters can edit any entry's status; everyone can read.
     match /file_recordings/{id} {
-      allow read: if isSignedIn();
+      allow read: if isInternal();
       allow create: if isSignedIn()
         && request.resource.data.uploaderUid == request.auth.uid;
       allow update, delete: if isSignedIn()
@@ -412,7 +412,7 @@ service cloud.firestore {
     // Admins and webmasters can edit; every signed-in teammate can read so
     // the legend tooltip is consistent across the app.
     match /iconDescriptions/{iconKey} {
-      allow read: if isSignedIn();
+      allow read: if isInternal();
       allow create, update: if isSignedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && (
@@ -451,7 +451,7 @@ service cloud.firestore {
     // separate doc (`slackAlertStatus`) and only admin/webmaster get to
     // read the doc that contains the URL.
     match /appSettings/slackAlertStatus {
-      allow read: if isSignedIn();
+      allow read: if isInternal();
       allow write: if false; // server only (setSlackWebhookUrlAdmin)
     }
     // Slack incoming-webhook URL — webmaster-only read, server-only write.
@@ -469,7 +469,7 @@ service cloud.firestore {
       // already trust each other (same workspace) keep convenience while
       // we transition to the server-side proxy. Future hardening: split
       // this into a webmaster-only doc when the proxy is the sole writer.
-      allow read: if isSignedIn();
+      allow read: if isInternal();
       // Writes: webmasters can change anything, admins limited to setting
       // the cooldown + the webhook fields via the callable (server-side,
       // bypasses rules). We still allow direct writes for admins so the
@@ -483,7 +483,7 @@ service cloud.firestore {
     // Call recording retention policy — admins + webmasters can edit.
     // Everyone signed in needs to read so the consent banner renders.
     match /appSettings/callRecordings {
-      allow read: if isSignedIn();
+      allow read: if isInternal();
       allow create, update: if isWebmaster()
         || (isSignedIn()
             && exists(/databases/$(database)/documents/users/$(request.auth.uid))
@@ -616,7 +616,7 @@ service cloud.firestore {
     // Reads: any signed-in teammate (admin UI lists configs).
     // Writes: admins + webmasters only.
     match /widgetConfigs/{tenantId} {
-      allow read: if isSignedIn();
+      allow read: if isInternal();
       allow create, update: if isWebmaster() || isAdmin();
       allow delete: if isWebmaster();
     }
