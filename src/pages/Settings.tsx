@@ -1553,7 +1553,9 @@ const SettingsPage: React.FC = () => {
         </div>
         <p className="text-muted-foreground mt-1 text-sm md:text-base">Manage your account and preferences</p>
       </div>
-      <PrivacyDataCard />
+      {/* Privacy & Data is hidden for plain agents — they don't need
+          GDPR/CCPA export/delete controls on the work-only account. */}
+      {profile?.role !== "agent" && <PrivacyDataCard />}
 
       {/* Mobile-only quick jump nav for webmasters — the desktop sidebar is
           hidden on phones, so without this they'd have to scroll the entire
@@ -1655,9 +1657,8 @@ const SettingsPage: React.FC = () => {
         </div>
 
         {/* Environment variables — read-only, masked diagnostics for VITE_* keys.
-            Visible to every signed-in user so anyone can verify .env.local
-            actually shipped without having to crack open devtools. */}
-        <EnvVarsPanel />
+            Hidden for agent accounts (not relevant for day-to-day inbox work). */}
+        {profile?.role !== "agent" && <EnvVarsPanel />}
 
         {/* Call recording & retention policy — admin/webmaster editable;
             agents see read-only. Drives the consent banner and auto-purge
