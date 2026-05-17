@@ -124,6 +124,18 @@ const App = () => (
                 {/* Approval gate landing page — reached when an approved profile
                     is missing or the account was rejected. Requires sign-in. */}
                 <Route path="/pending-approval" element={<PendingApproval />} />
+                {/* ----------- Customer portal route tree ----------- */}
+                <Route path="/portal/login" element={<AuthRoute><PortalLogin /></AuthRoute>} />
+                <Route path="/portal/signup" element={<AuthRoute><PortalSignup /></AuthRoute>} />
+                <Route path="/portal" element={<Navigate to="/portal/conversations" replace />} />
+                <Route
+                  path="/portal/conversations"
+                  element={<CustomerRoute><PortalConversations /></CustomerRoute>}
+                />
+                <Route
+                  path="/portal/conversations/:id"
+                  element={<CustomerRoute><PortalThread /></CustomerRoute>}
+                />
                 <Route
                   element={
                     <ProtectedRoute>
