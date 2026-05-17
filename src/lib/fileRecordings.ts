@@ -39,7 +39,7 @@ export interface FileRecording {
   status: RecordingStatus;
   uploaderUid: string;
   uploaderName: string;
-  uploaderRole: "agent" | "admin" | "webmaster";
+  uploaderRole: "agent" | "admin" | "webmaster" | "customer";
   createdAt: number;
   updatedAt: number;
   notes: RecordingNote[];
