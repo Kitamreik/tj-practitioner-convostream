@@ -28,6 +28,10 @@ interface UserProfile {
   escalatedAccess?: boolean;
   /** Set by webmasters; unlocks the Support call-center home and chat-mod powers. */
   supportAccess?: boolean;
+  /** Gates platform access — set by signup; mutated by webmaster/admin review. */
+  approvalStatus?: "pending" | "approved" | "rejected";
+  /** Optional reviewer note when approvalStatus = "rejected". */
+  rejectionNote?: string;
 }
 
 interface AuthContextType {

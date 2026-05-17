@@ -37,7 +37,7 @@ const SignupApprovalsPanel: React.FC = () => {
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [busyUid, setBusyUid] = useState<string | null>(null);
   const [rejectionNote, setRejectionNote] = useState<Record<string, string>>({});
-  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const cardRefs = useRef<Record<string, HTMLLIElement | null>>({});
 
   useEffect(() => {
     if (!canReview) return;
