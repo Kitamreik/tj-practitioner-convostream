@@ -7,7 +7,7 @@ import SupportEmailDialog from "@/components/SupportEmailDialog";
 
 /**
  * Global site footer rendered on every authenticated page (via AppLayout)
- * and on public pages (Login, Forgot/Reset Password, Bootstrap, /legal/*).
+ * and on public pages (Login, Forgot/Reset Password, /legal/*).
  *
  * Sections collapse to a single column on mobile and expand to four on md+.
  * Honors the warm aesthetic: amber/coral primary, Playfair headings, DM Sans body.
