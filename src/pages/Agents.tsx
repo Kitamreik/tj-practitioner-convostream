@@ -43,7 +43,7 @@ interface AgentRow {
   uid: string;
   email: string;
   displayName: string;
-  role: "agent" | "admin" | "webmaster";
+  role: "agent" | "admin" | "webmaster" | "customer";
   escalatedAccess?: boolean;
   createdAt?: any;
   /** True when this row is a manually-added local agent (no Firestore doc). */
