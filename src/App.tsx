@@ -72,9 +72,25 @@ const ProtectedRoute: React.FC<{
 };
 
 const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   if (loading) return <div className="flex h-screen items-center justify-center text-muted-foreground">Loading...</div>;
-  if (user) return <Navigate to="/" replace />;
+  if (user) {
+    if (profile?.role === "customer") return <Navigate to="/portal/conversations" replace />;
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+};
+
+/**
+ * Customer-only gate for /portal/* routes. Sends unauthenticated users to
+ * the customer sign-in page and bounces internal roles (agent/admin/
+ * webmaster) back to the staff app so the portal is purely customer-facing.
+ */
+const CustomerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, profile, loading } = useAuth();
+  if (loading) return <div className="flex h-screen items-center justify-center text-muted-foreground">Loading...</div>;
+  if (!user) return <Navigate to="/portal/login" replace />;
+  if (profile && profile.role !== "customer") return <Navigate to="/" replace />;
   return <>{children}</>;
 };
 
