@@ -50,6 +50,7 @@ import PrivacyDataCard from "@/components/PrivacyDataCard";
 import EnvVarsPanel from "@/components/EnvVarsPanel";
 import AgentRosterPanel from "@/components/AgentRosterPanel";
 import SignupApprovalsPanel from "@/components/SignupApprovalsPanel";
+import AuthorizedDomainsPanel from "@/components/AuthorizedDomainsPanel";
 import CallRecordingSettings from "@/components/CallRecordingSettings";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
