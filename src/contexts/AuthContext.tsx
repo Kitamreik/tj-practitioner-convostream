@@ -192,18 +192,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, displayName: string) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     // SECURITY: Role is NEVER accepted from the client. New accounts always get the
-    // baseline "agent" role (no access to webmaster-gated routes like /audit, and
-    // no access to escalated routes — Integrations / Analytics / Gmail API).
-    // Privileged roles must be granted out-of-band by an existing webmaster via a
-    // server-side Cloud Function (`promoteToWebmaster`) with proper authorization.
+    // baseline "agent" role AND are placed in approvalStatus "pending" until a
+    // webmaster/admin verifies the displayName against the agentRoster. Privileged
+    // roles must be granted out-of-band by `promoteToWebmaster`.
+    let rosterMatch: { matched: boolean; entryId?: string; matchedOn?: string } = { matched: false };
+    try {
+      const { verifyAgainstRoster } = await import("@/lib/agentRoster");
+      const v = verifyAgainstRoster({ displayName, email });
+      rosterMatch = { matched: v.matched, entryId: v.entry?.id, matchedOn: v.matchedOn };
+    } catch {
+      /* roster check is best-effort */
+    }
     const profileData: UserProfile = {
       uid: cred.user.uid,
       email,
       role: "agent",
       displayName,
       createdAt: new Date(),
+      approvalStatus: "pending",
     };
-    await setDoc(doc(db, "users", cred.user.uid), profileData);
+    await setDoc(doc(db, "users", cred.user.uid), {
+      ...profileData,
+      createdAt: serverTimestamp(),
+      rosterMatch,
+    });
     setProfile(profileData);
     // Clean up any matching local-roster placeholder so the same agent doesn't
     // appear twice (once as a real Firestore user, once as a local entry).
