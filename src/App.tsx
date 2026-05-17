@@ -24,7 +24,7 @@ import StaffUpdates from "./pages/StaffUpdates";
 import FileRecordings from "./pages/FileRecordings";
 import IconKey from "./pages/IconKey";
 import Chat from "./pages/Chat";
-import Bootstrap from "./pages/Bootstrap";
+import PendingApproval from "./pages/PendingApproval";
 import SmokeTest from "./pages/SmokeTest";
 import SecurityFindings from "./pages/SecurityFindings";
 import CallAnalytics from "./pages/CallAnalytics";
@@ -45,6 +45,17 @@ const ProtectedRoute: React.FC<{
   const { user, profile, loading } = useAuth();
   if (loading) return <div className="flex h-screen items-center justify-center text-muted-foreground">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
+  // Gate: any signed-in user whose account is pending or rejected goes to the
+  // /pending-approval landing page until a webmaster/admin reviews them.
+  // Webmasters bypass the gate so they can always reach Settings to review.
+  if (
+    profile &&
+    profile.role !== "webmaster" &&
+    profile.approvalStatus &&
+    profile.approvalStatus !== "approved"
+  ) {
+    return <Navigate to="/pending-approval" replace />;
+  }
   if (roles && profile && !roles.includes(profile.role)) return <Navigate to="/" replace />;
   if (escalated) {
     const allowed = profile?.role === "webmaster" || profile?.escalatedAccess === true;
@@ -87,8 +98,9 @@ const App = () => (
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/legal/:slug" element={<Legal />} />
                 <Route path="/legal" element={<Legal />} />
-                {/* First-time setup. Cloud Function gates by webmaster existence. */}
-                <Route path="/bootstrap" element={<Bootstrap />} />
+                {/* Approval gate landing page — reached when an approved profile
+                    is missing or the account was rejected. Requires sign-in. */}
+                <Route path="/pending-approval" element={<PendingApproval />} />
                 <Route
                   element={
                     <ProtectedRoute>
