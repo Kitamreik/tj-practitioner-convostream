@@ -16,7 +16,7 @@ import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "@/lib/firebase";
 import { listLocalAgents, removeLocalAgent } from "@/lib/localAgents";
 
-export type UserRole = "agent" | "admin" | "webmaster";
+export type UserRole = "agent" | "admin" | "webmaster" | "customer";
 
 interface UserProfile {
   uid: string;
