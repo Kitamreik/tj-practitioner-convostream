@@ -48,8 +48,8 @@ const CALLABLE_OPTS = {
     /^https:\/\/.*\.lovable\.dev$/,
     /^https:\/\/.*\.web\.app$/,
     /^https:\/\/.*\.firebaseapp\.com$/,
-    /^https:\/\/Kit TJ Services ClientHub\.dev$/,
-    /^https:\/\/.*\.Kit TJ Services ClientHub\.dev$/,
+    /^https:\/\/convohub\.dev$/,
+    /^https:\/\/.*\.convohub\.dev$/,
     "http://localhost:5173",
     "http://localhost:8080",
     "http://localhost:3000",
@@ -1625,17 +1625,17 @@ export const slackEvents = onRequest(
     // 2. URL verification handshake (one-time, when configuring the app).
     if (body.type === "url_verification" && typeof body.challenge === "string") {
       res.status(200).json({ challenge: body.challenge });
-      returKit TJ Services ClientHubKit TJ Services ClientHub
+      return;
     }
 
     // 3. Event callback — only act on user-authored message-like events.
     if (body.type === "event_callback" && body.event) {
       const event = body.event as {
-        type?: string;Kit TJ Services ClientHub
+        type?: string;
         text?: string;
         user?: string;
         bot_id?: string;
-        channeKit TJ Services ClientHubng;
+        channel?: string;
         ts?: string;
         team?: string;
       };
@@ -1704,7 +1704,7 @@ export const slackEvents = onRequest(
 export const pushGmailMessageToConvoHub = onCall(CALLABLE_OPTS, async (request) => {
   // Wrap the entire body in a try/catch so any unexpected throw becomes a
   // structured `HttpsError` instead of the generic "internal" the SDK
-  // surfaces by default — that opaqueKit TJ Services ClientHubal" was the user-visible
+  // surfaces by default — that opaque "internal" was the user-visible
   // "Push to ConvoHub failed internally" toast.
   try {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
@@ -1727,7 +1727,7 @@ export const pushGmailMessageToConvoHub = onCall(CALLABLE_OPTS, async (request) 
     if (!messageId || !from) {
       throw new HttpsError("invalid-argument", "messageId and from are required.");
     }
-Kit TJ Services ClientHub
+
     // ---- Dedup ---------------------------------------------------------------
     // BUG FIX: the previous dup-check queried `externalId == "gmail:${messageId}"`
     // but `findOrCreateConversation` writes `"gmail-thread:${threadId}"`. The
@@ -1738,7 +1738,7 @@ Kit TJ Services ClientHub
     // (`gmail-thread:{id}`) keys. The thread-level lookup also inspects the
     // `importedGmailMessages` map so we treat any prior import of *this*
     // message id within an existing thread as a no-op.
-    const externalThreadId = `gmailKit TJ Services ClientHub${threadId}`;
+    const externalThreadId = `gmail-thread:${threadId}`;
     const externalMessageId = `gmail-msg:${messageId}`;
     const dupByMessage = await db
       .collection("conversations")
@@ -1747,8 +1747,8 @@ Kit TJ Services ClientHub
       .get();
     if (!dupByMessage.empty) {
       return { ok: true, alreadyImported: true, conversationId: dupByMessage.docs[0].id };
-    }Kit TJ Services ClientHub
-    const dupByThread = await dbKit TJ Services ClientHub
+    }
+    const dupByThread = await db
       .collection("conversations")
       .where("externalId", "==", externalThreadId)
       .limit(1)
@@ -1756,7 +1756,7 @@ Kit TJ Services ClientHub
     if (!dupByThread.empty) {
       const existing = dupByThread.docs[0];
       const importedMap = (existing.data() as { importedGmailMessages?: Record<string, boolean> })
-        .importedGmailMessages |Kit TJ Services ClientHub
+        .importedGmailMessages || {};
       if (importedMap[messageId]) {
         return { ok: true, alreadyImported: true, conversationId: existing.id };
       }
@@ -2161,7 +2161,7 @@ async function runScheduledHealthCheckBody(): Promise<{
         ((credSnap.data() as Record<string, { connected?: boolean; fields?: Record<string, string> }> | undefined)?.[
           "google-voice"
         ]) || null;
-      if (gv?.connKit TJ Services ClientHub gv.fields?.voiceNumber) {
+      if (gv?.connected && gv.fields?.voiceNumber) {
         voiceConfigUid = w.id;
         break;
       }
@@ -2401,14 +2401,14 @@ export const pingWebmasterSlack = onCall(CALLABLE_OPTS, async (request) => {
       { retryAt: rateOk.retryAt }
     );
   }
-Kit TJ Services ClientHub
+
   // ---- Resolve webhook URL ---------------------------------------------------
   const webhookUrl = await readSlackWebhookUrl();
   if (!webhookUrl) {
     // Roll back the rate-limit write so the user isn't penalised for a
     // misconfiguration outside their control.
     await rateLimitRef.delete().catch(() => undefined);
-    throw new HttpsError(Kit TJ Services ClientHub
+    throw new HttpsError(
       "failed-precondition",
       "Slack webhook is not configured. Ask an admin or webmaster to set it on Settings."
     );
@@ -2423,7 +2423,7 @@ Kit TJ Services ClientHub
     const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.Kit TJ Services ClientHuby(slackBody),
+      body: JSON.stringify(slackBody),
     });
     if (!res.ok) {
       slackOk = false;
@@ -2542,7 +2542,7 @@ export const cloneIntegrationsToSupport = onCall(CALLABLE_OPTS, async (request) 
     logger.error("cloneIntegrationsToSupport: prefs clone failed", err);
   }
 
-  // Audit trail.Kit TJ Services ClientHub
+  // Audit trail.
   await db.collection("roleGrants").add({
     targetUid,
     targetEmail,
@@ -2617,7 +2617,7 @@ function widgetCors(req: any, res: any, allowedOrigins?: string[]) {
 }
 
 function sanitize(s: unknown, max = 500): string {
-  if (typeof s !== "string") return "";Kit TJ Services ClientHub
+  if (typeof s !== "string") return "";
   return s.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, max);
 }
 

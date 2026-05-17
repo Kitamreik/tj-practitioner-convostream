@@ -1553,7 +1553,9 @@ const SettingsPage: React.FC = () => {
         </div>
         <p className="text-muted-foreground mt-1 text-sm md:text-base">Manage your account and preferences</p>
       </div>
-      <PrivacyDataCard />
+      {/* Privacy & Data is hidden for plain agents — they don't need
+          GDPR/CCPA export/delete controls on the work-only account. */}
+      {profile?.role !== "agent" && <PrivacyDataCard />}
 
       {/* Mobile-only quick jump nav for webmasters — the desktop sidebar is
           hidden on phones, so without this they'd have to scroll the entire
@@ -1655,9 +1657,8 @@ const SettingsPage: React.FC = () => {
         </div>
 
         {/* Environment variables — read-only, masked diagnostics for VITE_* keys.
-            Visible to every signed-in user so anyone can verify .env.local
-            actually shipped without having to crack open devtools. */}
-        <EnvVarsPanel />
+            Hidden for agent accounts (not relevant for day-to-day inbox work). */}
+        {profile?.role !== "agent" && <EnvVarsPanel />}
 
         {/* Call recording & retention policy — admin/webmaster editable;
             agents see read-only. Drives the consent banner and auto-purge
@@ -1703,29 +1704,44 @@ const SettingsPage: React.FC = () => {
               </Select>
             </div>
 
-            {/* Recent contact events — last 10. Lets the on-call webmaster
-                spot patterns at a glance ("agent X has texted me 4 times
+            {/* Internal agent logs — append-only record of every webmaster
+                ping (call, text, or in-app Slack/internal alert) so the
+                on-call webmaster can spot patterns ("agent X pinged 4 times
                 this hour, something's wrong") without leaving /settings.
-                Append-only log; webmaster-only by Firestore rules. */}
-            <div className="mt-6 border-t border-border pt-4">
+                Webmaster-only by Firestore rules. */}
+            <div id="internal-agent-logs" className="mt-6 border-t border-border pt-4">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-medium text-foreground flex items-center gap-1.5">
                   <History className="h-3.5 w-3.5 text-muted-foreground" />
-                  Recent webmaster contacts
+                  Internal agent logs
                 </p>
                 <span className="text-[11px] text-muted-foreground">
                   Last {Math.min(10, recentContacts.length) || 0} of 10
                 </span>
               </div>
+              <p className="text-[11px] text-muted-foreground mb-2">
+                Local record of every Ping Webmaster action (call, text, or in-app alert).
+              </p>
               {recentContacts.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-3">
-                  No contacts logged yet — events appear here as agents tap Call/Text.
+                  No entries yet — events appear here as agents tap Call, Text, or Ping.
                 </p>
               ) : (
                 <ul className="divide-y divide-border rounded-md border border-border bg-muted/30">
                   {recentContacts.map((ev) => {
                     const when = ev.createdAt?.toDate ? ev.createdAt.toDate() : null;
-                    const channelLabel = ev.channel === "call" ? "Called" : "Texted";
+                    const channelLabel =
+                      ev.channel === "call"
+                        ? "Called"
+                        : ev.channel === "text"
+                          ? "Texted"
+                          : "Pinged";
+                    const ChannelIcon =
+                      ev.channel === "call"
+                        ? PhoneCall
+                        : ev.channel === "text"
+                          ? MessageCircle
+                          : Send;
                     return (
                       <li
                         key={ev.id}
@@ -1735,11 +1751,7 @@ const SettingsPage: React.FC = () => {
                           variant={ev.channel === "call" ? "default" : "secondary"}
                           className="gap-1 shrink-0"
                         >
-                          {ev.channel === "call" ? (
-                            <PhoneCall className="h-3 w-3" />
-                          ) : (
-                            <MessageCircle className="h-3 w-3" />
-                          )}
+                          <ChannelIcon className="h-3 w-3" />
                           {channelLabel}
                         </Badge>
                         <span className="font-medium text-foreground truncate min-w-0">

@@ -377,13 +377,13 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
       });
       toast({
         title: res.ok
-          ? "✅ Slack channel pinged"
+          ? "✅ Webmaster pinged"
           : res.rateLimited
             ? "⏳ Cooldown active"
-            : "❌ Slack alert not sent",
+            : "❌ Ping not sent",
         description: res.ok
-          ? "Webhook test ping accepted — the team channel was notified."
-          : res.error || "Webhook isn't configured. Ask an admin or webmaster to set it on Settings.",
+          ? "Logged to Internal agent logs and routed to the team Slack channel."
+          : res.error || "Couldn't log this ping. Ask an admin or webmaster to check Settings.",
         variant: res.ok ? undefined : "destructive",
       });
     } finally {
@@ -407,10 +407,10 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
             disabled={slackSending}
             onClick={handleSlackAlert}
             className="w-full justify-center gap-2 border-primary/40 text-primary hover:bg-primary/10"
-            aria-label="Send a test Slack ping to the team channel"
+            aria-label="Ping the on-call webmaster — logs to Internal agent logs and sends a Slack alert"
           >
             <Bell className="h-4 w-4" />
-            {compact ? null : <span>{slackSending ? "Pinging…" : "Ping Slack channel"}</span>}
+            {compact ? null : <span>{slackSending ? "Pinging…" : "Ping webmaster"}</span>}
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top" className="text-xs max-w-[260px]">

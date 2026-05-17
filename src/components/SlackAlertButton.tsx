@@ -91,8 +91,8 @@ const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
         setNextAllowedAt(next);
         writeLocalNextAllowed(profile.uid, next);
         toast({
-          title: "✅ Slack channel pinged",
-          description: "Webhook test ping accepted — alert delivered to the team channel.",
+          title: "✅ Webmaster pinged",
+          description: "Logged to Internal agent logs and routed to the team Slack channel.",
         });
       } else if (res.rateLimited && res.nextAllowedAt) {
         setNextAllowedAt(res.nextAllowedAt);
@@ -104,8 +104,8 @@ const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
         });
       } else {
         toast({
-          title: "Slack alert not sent",
-          description: res.error || "Unable to reach the Slack channel. Try again or check Settings.",
+          title: "Ping not sent",
+          description: res.error || "Couldn't log this ping. Try again or check Settings.",
           variant: "destructive",
         });
       }
@@ -114,12 +114,12 @@ const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
     }
   };
 
-  const label = sending ? "Pinging…" : inCooldown ? `Wait ${formatCountdown(remainingMs)}` : "Ping Slack";
+  const label = sending ? "Pinging…" : inCooldown ? `Wait ${formatCountdown(remainingMs)}` : "Ping webmaster";
   const description = inCooldown
     ? `Cooldown active. Next allowed in ${formatCountdown(remainingMs)}.`
     : profile.role === "webmaster"
-      ? "Send a bare Slack alert to the team channel for testing."
-      : "Send a bare Slack alert to the team channel for webmaster review.";
+      ? "Log an internal agent-log entry and ping the team Slack channel."
+      : "Log this to Internal agent logs and notify the on-call webmaster on Slack.";
 
   return (
     <Tooltip>

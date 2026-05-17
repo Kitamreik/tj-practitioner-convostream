@@ -27,7 +27,7 @@ export interface WebmasterContactEvent {
   id: string;
   agentUid: string;
   agentName: string;
-  channel: "call" | "text";
+  channel: "call" | "text" | "slack-alert" | string;
   route: string;
   createdAt: { toDate?: () => Date } | null;
 }
