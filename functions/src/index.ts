@@ -54,6 +54,15 @@ const CALLABLE_OPTS = {
     "http://localhost:8080",
     "http://localhost:3000",
   ],
+  // App Check: when APP_CHECK_ENFORCE=true is set on the function env, every
+  // callable rejects requests missing a valid App Check token. We default to
+  // `false` so existing widgets and contact-form callers keep working until
+  // the webmaster has registered a reCAPTCHA v3 site key on every client
+  // surface. Flip to `true` after rollout to fully harden public endpoints.
+  enforceAppCheck: process.env.APP_CHECK_ENFORCE === "true",
+  // Consume the App Check token when present even while not enforcing —
+  // prevents replay across requests once tokens are flowing.
+  consumeAppCheckToken: true,
 } as const;
 
 // =============================================================================
