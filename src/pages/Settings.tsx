@@ -48,6 +48,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { AccountActionsMenu } from "@/components/AccountActionsMenu";
 import PrivacyDataCard from "@/components/PrivacyDataCard";
 import EnvVarsPanel from "@/components/EnvVarsPanel";
+import AgentRosterPanel from "@/components/AgentRosterPanel";
+import SignupApprovalsPanel from "@/components/SignupApprovalsPanel";
 import CallRecordingSettings from "@/components/CallRecordingSettings";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -1869,7 +1871,7 @@ const SettingsPage: React.FC = () => {
                     className="gap-1.5"
                   >
                     <Send className="h-4 w-4" />
-                    {testingSlackWebhook ? "Pinging…" : "Test ping"}
+                    {testingSlackWebhook ? "Pinging…" : "Test Slack alert"}
                   </Button>
                 )}
                 {slackConfigured && (
@@ -2477,6 +2479,10 @@ const SettingsPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Signup verification — webmaster + admin */}
+        <SignupApprovalsPanel />
+        <AgentRosterPanel />
 
         {/* Shared rename-agent dialog (controlled) */}
         {isWebmaster && (

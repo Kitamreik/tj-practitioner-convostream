@@ -83,15 +83,39 @@ service cloud.firestore {
           || isWebmaster()
         )
         && !('escalatedAccess' in request.resource.data)
-        && !('supportAccess' in request.resource.data);
+        && !('supportAccess' in request.resource.data)
+        && (
+          !('approvalStatus' in request.resource.data)
+          || request.resource.data.approvalStatus == 'pending'
+        );
 
       // Update: self can update profile fields but cannot mutate `role`,
-      // `escalatedAccess`, or `supportAccess`. Webmasters can update anything.
-      allow update: if (isSelf(uid) && roleUnchanged() && escalatedAccessUnchanged() && supportAccessUnchanged())
-        || isWebmaster();
+      // `escalatedAccess`, `supportAccess`, or `approvalStatus`. Webmasters
+      // and admins can update anything (admins included so they can approve
+      // pending signups from Settings).
+      allow update: if (
+          isSelf(uid)
+          && roleUnchanged()
+          && escalatedAccessUnchanged()
+          && supportAccessUnchanged()
+          && (
+            !('approvalStatus' in request.resource.data)
+            || (resource != null && resource.data.get('approvalStatus', 'approved') == request.resource.data.approvalStatus)
+          )
+        )
+        || isWebmaster()
+        || isAdmin();
 
       // Delete: webmaster only.
       allow delete: if isWebmaster();
+    }
+
+    // -------- agentRoster/{id} — signup verification source ----------------
+    // Webmaster + admin can read/write; everyone signed in can read so the
+    // local-fallback cache stays warm for offline signup verification.
+    match /agentRoster/{id} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isWebmaster() || isAdmin();
     }
 
     // -------- conversations + messages + notes --------
@@ -399,7 +423,7 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
       allow delete: if isWebmaster();
     }
-    // Catch-all for any other appSettings docs we add lKit TJ Services ClientHubebmaster only.
+    // Catch-all for any other appSettings docs we add later — webmaster only.
     // IMPORTANT: read is webmaster-only so this rule does NOT widen access to
     // sensitive docs like `slackWebhookSecret`. Docs that need broader read
     // access must declare their own explicit `match` block above.
@@ -407,7 +431,6 @@ service cloud.firestore {
       allow read: if isWebmaster();
       allow create, update, delete: if isWebmaster();
     }
-Kit TJ Services ClientHub
     // -------- slackAlertRateLimits/{uid} — server-side rate-limit ledger --
     // Tracks the timestamp of each user's most recent Slack alert. Written
     // exclusively by the `pingWebmasterSlack` callable via the admin SDK.

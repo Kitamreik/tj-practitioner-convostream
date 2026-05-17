@@ -69,28 +69,36 @@ const SiteFooter: React.FC<{ variant?: "app" | "public" }> = ({ variant = "app" 
         <div>
           <h3 className="text-sm font-semibold text-foreground">Contact</h3>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-            <li>
-              <SupportEmailDialog
-                trigger={
-                  <button
-                    type="button"
-                    className="text-left hover:text-primary"
-                  >
-                    Email support (templates)
-                  </button>
-                }
-              />
-            </li>
-            <li>
-              <a href="mailto:support@convohub.dev" className="hover:text-primary">
-                support@convohub.dev
-              </a>
-            </li>
-            <li>
-              <a href="mailto:privacy@convohub.dev" className="hover:text-primary">
-                privacy@convohub.dev
-              </a>
-            </li>
+            {signedIn ? (
+              <>
+                <li>
+                  <SupportEmailDialog
+                    trigger={
+                      <button
+                        type="button"
+                        className="text-left hover:text-primary"
+                      >
+                        Email support (templates)
+                      </button>
+                    }
+                  />
+                </li>
+                <li>
+                  <a href="mailto:support@convohub.dev" className="hover:text-primary">
+                    support@convohub.dev
+                  </a>
+                </li>
+                <li>
+                  <a href="mailto:privacy@convohub.dev" className="hover:text-primary">
+                    privacy@convohub.dev
+                  </a>
+                </li>
+              </>
+            ) : (
+              <li className="text-xs text-muted-foreground">
+                Sign in to reach the support team.
+              </li>
+            )}
             <li>
               <button
                 type="button"
