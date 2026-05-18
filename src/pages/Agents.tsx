@@ -287,7 +287,7 @@ const Agents: React.FC = () => {
           personId: row.uid,
           name: row.displayName,
           email: row.email,
-          source: row.isLocal ? "manual" : "firestore",
+          source: "manual",
           actor: profile?.displayName || profile?.email || "Unknown",
         });
         toast({ title: "Agent archived", description: `${row.displayName} moved to the Archive.` });
