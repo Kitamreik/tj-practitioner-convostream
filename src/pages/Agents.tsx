@@ -36,8 +36,10 @@ import {
   subscribeLocalAgents,
   type LocalAgent,
 } from "@/lib/localAgents";
-import { Trash2 } from "lucide-react";
+import { Trash2, Archive as ArchiveIcon } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { logAgentCreated, logAgentRemoved, logAgentRoleChanged } from "@/lib/auditLog";
+import { archiveAgent, archiveCustomer } from "@/lib/archiveQueue";
 
 interface AgentRow {
   uid: string;
