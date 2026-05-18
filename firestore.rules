@@ -213,6 +213,27 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // -------- archive queue: customers + agents ----------------------------
+    // Admin/webmaster archive customers and remove agents with a required
+    // documented `reason`. The Archive page lists these alongside archived
+    // conversations. Only admins/webmasters can create or restore.
+    match /archivedCustomers/{id} {
+      allow read: if isInternal();
+      allow create: if (isAdmin() || isWebmaster())
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() > 0;
+      allow delete: if isAdmin() || isWebmaster();
+      allow update: if false;
+    }
+    match /archivedAgents/{id} {
+      allow read: if isInternal();
+      allow create: if (isAdmin() || isWebmaster())
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() > 0;
+      allow delete: if isAdmin() || isWebmaster();
+      allow update: if false;
+    }
+
     // -------- widgetActivity/{id} — public-widget telemetry ----------------
     // Written by widget Cloud Functions via admin SDK (admin SDK bypasses
     // rules). Internal team reads for analytics; no client writes.
