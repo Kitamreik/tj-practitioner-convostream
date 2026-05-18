@@ -789,7 +789,7 @@ const Agents: React.FC = () => {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={isWebmaster ? 6 : 5} className="px-6 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={isWebmaster || isAdmin ? 6 : 5} className="px-6 py-10 text-center text-sm text-muted-foreground">
                     No agents found.
                   </td>
                 </tr>
