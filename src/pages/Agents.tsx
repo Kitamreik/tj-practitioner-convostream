@@ -590,7 +590,19 @@ const Agents: React.FC = () => {
                         </Button>
                       </div>
                     )}
-                    {isWebmaster && !u.isLocal && u.role !== "webmaster" && u.uid !== profile?.uid && (
+                    {(isWebmaster || isAdmin) && u.role === "customer" && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openArchive("customer", u)}
+                          className="gap-1.5 h-8"
+                        >
+                          <ArchiveIcon className="h-3.5 w-3.5" /> Archive customer
+                        </Button>
+                      </div>
+                    )}
+                    {isWebmaster && !u.isLocal && u.role !== "webmaster" && u.role !== "customer" && u.uid !== profile?.uid && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {u.role === "agent" ? (
                           <Button
@@ -613,6 +625,14 @@ const Agents: React.FC = () => {
                             <ArrowDown className="h-3.5 w-3.5" /> Set as agent
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openArchive("agent", u)}
+                          className="gap-1.5 h-8"
+                        >
+                          <ArchiveIcon className="h-3.5 w-3.5" /> Remove
+                        </Button>
                       </div>
                     )}
                   </div>
