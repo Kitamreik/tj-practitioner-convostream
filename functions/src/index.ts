@@ -2882,7 +2882,7 @@ export const postWidgetMessage = onRequest({ cors: false }, async (req, res) => 
     });
     if (!allowed) { res.status(429).json({ error: "rate-limited" }); return; }
 
-    await db.collection(`conversations/${conversationId}/messages`).add({
+    const msgRef = await db.collection(`conversations/${conversationId}/messages`).add({
       body: text,
       sender: "customer",
       senderName: data.customerName || "Customer",
@@ -2895,6 +2895,23 @@ export const postWidgetMessage = onRequest({ cors: false }, async (req, res) => 
       lastMessagePreview: text.slice(0, 140),
       status: data.status === "closed" ? "waiting" : data.status || "waiting",
     });
+
+    await db.collection("widgetActivity").add({
+      type: "message",
+      conversationId,
+      threadId: conversationId,
+      messageId: msgRef.id,
+      tenantId: tenantId || null,
+      customerUid: data.customerUid ?? null,
+      customerEmail: data.customerEmail ?? null,
+      customerName: data.customerName ?? null,
+      visitorId: data.visitorId ?? null,
+      direction: "inbound",
+      length: text.length,
+      origin: reqOrigin || null,
+      ipHash,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch((e) => logger.warn("widgetActivity message failed", e));
 
     res.status(200).json({ ok: true });
   } catch (err) {
