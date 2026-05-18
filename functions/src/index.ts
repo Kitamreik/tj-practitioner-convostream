@@ -2786,6 +2786,24 @@ export const createWidgetConversation = onRequest({ cors: false }, async (req, r
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     }).catch(() => undefined);
 
+    // Widget activity telemetry — per-thread/per-user analytics used by the
+    // admin Analytics + Activity Logs panels.
+    await db.collection("widgetActivity").add({
+      type: "conversation_created",
+      conversationId: conversationRef.id,
+      threadId: conversationRef.id,
+      tenantId,
+      customerUid: null,
+      customerEmail: email,
+      customerName: name,
+      visitorId,
+      origin: reqOrigin || null,
+      pageUrl: pageUrl || null,
+      userAgent: sanitize(req.headers["user-agent"], 300),
+      ipHash,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch((e) => logger.warn("widgetActivity create failed", e));
+
     logger.info("createWidgetConversation: created", { conversationId: conversationRef.id, tenantId, reqOrigin });
     res.status(200).json({ ok: true, conversationId: conversationRef.id, visitorId, visitorToken });
   } catch (err) {
