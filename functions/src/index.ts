@@ -2786,6 +2786,24 @@ export const createWidgetConversation = onRequest({ cors: false }, async (req, r
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     }).catch(() => undefined);
 
+    // Widget activity telemetry — per-thread/per-user analytics used by the
+    // admin Analytics + Activity Logs panels.
+    await db.collection("widgetActivity").add({
+      type: "conversation_created",
+      conversationId: conversationRef.id,
+      threadId: conversationRef.id,
+      tenantId,
+      customerUid: null,
+      customerEmail: email,
+      customerName: name,
+      visitorId,
+      origin: reqOrigin || null,
+      pageUrl: pageUrl || null,
+      userAgent: sanitize(req.headers["user-agent"], 300),
+      ipHash,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch((e) => logger.warn("widgetActivity create failed", e));
+
     logger.info("createWidgetConversation: created", { conversationId: conversationRef.id, tenantId, reqOrigin });
     res.status(200).json({ ok: true, conversationId: conversationRef.id, visitorId, visitorToken });
   } catch (err) {
@@ -2864,7 +2882,7 @@ export const postWidgetMessage = onRequest({ cors: false }, async (req, res) => 
     });
     if (!allowed) { res.status(429).json({ error: "rate-limited" }); return; }
 
-    await db.collection(`conversations/${conversationId}/messages`).add({
+    const msgRef = await db.collection(`conversations/${conversationId}/messages`).add({
       body: text,
       sender: "customer",
       senderName: data.customerName || "Customer",
@@ -2877,6 +2895,23 @@ export const postWidgetMessage = onRequest({ cors: false }, async (req, res) => 
       lastMessagePreview: text.slice(0, 140),
       status: data.status === "closed" ? "waiting" : data.status || "waiting",
     });
+
+    await db.collection("widgetActivity").add({
+      type: "message",
+      conversationId,
+      threadId: conversationId,
+      messageId: msgRef.id,
+      tenantId: tenantId || null,
+      customerUid: data.customerUid ?? null,
+      customerEmail: data.customerEmail ?? null,
+      customerName: data.customerName ?? null,
+      visitorId: data.visitorId ?? null,
+      direction: "inbound",
+      length: text.length,
+      origin: reqOrigin || null,
+      ipHash,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch((e) => logger.warn("widgetActivity message failed", e));
 
     res.status(200).json({ ok: true });
   } catch (err) {

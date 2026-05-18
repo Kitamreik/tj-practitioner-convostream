@@ -36,8 +36,10 @@ import {
   subscribeLocalAgents,
   type LocalAgent,
 } from "@/lib/localAgents";
-import { Trash2 } from "lucide-react";
+import { Trash2, Archive as ArchiveIcon } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { logAgentCreated, logAgentRemoved, logAgentRoleChanged } from "@/lib/auditLog";
+import { archiveAgent, archiveCustomer } from "@/lib/archiveQueue";
 
 interface AgentRow {
   uid: string;
@@ -66,6 +68,13 @@ const roleLabel: Record<AgentRow["role"], string> = {
   customer: "Customer",
 };
 
+const roleOrder: Record<AgentRow["role"], number> = {
+  agent: 0,
+  admin: 1,
+  webmaster: 2,
+  customer: 3,
+};
+
 const roleVariant: Record<AgentRow["role"], "default" | "secondary" | "outline"> = {
   agent: "secondary",
   admin: "default",
@@ -77,6 +86,7 @@ const Agents: React.FC = () => {
   const { profile } = useAuth();
   const isMobile = useIsMobile();
   const isWebmaster = profile?.role === "webmaster";
+  const isAdmin = profile?.role === "admin";
 
   const [users, setUsers] = useState<AgentRow[]>([]);
   const [search, setSearch] = useState("");
@@ -226,12 +236,81 @@ const Agents: React.FC = () => {
               (u.email || "").toLowerCase().includes(search.toLowerCase())
         )
         .sort((a, b) => {
-          // Webmasters last so the working agents float to the top.
-          const order = { agent: 0, admin: 1, webmaster: 2 } as const;
-          return order[a.role] - order[b.role] || a.displayName.localeCompare(b.displayName);
+          return (roleOrder[a.role] ?? 99) - (roleOrder[b.role] ?? 99)
+            || a.displayName.localeCompare(b.displayName);
         }),
     [merged, search]
   );
+
+  // Archive-with-reason dialog state. Reused for both agent removal and
+  // customer archiving — the `kind` field controls which collection the
+  // confirm handler writes to.
+  const [archiveTarget, setArchiveTarget] = useState<
+    | { kind: "agent"; row: AgentRow }
+    | { kind: "customer"; row: AgentRow }
+    | null
+  >(null);
+  const [archiveReason, setArchiveReason] = useState("");
+  const [archiveBusy, setArchiveBusy] = useState(false);
+
+  const openArchive = (kind: "agent" | "customer", row: AgentRow) => {
+    setArchiveTarget({ kind, row } as any);
+    setArchiveReason("");
+  };
+
+  const confirmArchive = async () => {
+    if (!archiveTarget) return;
+    const reason = archiveReason.trim();
+    if (!reason) {
+      toast({ title: "Reason required", description: "Add a documented note before archiving.", variant: "destructive" });
+      return;
+    }
+    const actor = {
+      uid: profile?.uid,
+      displayName: profile?.displayName,
+      email: profile?.email,
+      role: profile?.role,
+    };
+    setArchiveBusy(true);
+    try {
+      if (archiveTarget.kind === "agent") {
+        const row = archiveTarget.row;
+        await archiveAgent({
+          id: row.uid,
+          email: row.email,
+          displayName: row.displayName,
+          isLocal: !!row.isLocal,
+          reason,
+          actor,
+        });
+        if (row.isLocal) removeLocalAgent(row.uid);
+        logAgentRemoved({
+          personId: row.uid,
+          name: row.displayName,
+          email: row.email,
+          source: "manual",
+          actor: profile?.displayName || profile?.email || "Unknown",
+        });
+        toast({ title: "Agent archived", description: `${row.displayName} moved to the Archive.` });
+      } else {
+        const row = archiveTarget.row;
+        await archiveCustomer({
+          uid: row.uid,
+          email: row.email,
+          displayName: row.displayName,
+          reason,
+          actor,
+        });
+        toast({ title: "Customer archived", description: `${row.displayName} moved to the Archive.` });
+      }
+      setArchiveTarget(null);
+      setArchiveReason("");
+    } catch (e: any) {
+      toast({ title: "Archive failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setArchiveBusy(false);
+    }
+  };
 
   const handleAddLocalAgent = () => {
     const res = addLocalAgent({ email: addEmail, displayName: addName });
@@ -249,16 +328,9 @@ const Agents: React.FC = () => {
   };
 
   const handleRemoveLocalAgent = (row: AgentRow) => {
-    removeLocalAgent(row.uid);
-    // Audit the removal so /audit shows the full lifecycle alongside creations.
-    logAgentRemoved({
-      personId: row.uid,
-      name: row.displayName,
-      email: row.email,
-      source: "manual",
-      actor: profile?.displayName || profile?.email || "Unknown",
-    });
-    toast({ title: "Agent removed", description: `${row.displayName} removed from local roster.` });
+    // Routed through the archive-with-reason dialog so every removal has a
+    // documented note in the Archive page (admin/webmaster requirement).
+    openArchive("agent", row);
   };
 
   const setRole = async (acc: AgentRow, target: "agent" | "admin") => {
@@ -519,7 +591,19 @@ const Agents: React.FC = () => {
                         </Button>
                       </div>
                     )}
-                    {isWebmaster && !u.isLocal && u.role !== "webmaster" && u.uid !== profile?.uid && (
+                    {(isWebmaster || isAdmin) && u.role === "customer" && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openArchive("customer", u)}
+                          className="gap-1.5 h-8"
+                        >
+                          <ArchiveIcon className="h-3.5 w-3.5" /> Archive customer
+                        </Button>
+                      </div>
+                    )}
+                    {isWebmaster && !u.isLocal && u.role !== "webmaster" && u.role !== "customer" && u.uid !== profile?.uid && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {u.role === "agent" ? (
                           <Button
@@ -542,6 +626,14 @@ const Agents: React.FC = () => {
                             <ArrowDown className="h-3.5 w-3.5" /> Set as agent
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openArchive("agent", u)}
+                          className="gap-1.5 h-8"
+                        >
+                          <ArchiveIcon className="h-3.5 w-3.5" /> Remove
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -575,7 +667,7 @@ const Agents: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Access
                 </th>
-                {isWebmaster && (
+                {(isWebmaster || isAdmin) && (
                   <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     Actions
                   </th>
@@ -630,9 +722,19 @@ const Agents: React.FC = () => {
                         "Standard"
                       )}
                     </td>
-                    {isWebmaster && (
+                    {(isWebmaster || isAdmin) && (
                       <td className="px-6 py-4 text-right">
-                        {u.isLocal ? (
+                        {u.role === "customer" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openArchive("customer", u)}
+                            className="gap-1.5 h-8"
+                            aria-label={`Archive ${u.displayName}`}
+                          >
+                            <ArchiveIcon className="h-3.5 w-3.5" /> Archive
+                          </Button>
+                        ) : u.isLocal ? (
                           <Button
                             size="sm"
                             variant="outline"
@@ -642,7 +744,7 @@ const Agents: React.FC = () => {
                           >
                             <Trash2 className="h-3.5 w-3.5" /> Remove
                           </Button>
-                        ) : u.role !== "webmaster" && u.uid !== profile?.uid ? (
+                        ) : isWebmaster && u.role !== "webmaster" && u.uid !== profile?.uid ? (
                           <div className="flex items-center justify-end gap-2">
                             {u.role === "agent" ? (
                               <Button
@@ -665,6 +767,15 @@ const Agents: React.FC = () => {
                                 <ArrowDown className="h-3.5 w-3.5" /> Set as agent
                               </Button>
                             )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openArchive("agent", u)}
+                              className="gap-1.5 h-8"
+                              aria-label={`Remove ${u.displayName}`}
+                            >
+                              <ArchiveIcon className="h-3.5 w-3.5" /> Remove
+                            </Button>
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
@@ -678,7 +789,7 @@ const Agents: React.FC = () => {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={isWebmaster ? 6 : 5} className="px-6 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={isWebmaster || isAdmin ? 6 : 5} className="px-6 py-10 text-center text-sm text-muted-foreground">
                     No agents found.
                   </td>
                 </tr>
@@ -857,6 +968,47 @@ const Agents: React.FC = () => {
             ) : (
               <Button onClick={closeInviteDialog}>Done</Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Archive-with-reason dialog (shared by agent removal + customer archive).
+          A documented note is required so the Archive page shows accountability. */}
+      <Dialog open={!!archiveTarget} onOpenChange={(v) => !v && !archiveBusy && setArchiveTarget(null)}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>
+              {archiveTarget?.kind === "customer" ? "Archive customer" : "Remove agent"}
+            </DialogTitle>
+            <DialogDescription>
+              {archiveTarget
+                ? `${archiveTarget.row.displayName || archiveTarget.row.email} will be moved to the Archive. A documented reason is required.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="archive-reason">Reason (required)</Label>
+            <Textarea
+              id="archive-reason"
+              value={archiveReason}
+              onChange={(e) => setArchiveReason(e.target.value)}
+              placeholder="Why is this entry being archived?"
+              rows={4}
+              disabled={archiveBusy}
+              autoFocus
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setArchiveTarget(null)} disabled={archiveBusy}>
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmArchive}
+              disabled={archiveBusy || !archiveReason.trim()}
+              className="gap-1.5"
+            >
+              {archiveBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArchiveIcon className="h-4 w-4" />}
+              {archiveTarget?.kind === "customer" ? "Archive customer" : "Remove agent"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
