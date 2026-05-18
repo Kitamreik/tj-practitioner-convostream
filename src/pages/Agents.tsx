@@ -235,12 +235,81 @@ const Agents: React.FC = () => {
               (u.email || "").toLowerCase().includes(search.toLowerCase())
         )
         .sort((a, b) => {
-          // Webmasters last so the working agents float to the top.
-          const order = { agent: 0, admin: 1, webmaster: 2 } as const;
-          return order[a.role] - order[b.role] || a.displayName.localeCompare(b.displayName);
+          return (roleOrder[a.role] ?? 99) - (roleOrder[b.role] ?? 99)
+            || a.displayName.localeCompare(b.displayName);
         }),
     [merged, search]
   );
+
+  // Archive-with-reason dialog state. Reused for both agent removal and
+  // customer archiving — the `kind` field controls which collection the
+  // confirm handler writes to.
+  const [archiveTarget, setArchiveTarget] = useState<
+    | { kind: "agent"; row: AgentRow }
+    | { kind: "customer"; row: AgentRow }
+    | null
+  >(null);
+  const [archiveReason, setArchiveReason] = useState("");
+  const [archiveBusy, setArchiveBusy] = useState(false);
+
+  const openArchive = (kind: "agent" | "customer", row: AgentRow) => {
+    setArchiveTarget({ kind, row } as any);
+    setArchiveReason("");
+  };
+
+  const confirmArchive = async () => {
+    if (!archiveTarget) return;
+    const reason = archiveReason.trim();
+    if (!reason) {
+      toast({ title: "Reason required", description: "Add a documented note before archiving.", variant: "destructive" });
+      return;
+    }
+    const actor = {
+      uid: profile?.uid,
+      displayName: profile?.displayName,
+      email: profile?.email,
+      role: profile?.role,
+    };
+    setArchiveBusy(true);
+    try {
+      if (archiveTarget.kind === "agent") {
+        const row = archiveTarget.row;
+        await archiveAgent({
+          id: row.uid,
+          email: row.email,
+          displayName: row.displayName,
+          isLocal: !!row.isLocal,
+          reason,
+          actor,
+        });
+        if (row.isLocal) removeLocalAgent(row.uid);
+        logAgentRemoved({
+          personId: row.uid,
+          name: row.displayName,
+          email: row.email,
+          source: row.isLocal ? "manual" : "firestore",
+          actor: profile?.displayName || profile?.email || "Unknown",
+        });
+        toast({ title: "Agent archived", description: `${row.displayName} moved to the Archive.` });
+      } else {
+        const row = archiveTarget.row;
+        await archiveCustomer({
+          uid: row.uid,
+          email: row.email,
+          displayName: row.displayName,
+          reason,
+          actor,
+        });
+        toast({ title: "Customer archived", description: `${row.displayName} moved to the Archive.` });
+      }
+      setArchiveTarget(null);
+      setArchiveReason("");
+    } catch (e: any) {
+      toast({ title: "Archive failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setArchiveBusy(false);
+    }
+  };
 
   const handleAddLocalAgent = () => {
     const res = addLocalAgent({ email: addEmail, displayName: addName });
