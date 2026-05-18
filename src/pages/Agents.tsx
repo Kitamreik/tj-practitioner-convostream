@@ -86,6 +86,7 @@ const Agents: React.FC = () => {
   const { profile } = useAuth();
   const isMobile = useIsMobile();
   const isWebmaster = profile?.role === "webmaster";
+  const isAdmin = profile?.role === "admin";
 
   const [users, setUsers] = useState<AgentRow[]>([]);
   const [search, setSearch] = useState("");
