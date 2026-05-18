@@ -971,6 +971,47 @@ const Agents: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Archive-with-reason dialog (shared by agent removal + customer archive).
+          A documented note is required so the Archive page shows accountability. */}
+      <Dialog open={!!archiveTarget} onOpenChange={(v) => !v && !archiveBusy && setArchiveTarget(null)}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>
+              {archiveTarget?.kind === "customer" ? "Archive customer" : "Remove agent"}
+            </DialogTitle>
+            <DialogDescription>
+              {archiveTarget
+                ? `${archiveTarget.row.displayName || archiveTarget.row.email} will be moved to the Archive. A documented reason is required.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="archive-reason">Reason (required)</Label>
+            <Textarea
+              id="archive-reason"
+              value={archiveReason}
+              onChange={(e) => setArchiveReason(e.target.value)}
+              placeholder="Why is this entry being archived?"
+              rows={4}
+              disabled={archiveBusy}
+              autoFocus
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setArchiveTarget(null)} disabled={archiveBusy}>
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmArchive}
+              disabled={archiveBusy || !archiveReason.trim()}
+              className="gap-1.5"
+            >
+              {archiveBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArchiveIcon className="h-4 w-4" />}
+              {archiveTarget?.kind === "customer" ? "Archive customer" : "Remove agent"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PullToRefresh>
   );
 };
