@@ -68,6 +68,13 @@ const roleLabel: Record<AgentRow["role"], string> = {
   customer: "Customer",
 };
 
+const roleOrder: Record<AgentRow["role"], number> = {
+  agent: 0,
+  admin: 1,
+  webmaster: 2,
+  customer: 3,
+};
+
 const roleVariant: Record<AgentRow["role"], "default" | "secondary" | "outline"> = {
   agent: "secondary",
   admin: "default",
