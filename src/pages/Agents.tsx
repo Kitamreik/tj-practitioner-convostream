@@ -327,16 +327,9 @@ const Agents: React.FC = () => {
   };
 
   const handleRemoveLocalAgent = (row: AgentRow) => {
-    removeLocalAgent(row.uid);
-    // Audit the removal so /audit shows the full lifecycle alongside creations.
-    logAgentRemoved({
-      personId: row.uid,
-      name: row.displayName,
-      email: row.email,
-      source: "manual",
-      actor: profile?.displayName || profile?.email || "Unknown",
-    });
-    toast({ title: "Agent removed", description: `${row.displayName} removed from local roster.` });
+    // Routed through the archive-with-reason dialog so every removal has a
+    // documented note in the Archive page (admin/webmaster requirement).
+    openArchive("agent", row);
   };
 
   const setRole = async (acc: AgentRow, target: "agent" | "admin") => {
