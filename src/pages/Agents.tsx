@@ -722,9 +722,19 @@ const Agents: React.FC = () => {
                         "Standard"
                       )}
                     </td>
-                    {isWebmaster && (
+                    {(isWebmaster || isAdmin) && (
                       <td className="px-6 py-4 text-right">
-                        {u.isLocal ? (
+                        {u.role === "customer" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openArchive("customer", u)}
+                            className="gap-1.5 h-8"
+                            aria-label={`Archive ${u.displayName}`}
+                          >
+                            <ArchiveIcon className="h-3.5 w-3.5" /> Archive
+                          </Button>
+                        ) : u.isLocal ? (
                           <Button
                             size="sm"
                             variant="outline"
@@ -734,7 +744,7 @@ const Agents: React.FC = () => {
                           >
                             <Trash2 className="h-3.5 w-3.5" /> Remove
                           </Button>
-                        ) : u.role !== "webmaster" && u.uid !== profile?.uid ? (
+                        ) : isWebmaster && u.role !== "webmaster" && u.uid !== profile?.uid ? (
                           <div className="flex items-center justify-end gap-2">
                             {u.role === "agent" ? (
                               <Button
@@ -757,6 +767,15 @@ const Agents: React.FC = () => {
                                 <ArrowDown className="h-3.5 w-3.5" /> Set as agent
                               </Button>
                             )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openArchive("agent", u)}
+                              className="gap-1.5 h-8"
+                              aria-label={`Remove ${u.displayName}`}
+                            >
+                              <ArchiveIcon className="h-3.5 w-3.5" /> Remove
+                            </Button>
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
