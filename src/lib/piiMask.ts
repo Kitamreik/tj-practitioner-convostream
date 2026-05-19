@@ -11,7 +11,7 @@
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const PHONE = /(\+?\d{1,2}[-\s.]?)?\(?\d{3}\)?[-\s.]?\d{3}[-\s.]?\d{4}/g;
 const SSN = /\b\d{3}-\d{2}-\d{4}\b/g;
-const DOB = /\b(0?[1-9]|1[0-2])[/\\-.](0?[1-9]|[12]\d|3[01])[/\\-.](19|20)\d{2}\b/g;
+const DOB = /\b(0?[1-9]|1[0-2])[/.\-](0?[1-9]|[12]\d|3[01])[/.\-](19|20)\d{2}\b/g;
 const STREET =
   /\b\d{1,5}\s+([A-Z][a-z]+\s){1,3}(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Way|Place|Pl|Terrace|Ter|Parkway|Pkwy|Highway|Hwy)\b\.?/g;
 const ZIP = /\b\d{5}(-\d{4})?\b/g;
