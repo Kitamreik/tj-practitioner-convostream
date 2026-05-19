@@ -292,9 +292,31 @@ const Archive: React.FC = () => {
                 )}
               </div>
               <div className="flex flex-shrink-0 gap-2">
-                <Button size="sm" variant="outline" onClick={() => onRestore(item)} className="gap-1.5">
-                  <RotateCcw className="h-3.5 w-3.5" /> Restore
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="outline" className="gap-1.5">
+                      <RotateCcw className="h-3.5 w-3.5" /> Restore
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Restore {item.label}?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Restoring this entry will put it back into active use and may
+                        re-expose related conversations, permissions, and notifications.
+                        I acknowledge the impact: any safeguarding reason previously
+                        documented ({item.reason ? <strong>“{item.reason}”</strong> : <em>none recorded</em>}) may no
+                        longer apply. Active monitoring should resume.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => onRestore(item)}>
+                        I acknowledge — restore
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button

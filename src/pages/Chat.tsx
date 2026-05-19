@@ -65,6 +65,7 @@ import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSupportUsers, isSupportByUid, isSupportByEmail } from "@/hooks/useSupportUsers";
 import { SupportBadge } from "@/components/SupportBadge";
+import HarmImpactChecklist from "@/components/HarmImpactChecklist";
 
 const formatTime = (ts: any) => {
   try {
@@ -577,6 +578,12 @@ const ChatPage: React.FC = () => {
                   </AlertDialog>
                 )}
               </header>
+
+              {activeId && (
+                <div className="px-3 pt-3">
+                  <HarmImpactChecklist parentCollection="chatThreads" parentId={activeId} />
+                </div>
+              )}
 
               <ScrollArea className="flex-1 px-3 py-4">
                 <div className="space-y-3">

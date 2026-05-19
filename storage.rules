@@ -1,14 +1,7 @@
 rules_version = '2';
 
-// Firebase Storage rules for Kit TJ Services ClientHub.
-// Default-deny everything; explicitly allow the call recording path.
 service firebase.storage {
   match /b/{bucket}/o {
-    // Call recordings live at call_recordings/{conversationId}/{recordingId}.{ext}
-    // Reads are denied to browsers. Authorized users request short-lived links
-    // through the getCallRecordingDownloadUrl callable, which checks role + owner.
-    // Writes: signed-in users only; Firestore metadata enforces agentUid ownership.
-    // Size cap: 50 MB per recording (≈ 1+ hour of opus audio at 64kbps).
     match /call_recordings/{conversationId}/{filename} {
       allow read: if false;
       allow create, update: if request.auth != null
@@ -17,7 +10,18 @@ service firebase.storage {
       allow delete: if false;
     }
 
-    // Default-deny anything else.
+    // Conversation document uploads (PDF/DOCX/etc) attached by agents.
+    // Bytes are kept at most 6 hours; a scheduled Cloud Function
+    // (purgeConversationUploads) sweeps anything past customMetadata.deleteAt.
+    // Browser reads are denied — only the masked summary in the message thread
+    // is surfaced to agents. 10 MB cap, agent must be signed in.
+    match /conversation-uploads/{conversationId}/{filename} {
+      allow read: if false;
+      allow create, update: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024;
+      allow delete: if false;
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

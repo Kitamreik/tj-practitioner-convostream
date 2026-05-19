@@ -58,6 +58,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import HarmImpactChecklist from "@/components/HarmImpactChecklist";
+import AttachDocButton from "@/components/AttachDocButton";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -2090,8 +2092,12 @@ const Conversations: React.FC = () => {
               </Button>
             </div>
           </div>
-          <div className="border-t border-border p-4">
-            <div className="flex gap-3">
+          <div className="border-t border-border p-4 space-y-3">
+            {selectedId && (
+              <HarmImpactChecklist parentCollection="conversations" parentId={selectedId} />
+            )}
+            <div className="flex gap-2">
+              {selectedId && <AttachDocButton conversationId={selectedId} disabled={usingFallback} />}
               <Input
                 ref={replyInputRef}
                 placeholder={usingFallback ? "Connect Firestore to send messages..." : "Type your reply..."}
