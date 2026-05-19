@@ -2090,8 +2090,12 @@ const Conversations: React.FC = () => {
               </Button>
             </div>
           </div>
-          <div className="border-t border-border p-4">
-            <div className="flex gap-3">
+          <div className="border-t border-border p-4 space-y-3">
+            {selectedId && (
+              <HarmImpactChecklist parentCollection="conversations" parentId={selectedId} />
+            )}
+            <div className="flex gap-2">
+              {selectedId && <AttachDocButton conversationId={selectedId} disabled={usingFallback} />}
               <Input
                 ref={replyInputRef}
                 placeholder={usingFallback ? "Connect Firestore to send messages..." : "Type your reply..."}
