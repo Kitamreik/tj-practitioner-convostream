@@ -3261,3 +3261,43 @@ export const removeAuthorizedDomain = onCall(CALLABLE_OPTS, async (request) => {
     throw new HttpsError("internal", err?.message || "Failed to remove authorized domain.");
   }
 });
+
+/**
+ * Conversation document uploads (PDF/DOCX/etc) are kept at most 6 hours.
+ * This job runs hourly: lists every object under `conversation-uploads/`,
+ * checks `customMetadata.deleteAt` (millis epoch) and deletes anything
+ * past due. Files without a deleteAt stamp are treated as 6-hours-from-
+ * upload (timeCreated) as a safety net.
+ *
+ * The companion Firestore message documents are NOT deleted — the masked
+ * summary remains in-thread so the audit trail stays intact. Only the raw
+ * bytes are purged.
+ */
+export const purgeConversationUploads = onSchedule(
+  { schedule: "every 60 minutes", timeZone: "UTC", region: "us-central1" },
+  async () => {
+    const bucket = admin.storage().bucket();
+    const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+    const now = Date.now();
+    let deleted = 0;
+    let scanned = 0;
+    try {
+      const [files] = await bucket.getFiles({ prefix: "conversation-uploads/" });
+      for (const file of files) {
+        scanned += 1;
+        const [meta] = await file.getMetadata();
+        const stampedRaw = (meta.metadata as Record<string, string> | undefined)?.deleteAt;
+        const stamped = stampedRaw ? Number(stampedRaw) : NaN;
+        const fallback = meta.timeCreated ? Date.parse(meta.timeCreated) + SIX_HOURS_MS : now;
+        const cutoff = Number.isFinite(stamped) ? stamped : fallback;
+        if (cutoff <= now) {
+          await file.delete({ ignoreNotFound: true });
+          deleted += 1;
+        }
+      }
+      logger.info("purgeConversationUploads complete", { scanned, deleted });
+    } catch (err) {
+      logger.error("purgeConversationUploads failed", err);
+    }
+  },
+);
