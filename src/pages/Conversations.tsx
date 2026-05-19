@@ -58,6 +58,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import HarmImpactChecklist from "@/components/HarmImpactChecklist";
+import AttachDocButton from "@/components/AttachDocButton";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import {
