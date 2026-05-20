@@ -173,13 +173,19 @@ const topicLabel = (t?: ConsultingTopic) =>
 interface ConversationMessage {
   id: string;
   conversationId: string;
-  sender: "customer" | "agent";
+  sender: "customer" | "agent" | "system";
   text: string;
   timestamp: any;
   channel: "sms" | "phone" | "email" | "slack" | "mobile";
   sourceDocName?: string;
   sourceDocTruncated?: boolean;
   extractText?: string;
+  /** Set by uploadConversationDocument — kind === "document-context". */
+  kind?: string;
+  /** Original file name attached by the agent. */
+  sourceName?: string;
+  /** Per-category redaction tallies from maskSensitive(). */
+  redactionCounts?: Record<string, number>;
 }
 
 const channelIcons = {
