@@ -104,7 +104,10 @@ import {
 import CallRecorder from "@/components/CallRecorder";
 import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 import { StickyNote } from "lucide-react";
-import SlackAlertButton from "@/components/SlackAlertButton";
+// SlackAlertButton was intentionally removed from Conversations — the
+// per-thread Slack ping is gone. Webmaster escalations now flow exclusively
+// through the "Elevate to webmaster" callable + the in-app notifications
+// queue (see Settings → Pending escalations).
 import RoleBadge from "@/components/RoleBadge";
 import RecordingPlayerDialog from "@/components/RecordingPlayerDialog";
 import { listConversationRecordings, type CallRecordingDoc } from "@/lib/callRecordings";
