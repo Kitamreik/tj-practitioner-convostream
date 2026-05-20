@@ -38,9 +38,9 @@ describe("escalation persistence contract (function ↔ Settings)", () => {
     const body = functionsSrc.slice(start, start + 4000);
 
     expect(body).toMatch(/db\.collection\(["']escalationRequests["']\)\.add\(/);
-    expect(body).toMatch(/status\s*:/);
-    expect(body).toMatch(/reason\s*:/);
-    expect(body).toMatch(/requesterUid\s*:/);
+    expect(body).toMatch(/status\s*:\s*["']pending["']/);
+    expect(body).toMatch(/\breason\b\s*[,:]/);
+    expect(body).toMatch(/\brequesterUid\b\s*[,:]/);
     expect(body).toMatch(/createdAt\s*:\s*admin\.firestore\.FieldValue\.serverTimestamp\(\)/);
   });
 
