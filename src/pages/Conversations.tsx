@@ -2017,12 +2017,33 @@ const Conversations: React.FC = () => {
                       </div>
                     </details>
                   )}
+                  {msg.redactionCounts && Object.values(msg.redactionCounts).some((n) => n > 0) && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-border/40 pt-2">
+                      <Badge variant="outline" className="h-4 px-1 text-[9px] font-medium uppercase tracking-wide">
+                        Masked: PII + names + locations
+                      </Badge>
+                      {Object.entries(msg.redactionCounts)
+                        .filter(([, n]) => n > 0)
+                        .map(([k, n]) => (
+                          <Badge key={k} variant="secondary" className="h-4 px-1 text-[9px]">
+                            {k} ×{n}
+                          </Badge>
+                        ))}
+                      {msg.sourceName && (
+                        <span className="text-[10px] text-muted-foreground truncate" title={msg.sourceName}>
+                          · {msg.sourceName}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="mt-1 flex items-center gap-2">
                     <span className={`text-[10px] ${msg.sender === "agent" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{formatMessageTime(msg.timestamp)}</span>
-                    <Badge variant="outline" className={`h-4 gap-0.5 px-1 text-[9px] border-0 ${msg.sender === "agent" ? "bg-primary-foreground/20 text-primary-foreground" : ""}`}>
-                      {channelIcons[msg.channel]}
-                      {msg.channel}
-                    </Badge>
+                    {msg.channel && (
+                      <Badge variant="outline" className={`h-4 gap-0.5 px-1 text-[9px] border-0 ${msg.sender === "agent" ? "bg-primary-foreground/20 text-primary-foreground" : ""}`}>
+                        {channelIcons[msg.channel]}
+                        {msg.channel}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </motion.div>
