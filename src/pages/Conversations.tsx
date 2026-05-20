@@ -2109,7 +2109,7 @@ const Conversations: React.FC = () => {
               </Select>
             </div>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              <SlackAlertButton />
+              {/* Slack ping removed — use "Elevate to webmaster" instead. */}
               <Button
                 size="sm"
                 variant="outline"
