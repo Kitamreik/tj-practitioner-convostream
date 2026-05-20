@@ -104,7 +104,10 @@ import {
 import CallRecorder from "@/components/CallRecorder";
 import { useConversationNoteCounts } from "@/hooks/useConversationNoteCounts";
 import { StickyNote } from "lucide-react";
-import SlackAlertButton from "@/components/SlackAlertButton";
+// SlackAlertButton was intentionally removed from Conversations — the
+// per-thread Slack ping is gone. Webmaster escalations now flow exclusively
+// through the "Elevate to webmaster" callable + the in-app notifications
+// queue (see Settings → Pending escalations).
 import RoleBadge from "@/components/RoleBadge";
 import RecordingPlayerDialog from "@/components/RecordingPlayerDialog";
 import { listConversationRecordings, type CallRecordingDoc } from "@/lib/callRecordings";
@@ -173,13 +176,19 @@ const topicLabel = (t?: ConsultingTopic) =>
 interface ConversationMessage {
   id: string;
   conversationId: string;
-  sender: "customer" | "agent";
+  sender: "customer" | "agent" | "system";
   text: string;
   timestamp: any;
   channel: "sms" | "phone" | "email" | "slack" | "mobile";
   sourceDocName?: string;
   sourceDocTruncated?: boolean;
   extractText?: string;
+  /** Set by uploadConversationDocument — kind === "document-context". */
+  kind?: string;
+  /** Original file name attached by the agent. */
+  sourceName?: string;
+  /** Per-category redaction tallies from maskSensitive(). */
+  redactionCounts?: Record<string, number>;
 }
 
 const channelIcons = {
@@ -2011,12 +2020,33 @@ const Conversations: React.FC = () => {
                       </div>
                     </details>
                   )}
+                  {msg.redactionCounts && Object.values(msg.redactionCounts).some((n) => n > 0) && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-border/40 pt-2">
+                      <Badge variant="outline" className="h-4 px-1 text-[9px] font-medium uppercase tracking-wide">
+                        Masked: PII + names + locations
+                      </Badge>
+                      {Object.entries(msg.redactionCounts)
+                        .filter(([, n]) => n > 0)
+                        .map(([k, n]) => (
+                          <Badge key={k} variant="secondary" className="h-4 px-1 text-[9px]">
+                            {k} ×{n}
+                          </Badge>
+                        ))}
+                      {msg.sourceName && (
+                        <span className="text-[10px] text-muted-foreground truncate" title={msg.sourceName}>
+                          · {msg.sourceName}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="mt-1 flex items-center gap-2">
                     <span className={`text-[10px] ${msg.sender === "agent" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{formatMessageTime(msg.timestamp)}</span>
-                    <Badge variant="outline" className={`h-4 gap-0.5 px-1 text-[9px] border-0 ${msg.sender === "agent" ? "bg-primary-foreground/20 text-primary-foreground" : ""}`}>
-                      {channelIcons[msg.channel]}
-                      {msg.channel}
-                    </Badge>
+                    {msg.channel && (
+                      <Badge variant="outline" className={`h-4 gap-0.5 px-1 text-[9px] border-0 ${msg.sender === "agent" ? "bg-primary-foreground/20 text-primary-foreground" : ""}`}>
+                        {channelIcons[msg.channel]}
+                        {msg.channel}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </motion.div>
@@ -2079,7 +2109,7 @@ const Conversations: React.FC = () => {
               </Select>
             </div>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              <SlackAlertButton />
+              {/* Slack ping removed — use "Elevate to webmaster" instead. */}
               <Button
                 size="sm"
                 variant="outline"
