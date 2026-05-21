@@ -398,21 +398,57 @@ const SecurityFindings: React.FC = () => {
         </Card>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={handleRescan} disabled={rescanning || findings.length === 0}>
+      <div className="flex flex-wrap items-center gap-2">
+        {locked ? (
+          <Button
+            onClick={() => setReauthOpen(true)}
+            disabled={lockedOut}
+            className="gap-2"
+            variant="default"
+          >
+            <Lock className="h-4 w-4" />
+            {lockedOut
+              ? `Locked · retry in ${Math.max(
+                  1,
+                  Math.ceil((lockoutUntil - Date.now()) / 60_000)
+                )}m`
+              : "Unlock with password"}
+          </Button>
+        ) : (
+          <Button onClick={handleLock} variant="outline" className="gap-2">
+            <EyeOff className="h-4 w-4" /> Lock again
+          </Button>
+        )}
+        <Button onClick={handleRescan} disabled={rescanning || findings.length === 0 || locked}>
           <RefreshCw className={`h-4 w-4 mr-2 ${rescanning ? "animate-spin" : ""}`} />
           Re-scan now
         </Button>
-        <Button variant="outline" onClick={exportFindingsCsv} disabled={findings.length === 0}>
+        <Button variant="outline" onClick={exportFindingsCsv} disabled={findings.length === 0 || locked}>
           <Download className="h-4 w-4 mr-2" /> Findings CSV
         </Button>
-        <Button variant="outline" onClick={exportAlertsCsv} disabled={allAlerts.length === 0}>
+        <Button variant="outline" onClick={exportAlertsCsv} disabled={allAlerts.length === 0 || locked}>
           <Download className="h-4 w-4 mr-2" /> Alerts CSV
         </Button>
-        <Button variant="outline" onClick={exportLoginsCsv} disabled={logins.length === 0}>
+        <Button variant="outline" onClick={exportLoginsCsv} disabled={logins.length === 0 || locked}>
           <Download className="h-4 w-4 mr-2" /> Login attempts CSV
         </Button>
       </div>
+
+      {locked && (
+        <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-foreground flex items-start gap-2">
+          <Lock className="h-4 w-4 text-warning mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-medium">Sensitive details are hidden.</p>
+            <p className="text-muted-foreground">
+              Finding descriptions, affected collections, review notes, alert
+              subjects, and detail payloads are masked. Click
+              <strong className="text-foreground"> Unlock with password </strong>
+              and re-enter your account password to reveal them for this tab.
+              Three wrong attempts will lock the panel for 15 minutes.
+            </p>
+          </div>
+        </div>
+      )}
 
       <Tabs defaultValue="findings">
         <TabsList>
