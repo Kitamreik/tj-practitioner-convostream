@@ -14,9 +14,11 @@ import {
   AlertTriangle,
   CheckCircle2,
   EyeOff,
+  Eye,
   RefreshCw,
   Download,
   ChevronDown,
+  Lock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +39,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
+import SecurityReauthDialog from "@/components/SecurityReauthDialog";
 import {
   FindingStatus,
   SEVERITY_LABEL,
@@ -51,6 +54,18 @@ import {
   subscribeFindings,
   updateFindingStatus,
 } from "@/lib/securityFindings";
+
+const REDACTED = "••••••••";
+const LOCKOUT_MS = 15 * 60 * 1000;
+const UNLOCK_KEY = "convohub.security.unlocked";
+const LOCKOUT_KEY = "convohub.security.lockoutUntil";
+
+function maskIf(locked: boolean, value: string | undefined | null): string {
+  if (!locked) return value ?? "";
+  if (!value) return "";
+  return REDACTED;
+}
+
 
 interface LoginAttemptRow {
   id: string;
