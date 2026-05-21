@@ -47,7 +47,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AccountActionsMenu } from "@/components/AccountActionsMenu";
 import PrivacyDataCard from "@/components/PrivacyDataCard";
-import EnvVarsPanel from "@/components/EnvVarsPanel";
+
 import AgentRosterPanel from "@/components/AgentRosterPanel";
 import SignupApprovalsPanel from "@/components/SignupApprovalsPanel";
 import AuthorizedDomainsPanel from "@/components/AuthorizedDomainsPanel";
@@ -265,52 +265,9 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // ---- Provision Support (webmaster only) ----
-  // One-click flow that grants webmaster role to support@convohub.dev AND
-  // clones the calling webmaster's integrations + UI prefs into that account
-  // via the `cloneIntegrationsToSupport` callable. The Support account must
-  // already exist (sign up via /login first).
-  const SUPPORT_EMAIL = "support@convohub.dev";
-  const [provisioningSupport, setProvisioningSupport] = useState(false);
+  // Provision Support account flow removed — Support is no longer a managed
+  // role in this product. Webmasters grant access via the Accounts panel.
 
-  const handleProvisionSupport = async () => {
-    setProvisioningSupport(true);
-    try {
-      // 1) Promote to webmaster (idempotent — re-promoting is a no-op).
-      const promoteFn = httpsCallable<
-        { targetEmail: string; role: "webmaster" },
-        { ok: boolean; previousRole: string; newRole: string }
-      >(functions, "promoteToWebmaster");
-      const promoteRes = await promoteFn({ targetEmail: SUPPORT_EMAIL, role: "webmaster" });
-
-      // 2) Clone integrations + UI prefs from the caller into Support's uid.
-      const cloneFn = httpsCallable<
-        { targetEmail: string },
-        { ok: boolean; clonedIntegrations: boolean; clonedPrefs: boolean }
-      >(functions, "cloneIntegrationsToSupport");
-      const cloneRes = await cloneFn({ targetEmail: SUPPORT_EMAIL });
-
-      const parts: string[] = [];
-      parts.push(`Role ${promoteRes.data.previousRole} → ${promoteRes.data.newRole}`);
-      parts.push(cloneRes.data.clonedIntegrations ? "integrations cloned" : "no integrations to clone");
-      parts.push(cloneRes.data.clonedPrefs ? "prefs cloned" : "no prefs to clone");
-      toast({
-        title: "Support account provisioned",
-        description: parts.join(" · "),
-      });
-    } catch (e: any) {
-      const msg = e?.message || "Unable to provision Support account.";
-      toast({
-        title: "Provisioning failed",
-        description: msg.includes("No user with email")
-          ? `Sign up ${SUPPORT_EMAIL} first via the login page, then retry.`
-          : msg,
-        variant: "destructive",
-      });
-    } finally {
-      setProvisioningSupport(false);
-    }
-  };
 
   // ---- Escalate (admin only) ----
   const [reason, setReason] = useState("");
@@ -1488,14 +1445,12 @@ const SettingsPage: React.FC = () => {
   const navSections: { id: string; label: string }[] = [
     { id: "profile", label: "Profile" },
     { id: "appearance", label: "Appearance" },
-    { id: "env-vars", label: "Environment variables" },
     ...(isWebmaster
       ? [
           { id: "overview", label: "Overview" },
           { id: "webmaster-contact", label: "Webmaster contact" },
           { id: "bg-gmail", label: "Background Gmail ingestion" },
           { id: "promote", label: "Promote to Webmaster" },
-          { id: "provision-support", label: "Provision Support" },
           { id: "pending", label: "Pending escalations" },
           { id: "agents", label: "Agents" },
           { id: "accounts", label: "Accounts" },
