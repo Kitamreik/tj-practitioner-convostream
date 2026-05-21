@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { MessageCircle } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import BottomNav from "@/components/BottomNav";
