@@ -27,6 +27,7 @@ import Chat from "./pages/Chat";
 import PendingApproval from "./pages/PendingApproval";
 import SmokeTest from "./pages/SmokeTest";
 import SecurityFindings from "./pages/SecurityFindings";
+import AgentSessions from "./pages/AgentSessions";
 import CallAnalytics from "./pages/CallAnalytics";
 import NotFound from "./pages/NotFound";
 import Legal from "./pages/Legal";
@@ -164,6 +165,7 @@ const App = () => (
                   <Route path="/icon-key" element={<IconKey />} />
                   <Route path="/smoke-test" element={<ProtectedRoute roles={["webmaster"]}><SmokeTest /></ProtectedRoute>} />
                   <Route path="/security" element={<ProtectedRoute roles={["webmaster"]}><SecurityFindings /></ProtectedRoute>} />
+                  <Route path="/agent-sessions" element={<ProtectedRoute roles={["webmaster"]}><AgentSessions /></ProtectedRoute>} />
                   <Route path="/call-analytics" element={<CallAnalytics />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />

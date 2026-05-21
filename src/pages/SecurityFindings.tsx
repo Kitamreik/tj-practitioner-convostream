@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Download,
   ChevronDown,
+  Lock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
+import SecurityReauthDialog from "@/components/SecurityReauthDialog";
 import {
   FindingStatus,
   SEVERITY_LABEL,
@@ -51,6 +53,13 @@ import {
   subscribeFindings,
   updateFindingStatus,
 } from "@/lib/securityFindings";
+
+const REDACTED = "••••••••";
+const LOCKOUT_MS = 15 * 60 * 1000;
+const UNLOCK_KEY = "convohub.security.unlocked";
+const LOCKOUT_KEY = "convohub.security.lockoutUntil";
+
+
 
 interface LoginAttemptRow {
   id: string;
@@ -109,6 +118,56 @@ const SecurityFindings: React.FC = () => {
   const [logins, setLogins] = useState<LoginAttemptRow[]>([]);
   const [rescanning, setRescanning] = useState(false);
   const [editing, setEditing] = useState<Record<string, { status: FindingStatus; notes: string }>>({});
+
+  // ---- Password gate: sensitive details are masked until the webmaster
+  // re-enters their account password. State is per-tab (sessionStorage) so
+  // closing the tab re-locks. Three wrong attempts trigger a 15-minute
+  // panel lockout (also persisted in sessionStorage so a page reload
+  // can't shortcut it).
+  const [unlocked, setUnlocked] = useState<boolean>(() => {
+    if (typeof sessionStorage === "undefined") return false;
+    return sessionStorage.getItem(UNLOCK_KEY) === "1";
+  });
+  const [reauthOpen, setReauthOpen] = useState(false);
+  const [failCount, setFailCount] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState<number>(() => {
+    if (typeof sessionStorage === "undefined") return 0;
+    const raw = sessionStorage.getItem(LOCKOUT_KEY);
+    return raw ? Number(raw) || 0 : 0;
+  });
+  const lockedOut = lockoutUntil > Date.now();
+  const locked = !unlocked;
+
+  // Re-evaluate lockout every 30s so the UI re-enables once the window passes.
+  useEffect(() => {
+    if (!lockedOut) return;
+    const t = setInterval(() => {
+      if (Date.now() >= lockoutUntil) {
+        setLockoutUntil(0);
+        try { sessionStorage.removeItem(LOCKOUT_KEY); } catch { /* noop */ }
+      }
+    }, 30_000);
+    return () => clearInterval(t);
+  }, [lockedOut, lockoutUntil]);
+
+  const handleUnlockSuccess = () => {
+    setUnlocked(true);
+    try { sessionStorage.setItem(UNLOCK_KEY, "1"); } catch { /* noop */ }
+    toast({ title: "Security findings unlocked", description: "Sensitive details visible for this session." });
+  };
+
+  const handleLockoutTriggered = () => {
+    const until = Date.now() + LOCKOUT_MS;
+    setLockoutUntil(until);
+    setFailCount(0);
+    try { sessionStorage.setItem(LOCKOUT_KEY, String(until)); } catch { /* noop */ }
+  };
+
+  const handleLock = () => {
+    setUnlocked(false);
+    try { sessionStorage.removeItem(UNLOCK_KEY); } catch { /* noop */ }
+  };
+
 
   // One-time seed of default findings so the dashboard isn't empty.
   useEffect(() => {
@@ -333,21 +392,57 @@ const SecurityFindings: React.FC = () => {
         </Card>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={handleRescan} disabled={rescanning || findings.length === 0}>
+      <div className="flex flex-wrap items-center gap-2">
+        {locked ? (
+          <Button
+            onClick={() => setReauthOpen(true)}
+            disabled={lockedOut}
+            className="gap-2"
+            variant="default"
+          >
+            <Lock className="h-4 w-4" />
+            {lockedOut
+              ? `Locked · retry in ${Math.max(
+                  1,
+                  Math.ceil((lockoutUntil - Date.now()) / 60_000)
+                )}m`
+              : "Unlock with password"}
+          </Button>
+        ) : (
+          <Button onClick={handleLock} variant="outline" className="gap-2">
+            <EyeOff className="h-4 w-4" /> Lock again
+          </Button>
+        )}
+        <Button onClick={handleRescan} disabled={rescanning || findings.length === 0 || locked}>
           <RefreshCw className={`h-4 w-4 mr-2 ${rescanning ? "animate-spin" : ""}`} />
           Re-scan now
         </Button>
-        <Button variant="outline" onClick={exportFindingsCsv} disabled={findings.length === 0}>
+        <Button variant="outline" onClick={exportFindingsCsv} disabled={findings.length === 0 || locked}>
           <Download className="h-4 w-4 mr-2" /> Findings CSV
         </Button>
-        <Button variant="outline" onClick={exportAlertsCsv} disabled={allAlerts.length === 0}>
+        <Button variant="outline" onClick={exportAlertsCsv} disabled={allAlerts.length === 0 || locked}>
           <Download className="h-4 w-4 mr-2" /> Alerts CSV
         </Button>
-        <Button variant="outline" onClick={exportLoginsCsv} disabled={logins.length === 0}>
+        <Button variant="outline" onClick={exportLoginsCsv} disabled={logins.length === 0 || locked}>
           <Download className="h-4 w-4 mr-2" /> Login attempts CSV
         </Button>
       </div>
+
+      {locked && (
+        <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-foreground flex items-start gap-2">
+          <Lock className="h-4 w-4 text-warning mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-medium">Sensitive details are hidden.</p>
+            <p className="text-muted-foreground">
+              Finding descriptions, affected collections, review notes, alert
+              subjects, and detail payloads are masked. Click
+              <strong className="text-foreground"> Unlock with password </strong>
+              and re-enter your account password to reveal them for this tab.
+              Three wrong attempts will lock the panel for 15 minutes.
+            </p>
+          </div>
+        </div>
+      )}
 
       <Tabs defaultValue="findings">
         <TabsList>
@@ -383,16 +478,20 @@ const SecurityFindings: React.FC = () => {
                       </Badge>
                     </div>
                   </div>
-                  <CardDescription>{f.description}</CardDescription>
+                  <CardDescription>{locked ? REDACTED : f.description}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>
-                      <strong className="text-foreground">Category:</strong> {f.category}
+                      <strong className="text-foreground">Category:</strong> {locked ? REDACTED : f.category}
                     </span>
                     <span>
                       <strong className="text-foreground">Collections:</strong>{" "}
-                      {f.affectedCollections.length > 0 ? f.affectedCollections.join(", ") : "—"}
+                      {locked
+                        ? REDACTED
+                        : f.affectedCollections.length > 0
+                        ? f.affectedCollections.join(", ")
+                        : "—"}
                     </span>
                     <span>
                       <strong className="text-foreground">Last scan:</strong> {fmtTs(f.lastScanAt)}
@@ -463,7 +562,7 @@ const SecurityFindings: React.FC = () => {
                     <div className="flex items-center justify-between gap-2">
                       {f.notes ? (
                         <p className="text-xs text-muted-foreground italic flex-1">
-                          “{f.notes}”
+                          “{locked ? REDACTED : f.notes}”
                         </p>
                       ) : (
                         <span className="text-xs text-muted-foreground">No review notes.</span>
@@ -471,6 +570,7 @@ const SecurityFindings: React.FC = () => {
                       <Button
                         size="sm"
                         variant="outline"
+                        disabled={locked}
                         onClick={() =>
                           setEditing((prev) => ({
                             ...prev,
@@ -500,20 +600,20 @@ const SecurityFindings: React.FC = () => {
             <Card key={a.id}>
               <CardHeader className="space-y-1">
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-sm">{a.summary}</CardTitle>
+                  <CardTitle className="text-sm">{locked ? REDACTED : a.summary}</CardTitle>
                   <Badge variant="outline" className={severityColor[a.severity]}>
                     {SEVERITY_LABEL[a.severity]}
                   </Badge>
                 </div>
                 <CardDescription className="text-xs">
                   {a.kind.replace(/_/g, " ")} · {fmtTs(a.createdAt as never)}
-                  {a.subjectEmail && <> · {a.subjectEmail}</>}
+                  {a.subjectEmail && <> · {locked ? REDACTED : a.subjectEmail}</>}
                 </CardDescription>
               </CardHeader>
               {a.detail && (
                 <CardContent>
                   <pre className="text-[10px] bg-muted/40 rounded p-2 overflow-x-auto">
-                    {JSON.stringify(a.detail, null, 2)}
+                    {locked ? REDACTED : JSON.stringify(a.detail, null, 2)}
                   </pre>
                 </CardContent>
               )}
@@ -521,6 +621,15 @@ const SecurityFindings: React.FC = () => {
           ))}
         </TabsContent>
       </Tabs>
+
+      <SecurityReauthDialog
+        open={reauthOpen}
+        onOpenChange={setReauthOpen}
+        onSuccess={handleUnlockSuccess}
+        onLockout={handleLockoutTriggered}
+        failCount={failCount}
+        setFailCount={setFailCount}
+      />
     </motion.div>
   );
 };

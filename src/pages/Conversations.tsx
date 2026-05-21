@@ -109,6 +109,7 @@ import { StickyNote } from "lucide-react";
 // through the "Elevate to webmaster" callable + the in-app notifications
 // queue (see Settings → Pending escalations).
 import RoleBadge from "@/components/RoleBadge";
+import EscalationStatusBanner from "@/components/EscalationStatusBanner";
 import RecordingPlayerDialog from "@/components/RecordingPlayerDialog";
 import { listConversationRecordings, type CallRecordingDoc } from "@/lib/callRecordings";
 import {
@@ -2123,6 +2124,7 @@ const Conversations: React.FC = () => {
             </div>
           </div>
           <div className="border-t border-border p-4 space-y-3">
+            <EscalationStatusBanner />
             {selectedId && (
               <HarmImpactChecklist parentCollection="conversations" parentId={selectedId} />
             )}
