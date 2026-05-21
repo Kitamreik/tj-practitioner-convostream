@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { MessageCircle } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import BottomNav from "@/components/BottomNav";
@@ -11,6 +11,7 @@ import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
 import { useBackgroundGmailPoller } from "@/hooks/useBackgroundGmailPoller";
+import { publishPresence } from "@/lib/agentPresence";
 
 const titleMap: Record<string, string> = {
   "/": "Conversations",
@@ -93,6 +94,26 @@ const AppLayout: React.FC = () => {
       }
     })();
   }, [user, profile, location.pathname, navigate]);
+
+  // Read-only session mirror: publish current route + selected thread id so
+  // webmasters can troubleshoot from /agent-sessions. Throttled internally
+  // to one write per 5s. We extract a conversation id from the path itself
+  // rather than parsing route params here so the hook stays decoupled.
+  useEffect(() => {
+    if (!user || !profile) return;
+    const path = location.pathname + location.search;
+    const convoMatch = path.match(/\/conversations\/([^/?#]+)/);
+    const chatMatch = path.match(/\/chat\/([^/?#]+)/);
+    publishPresence({
+      uid: user.uid,
+      displayName: profile.displayName,
+      email: profile.email,
+      role: profile.role,
+      route: path,
+      conversationId: convoMatch ? convoMatch[1] : null,
+      chatThreadId: chatMatch ? chatMatch[1] : null,
+    });
+  }, [user, profile, location.pathname, location.search]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
