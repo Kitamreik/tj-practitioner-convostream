@@ -606,20 +606,20 @@ const SecurityFindings: React.FC = () => {
             <Card key={a.id}>
               <CardHeader className="space-y-1">
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-sm">{a.summary}</CardTitle>
+                  <CardTitle className="text-sm">{locked ? REDACTED : a.summary}</CardTitle>
                   <Badge variant="outline" className={severityColor[a.severity]}>
                     {SEVERITY_LABEL[a.severity]}
                   </Badge>
                 </div>
                 <CardDescription className="text-xs">
                   {a.kind.replace(/_/g, " ")} · {fmtTs(a.createdAt as never)}
-                  {a.subjectEmail && <> · {a.subjectEmail}</>}
+                  {a.subjectEmail && <> · {locked ? REDACTED : a.subjectEmail}</>}
                 </CardDescription>
               </CardHeader>
               {a.detail && (
                 <CardContent>
                   <pre className="text-[10px] bg-muted/40 rounded p-2 overflow-x-auto">
-                    {JSON.stringify(a.detail, null, 2)}
+                    {locked ? REDACTED : JSON.stringify(a.detail, null, 2)}
                   </pre>
                 </CardContent>
               )}
@@ -627,6 +627,15 @@ const SecurityFindings: React.FC = () => {
           ))}
         </TabsContent>
       </Tabs>
+
+      <SecurityReauthDialog
+        open={reauthOpen}
+        onOpenChange={setReauthOpen}
+        onSuccess={handleUnlockSuccess}
+        onLockout={handleLockoutTriggered}
+        failCount={failCount}
+        setFailCount={setFailCount}
+      />
     </motion.div>
   );
 };
