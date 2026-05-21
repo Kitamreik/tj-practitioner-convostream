@@ -125,6 +125,56 @@ const SecurityFindings: React.FC = () => {
   const [rescanning, setRescanning] = useState(false);
   const [editing, setEditing] = useState<Record<string, { status: FindingStatus; notes: string }>>({});
 
+  // ---- Password gate: sensitive details are masked until the webmaster
+  // re-enters their account password. State is per-tab (sessionStorage) so
+  // closing the tab re-locks. Three wrong attempts trigger a 15-minute
+  // panel lockout (also persisted in sessionStorage so a page reload
+  // can't shortcut it).
+  const [unlocked, setUnlocked] = useState<boolean>(() => {
+    if (typeof sessionStorage === "undefined") return false;
+    return sessionStorage.getItem(UNLOCK_KEY) === "1";
+  });
+  const [reauthOpen, setReauthOpen] = useState(false);
+  const [failCount, setFailCount] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState<number>(() => {
+    if (typeof sessionStorage === "undefined") return 0;
+    const raw = sessionStorage.getItem(LOCKOUT_KEY);
+    return raw ? Number(raw) || 0 : 0;
+  });
+  const lockedOut = lockoutUntil > Date.now();
+  const locked = !unlocked;
+
+  // Re-evaluate lockout every 30s so the UI re-enables once the window passes.
+  useEffect(() => {
+    if (!lockedOut) return;
+    const t = setInterval(() => {
+      if (Date.now() >= lockoutUntil) {
+        setLockoutUntil(0);
+        try { sessionStorage.removeItem(LOCKOUT_KEY); } catch { /* noop */ }
+      }
+    }, 30_000);
+    return () => clearInterval(t);
+  }, [lockedOut, lockoutUntil]);
+
+  const handleUnlockSuccess = () => {
+    setUnlocked(true);
+    try { sessionStorage.setItem(UNLOCK_KEY, "1"); } catch { /* noop */ }
+    toast({ title: "Security findings unlocked", description: "Sensitive details visible for this session." });
+  };
+
+  const handleLockoutTriggered = () => {
+    const until = Date.now() + LOCKOUT_MS;
+    setLockoutUntil(until);
+    setFailCount(0);
+    try { sessionStorage.setItem(LOCKOUT_KEY, String(until)); } catch { /* noop */ }
+  };
+
+  const handleLock = () => {
+    setUnlocked(false);
+    try { sessionStorage.removeItem(UNLOCK_KEY); } catch { /* noop */ }
+  };
+
+
   // One-time seed of default findings so the dashboard isn't empty.
   useEffect(() => {
     if (profile?.role !== "webmaster") return;
