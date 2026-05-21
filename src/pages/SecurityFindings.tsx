@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   EyeOff,
-  Eye,
   RefreshCw,
   Download,
   ChevronDown,
@@ -60,11 +59,6 @@ const LOCKOUT_MS = 15 * 60 * 1000;
 const UNLOCK_KEY = "convohub.security.unlocked";
 const LOCKOUT_KEY = "convohub.security.lockoutUntil";
 
-function maskIf(locked: boolean, value: string | undefined | null): string {
-  if (!locked) return value ?? "";
-  if (!value) return "";
-  return REDACTED;
-}
 
 
 interface LoginAttemptRow {
