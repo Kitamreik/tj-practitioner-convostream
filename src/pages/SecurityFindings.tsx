@@ -484,16 +484,20 @@ const SecurityFindings: React.FC = () => {
                       </Badge>
                     </div>
                   </div>
-                  <CardDescription>{f.description}</CardDescription>
+                  <CardDescription>{locked ? REDACTED : f.description}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>
-                      <strong className="text-foreground">Category:</strong> {f.category}
+                      <strong className="text-foreground">Category:</strong> {locked ? REDACTED : f.category}
                     </span>
                     <span>
                       <strong className="text-foreground">Collections:</strong>{" "}
-                      {f.affectedCollections.length > 0 ? f.affectedCollections.join(", ") : "—"}
+                      {locked
+                        ? REDACTED
+                        : f.affectedCollections.length > 0
+                        ? f.affectedCollections.join(", ")
+                        : "—"}
                     </span>
                     <span>
                       <strong className="text-foreground">Last scan:</strong> {fmtTs(f.lastScanAt)}
@@ -564,7 +568,7 @@ const SecurityFindings: React.FC = () => {
                     <div className="flex items-center justify-between gap-2">
                       {f.notes ? (
                         <p className="text-xs text-muted-foreground italic flex-1">
-                          “{f.notes}”
+                          “{locked ? REDACTED : f.notes}”
                         </p>
                       ) : (
                         <span className="text-xs text-muted-foreground">No review notes.</span>
@@ -572,6 +576,7 @@ const SecurityFindings: React.FC = () => {
                       <Button
                         size="sm"
                         variant="outline"
+                        disabled={locked}
                         onClick={() =>
                           setEditing((prev) => ({
                             ...prev,
