@@ -698,6 +698,16 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow read, delete: if isWebmaster();
       allow update: if false;
+
+    // -------- agentSessions/{uid} — read-only presence mirror --------
+    // Each internal teammate writes their own presence row (route +
+    // selected thread + viewport + lastActionAt). Webmasters read every
+    // row to power the Agent Sessions troubleshooting page. No screen
+    // pixels, no keystrokes, no input values are stored here.
+    match /agentSessions/{uid} {
+      allow read: if isWebmaster() || isSelf(uid);
+      allow write: if isSelf(uid) && !isCustomer();
     }
+  }
   }
 }
