@@ -95,6 +95,15 @@ const ChatPage: React.FC = () => {
   const isMobile = useIsMobile();
   const isMod = canModerateChat(profile);
   const supportUsers = useSupportUsers();
+  const navigate = useNavigate();
+  /** Customers see the chat thread itself but never the agent-only safeguarding
+   *  checklist or the "convert to conversation" tooling. */
+  const isCustomer = profile?.role === "customer";
+
+  // ---- Convert-to-conversation -----------------------------------------------
+  const [convertOpen, setConvertOpen] = useState(false);
+  const [convertSeed, setConvertSeed] = useState<NewConversationInitialValues>({});
+  const [convertChecking, setConvertChecking] = useState(false);
 
   /** True when the *other* participant of a thread has Support access. */
   const otherIsSupport = (t: ChatThread): boolean => {
