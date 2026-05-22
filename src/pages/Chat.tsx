@@ -675,7 +675,7 @@ const ChatPage: React.FC = () => {
                 </div>
               </header>
 
-              {activeId && (
+              {activeId && !isCustomer && (
                 <div className="px-3 pt-3">
                   <HarmImpactChecklist parentCollection="chatThreads" parentId={activeId} />
                 </div>
