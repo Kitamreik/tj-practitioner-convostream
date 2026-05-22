@@ -52,6 +52,7 @@ import {
   Pencil,
   Send,
   Trash2,
+  UserPlus,
   Users as UsersIcon,
 } from "lucide-react";
 import {
@@ -66,6 +67,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useSupportUsers, isSupportByUid, isSupportByEmail } from "@/hooks/useSupportUsers";
 import { SupportBadge } from "@/components/SupportBadge";
 import HarmImpactChecklist from "@/components/HarmImpactChecklist";
+import NewConversationDialog, {
+  type NewConversationInitialValues,
+} from "@/components/NewConversationDialog";
+import { collection, getDocs, limit, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useNavigate } from "react-router-dom";
 
 const formatTime = (ts: any) => {
   try {
@@ -88,6 +95,15 @@ const ChatPage: React.FC = () => {
   const isMobile = useIsMobile();
   const isMod = canModerateChat(profile);
   const supportUsers = useSupportUsers();
+  const navigate = useNavigate();
+  /** Customers see the chat thread itself but never the agent-only safeguarding
+   *  checklist or the "convert to conversation" tooling. */
+  const isCustomer = profile?.role === "customer";
+
+  // ---- Convert-to-conversation -----------------------------------------------
+  const [convertOpen, setConvertOpen] = useState(false);
+  const [convertSeed, setConvertSeed] = useState<NewConversationInitialValues>({});
+  const [convertChecking, setConvertChecking] = useState(false);
 
   /** True when the *other* participant of a thread has Support access. */
   const otherIsSupport = (t: ChatThread): boolean => {
@@ -149,6 +165,69 @@ const ChatPage: React.FC = () => {
     } catch (e: any) {
       toast({ title: "Couldn't open chat", description: e?.message, variant: "destructive" });
     }
+  };
+
+  /**
+   * "Link to customer" — agent shortcut from the chat thread header. We look
+   * up the other participant's email in the `conversations` collection. If a
+   * matching customer record already exists, we toast + navigate to that
+   * thread (no duplicate). Otherwise we open the NewConversationDialog with
+   * the chat participant's name/email/last message pre-filled so the agent
+   * only has to confirm and submit.
+   */
+  const openConvertFromActive = async () => {
+    if (!activeThread || !user) return;
+    const idx = activeThread.participantUids.findIndex((u) => u !== user.uid);
+    if (idx < 0) {
+      toast({ title: "Couldn't identify the other participant.", variant: "destructive" });
+      return;
+    }
+    const otherEmail = activeThread.participantEmails[idx] || "";
+    const otherName =
+      activeThread.participantNames?.[idx] ||
+      otherEmail.split("@")[0] ||
+      "Unknown";
+    const lastMessage =
+      messages
+        .slice()
+        .reverse()
+        .find((m) => !m.deleted && m.body?.trim())?.body ||
+      activeThread.lastMessagePreview ||
+      "";
+
+    setConvertChecking(true);
+    let existingId: string | null = null;
+    if (otherEmail) {
+      try {
+        const snap = await getDocs(
+          query(
+            collection(db, "conversations"),
+            where("customerEmail", "==", otherEmail),
+            limit(1),
+          ),
+        );
+        if (!snap.empty) existingId = snap.docs[0].id;
+      } catch (err) {
+        console.warn("convertChat: lookup failed", err);
+      }
+    }
+    setConvertChecking(false);
+
+    if (existingId) {
+      toast({
+        title: "Customer already exists",
+        description: `Opening the existing conversation for ${otherName}.`,
+      });
+      navigate(`/conversations/${existingId}`);
+      return;
+    }
+    setConvertSeed({
+      name: otherName,
+      email: otherEmail,
+      message: lastMessage,
+      channel: "mobile",
+    });
+    setConvertOpen(true);
   };
 
   const filteredPickerUsers = useMemo(() => {
@@ -553,33 +632,50 @@ const ChatPage: React.FC = () => {
                     )}
                   </div>
                 </div>
-                {isMod && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive gap-1.5">
-                        <Trash2 className="h-4 w-4" />
-                        Delete thread
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Remove this thread for everyone?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          The thread will disappear from both participants' chat lists. Message
-                          history is preserved server-side for audit, but no one will see it in
-                          the app.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={deleteThread}>Remove thread</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {!isCustomer && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={openConvertFromActive}
+                      disabled={convertChecking}
+                      title="Match this chat to an existing customer or start a new conversation pre-filled from this thread."
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      <span className="hidden sm:inline">
+                        {convertChecking ? "Checking…" : "Link to customer"}
+                      </span>
+                    </Button>
+                  )}
+                  {isMod && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive gap-1.5">
+                          <Trash2 className="h-4 w-4" />
+                          <span className="hidden sm:inline">Delete thread</span>
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Remove this thread for everyone?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            The thread will disappear from both participants' chat lists. Message
+                            history is preserved server-side for audit, but no one will see it in
+                            the app.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={deleteThread}>Remove thread</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </div>
               </header>
 
-              {activeId && (
+              {activeId && !isCustomer && (
                 <div className="px-3 pt-3">
                   <HarmImpactChecklist parentCollection="chatThreads" parentId={activeId} />
                 </div>
@@ -739,6 +835,21 @@ const ChatPage: React.FC = () => {
             </>
           )}
         </section>
+      )}
+      {!isCustomer && (
+        <NewConversationDialog
+          open={convertOpen}
+          onOpenChange={setConvertOpen}
+          initialValues={convertSeed}
+          hideTrigger
+          onCreated={(id) => {
+            toast({
+              title: "Customer conversation created",
+              description: "Opening the new thread on Conversations.",
+            });
+            navigate(`/conversations/${id}`);
+          }}
+        />
       )}
     </div>
   );

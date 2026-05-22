@@ -1773,90 +1773,10 @@ const SettingsPage: React.FC = () => {
             Stored team-wide in `appSettings/webmasterContact.slackWebhookUrl`
             so every agent's browser can read it (per-user integrations creds
             are owner-only). */}
-        {canEditWebhook && (
-          <div id="webmaster-slack" className="rounded-xl border border-border bg-card p-4 sm:p-6">
-            <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-2">
-              <Send className="h-5 w-5 text-primary" />
-              Webmaster Slack alerts
-            </h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Optional. When set, Ping Slack sends a bare test alert to this channel
-              through the server-side webhook. Use a Slack{" "}
-              <a
-                href="https://api.slack.com/messaging/webhooks"
-                target="_blank"
-                rel="noreferrer"
-                className="underline hover:text-foreground"
-              >
-                Incoming Webhook URL
-              </a>{" "}
-              for your alerts channel.
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="webmaster-slack-webhook" className="text-xs">
-                  Slack Incoming Webhook URL
-                </Label>
-                <Input
-                  id="webmaster-slack-webhook"
-                  type="url"
-                  inputMode="url"
-                  placeholder="https://hooks.slack.com/services/T.../B.../xxxx"
-                  value={slackWebhookDraft}
-                  onChange={(e) => setSlackWebhookDraft(e.target.value)}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-              </div>
-              <div className="flex flex-wrap gap-2 sm:shrink-0">
-                <Button
-                  onClick={handleSaveSlackWebhook}
-                  disabled={savingSlackWebhook || !slackWebhookDraft.trim() || !canEditWebhook}
-                  className="gap-1.5"
-                >
-                  <Check className="h-4 w-4" />
-                  {savingSlackWebhook ? "Saving…" : "Save"}
-                </Button>
-                {slackConfigured && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={handleTestSlackWebhook}
-                    disabled={testingSlackWebhook || savingSlackWebhook || !canEditWebhook}
-                    className="gap-1.5"
-                  >
-                    <Send className="h-4 w-4" />
-                    {testingSlackWebhook ? "Pinging…" : "Test Slack alert"}
-                  </Button>
-                )}
-                {slackConfigured && (
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      setSavingSlackWebhook(true);
-                      try {
-                        await setSlackWebhookUrl("");
-                        toast({ title: "Slack webhook cleared" });
-                      } catch (e: any) {
-                        toast({ title: "Could not clear", description: e?.message, variant: "destructive" });
-                      } finally {
-                        setSavingSlackWebhook(false);
-                      }
-                    }}
-                    disabled={savingSlackWebhook || !canEditWebhook}
-                    aria-label="Clear webhook"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              {slackConfigured
-                ? "Active — use Test ping to verify the saved webhook. URL is hidden from the browser."
-                : "Not configured — only in-app bell notifications fire."}
-            </p>
-          </div>
+        {/* Webmaster Slack alerts card removed — feature sunset. The
+            webhook callable remains deployed but nothing in the UI fires it. */}
+        {false && canEditWebhook && (
+          <div id="webmaster-slack" />
         )}
 
         {/* Webmaster-only: Overview — at-a-glance assigned conversations per agent */}

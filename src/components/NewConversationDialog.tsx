@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -12,24 +12,69 @@ import { useToast } from "@/hooks/use-toast";
 import { extractDocText, ExtractDocError } from "@/lib/extractDocText";
 import { useAuth } from "@/contexts/AuthContext";
 
-const NewConversationDialog: React.FC = () => {
+export interface NewConversationInitialValues {
+  name?: string;
+  email?: string;
+  phone?: string;
+  message?: string;
+  channel?: string;
+}
+
+interface NewConversationDialogProps {
+  /** Controlled open state. Omit to use the built-in trigger button. */
+  open?: boolean;
+  onOpenChange?: (v: boolean) => void;
+  /** Pre-populate the form (e.g. from a chat thread the agent is converting). */
+  initialValues?: NewConversationInitialValues;
+  /** Hide the built-in "+" trigger when the parent controls the dialog. */
+  hideTrigger?: boolean;
+  /** Called after a conversation is successfully created. */
+  onCreated?: (conversationId: string) => void;
+}
+
+const NewConversationDialog: React.FC<NewConversationDialogProps> = ({
+  open: openProp,
+  onOpenChange,
+  initialValues,
+  hideTrigger,
+  onCreated,
+}) => {
   const { toast } = useToast();
   const { profile } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? !!openProp : internalOpen;
+  const setOpen = (v: boolean) => {
+    if (!isControlled) setInternalOpen(v);
+    onOpenChange?.(v);
+  };
   const [loading, setLoading] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(initialValues?.name ?? "");
+  const [email, setEmail] = useState(initialValues?.email ?? "");
+  const [phone, setPhone] = useState(initialValues?.phone ?? "");
   // Default to "mobile" so entries created directly from the conversation
   // page are tagged as in-app captures (the running-feet icon makes them
   // easy to spot in the list).
-  const [channel, setChannel] = useState<string>("mobile");
-  const [message, setMessage] = useState("");
+  const [channel, setChannel] = useState<string>(initialValues?.channel ?? "mobile");
+  const [message, setMessage] = useState(initialValues?.message ?? "");
   const [attachedDocName, setAttachedDocName] = useState<string | null>(null);
   const [attachedDocTruncated, setAttachedDocTruncated] = useState(false);
   const [extractText, setExtractText] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Re-seed the form when the parent feeds new pre-fill values (e.g. opening
+  // the dialog from a different chat thread). We only sync when the dialog
+  // is opened to avoid clobbering an in-progress edit.
+  useEffect(() => {
+    if (!open || !initialValues) return;
+    setName(initialValues.name ?? "");
+    setEmail(initialValues.email ?? "");
+    setPhone(initialValues.phone ?? "");
+    setMessage(initialValues.message ?? "");
+    if (initialValues.channel) setChannel(initialValues.channel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const reset = () => {
     setName("");
@@ -134,6 +179,7 @@ const NewConversationDialog: React.FC = () => {
       });
       setOpen(false);
       reset();
+      onCreated?.(convoRef.id);
     } catch (err: any) {
       toast({ title: "Failed to create conversation", description: err?.message, variant: "destructive" });
     } finally {
@@ -149,11 +195,13 @@ const NewConversationDialog: React.FC = () => {
         if (!v) reset();
       }}
     >
-      <DialogTrigger asChild>
-        <Button size="sm" className="h-8 w-8 p-0">
-          <Plus className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button size="sm" className="h-8 w-8 p-0">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New Conversation</DialogTitle>

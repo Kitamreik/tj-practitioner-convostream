@@ -44,7 +44,14 @@ function formatCountdown(ms: number): string {
   return `${m}m ${s.toString().padStart(2, "0")}s`;
 }
 
-const SlackAlertButton: React.FC<Props> = ({ className, variant = "full" }) => {
+// Slack ping is sunset — the team Slack webhook is not in use. This component
+// is kept as a no-op so existing imports keep compiling; it renders nothing.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const SlackAlertButton: React.FC<Props> = (_props) => {
+  return null;
+};
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _SlackAlertButtonLegacy: React.FC<Props> = ({ className, variant = "full" }) => {
   const { profile } = useAuth();
   const location = useLocation();
   const [sending, setSending] = useState(false);
