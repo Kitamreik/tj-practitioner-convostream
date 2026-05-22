@@ -179,6 +179,7 @@ const NewConversationDialog: React.FC<NewConversationDialogProps> = ({
       });
       setOpen(false);
       reset();
+      onCreated?.(convoRef.id);
     } catch (err: any) {
       toast({ title: "Failed to create conversation", description: err?.message, variant: "destructive" });
     } finally {
@@ -194,11 +195,13 @@ const NewConversationDialog: React.FC<NewConversationDialogProps> = ({
         if (!v) reset();
       }}
     >
-      <DialogTrigger asChild>
-        <Button size="sm" className="h-8 w-8 p-0">
-          <Plus className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button size="sm" className="h-8 w-8 p-0">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New Conversation</DialogTitle>
