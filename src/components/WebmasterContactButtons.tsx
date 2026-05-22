@@ -393,35 +393,8 @@ const WebmasterContactButtons: React.FC<Props> = ({ variant = "full", className 
 
   return (
     <div className={["flex flex-col gap-1.5", className].filter(Boolean).join(" ")}>
-      {/* Slack Alert — single-tap test ping. Sends a fixed alert to the team
-          channel via the server-side webhook (configured in Settings). No
-          form/modal — the user gets a toast confirmation and the channel is
-          notified immediately. The standalone <SlackAlertButton/> elsewhere
-          shares the same callable + 10-min cooldown. */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={slackSending}
-            onClick={handleSlackAlert}
-            className="w-full justify-center gap-2 border-primary/40 text-primary hover:bg-primary/10"
-            aria-label="Ping the on-call webmaster — logs to Internal agent logs and sends a Slack alert"
-          >
-            <Bell className="h-4 w-4" />
-            {compact ? null : <span>{slackSending ? "Pinging…" : "Ping webmaster"}</span>}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="text-xs max-w-[260px]">
-          {profile.role === "admin"
-            ? "Admin shortcut — sends an instant test ping to the team Slack channel."
-            : "Agent shortcut — sends an instant test ping to the team Slack channel."}
-          <div className="mt-1 text-muted-foreground">
-            Rate-limited to one ping every 10 minutes per user.
-          </div>
-        </TooltipContent>
-      </Tooltip>
+      {/* Slack quick-ping removed — feature sunset. Call/Text shortcuts below
+          remain the supported escalation paths. */}
 
       {inCooldown ? (
         // Cooldown view: one button + confirm dialog. Mirrors the layout

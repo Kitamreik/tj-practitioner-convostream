@@ -448,36 +448,8 @@ const Home: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Slack */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="rounded-2xl border border-border bg-card p-6"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-primary" /> Notify Slack
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Ping the team Slack bot for an urgent escalation. Rate-limited to one
-                alert every ten minutes.
-              </p>
-            </div>
-          </div>
-          <Button onClick={handleSlackPing} disabled={slackSending} className="gap-1.5">
-            {slackSending ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Sending…
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4" /> Ping Slack
-              </>
-            )}
-          </Button>
-        </motion.div>
+        {/* Slack ping card removed — feature sunset. Use "Elevate to webmaster"
+            on a conversation instead. */}
       </div>
 
       {/* Recent activity */}
