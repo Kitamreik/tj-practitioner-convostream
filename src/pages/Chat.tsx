@@ -836,6 +836,21 @@ const ChatPage: React.FC = () => {
           )}
         </section>
       )}
+      {!isCustomer && (
+        <NewConversationDialog
+          open={convertOpen}
+          onOpenChange={setConvertOpen}
+          initialValues={convertSeed}
+          hideTrigger
+          onCreated={(id) => {
+            toast({
+              title: "Customer conversation created",
+              description: "Opening the new thread on Conversations.",
+            });
+            navigate(`/conversations/${id}`);
+          }}
+        />
+      )}
     </div>
   );
 };
