@@ -2060,6 +2060,17 @@ const Conversations: React.FC = () => {
               without being mistaken for messages sent to the customer. */}
           <NotesAccordionSection conversationId={selected.id} />
 
+          {/* Safeguarding checklist — appears inline directly underneath the
+              notes block. Password-gated so customers / unauthorised viewers
+              can't see the affirmations even if they reach this DOM. The
+              customer portal does not mount Conversations.tsx, so this is
+              agent/admin/webmaster only by construction. */}
+          {selected.id && (
+            <div className="border-t border-border bg-warning/5 px-4 py-3">
+              <HarmImpactChecklist parentCollection="conversations" parentId={selected.id} />
+            </div>
+          )}
+
           {/* Mid-conversation status & channel quick-change */}
           <div className="border-t border-border bg-muted/20 px-4 py-2 flex flex-wrap items-center gap-3 text-xs">
             <div className="flex items-center gap-1.5">
@@ -2125,9 +2136,6 @@ const Conversations: React.FC = () => {
           </div>
           <div className="border-t border-border p-4 space-y-3">
             <EscalationStatusBanner />
-            {selectedId && (
-              <HarmImpactChecklist parentCollection="conversations" parentId={selectedId} />
-            )}
             <div className="flex gap-2">
               {selectedId && <AttachDocButton conversationId={selectedId} disabled={usingFallback} />}
               <Input
