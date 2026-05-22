@@ -167,6 +167,69 @@ const ChatPage: React.FC = () => {
     }
   };
 
+  /**
+   * "Link to customer" — agent shortcut from the chat thread header. We look
+   * up the other participant's email in the `conversations` collection. If a
+   * matching customer record already exists, we toast + navigate to that
+   * thread (no duplicate). Otherwise we open the NewConversationDialog with
+   * the chat participant's name/email/last message pre-filled so the agent
+   * only has to confirm and submit.
+   */
+  const openConvertFromActive = async () => {
+    if (!activeThread || !user) return;
+    const idx = activeThread.participantUids.findIndex((u) => u !== user.uid);
+    if (idx < 0) {
+      toast({ title: "Couldn't identify the other participant.", variant: "destructive" });
+      return;
+    }
+    const otherEmail = activeThread.participantEmails[idx] || "";
+    const otherName =
+      activeThread.participantNames?.[idx] ||
+      otherEmail.split("@")[0] ||
+      "Unknown";
+    const lastMessage =
+      messages
+        .slice()
+        .reverse()
+        .find((m) => !m.deleted && m.body?.trim())?.body ||
+      activeThread.lastMessagePreview ||
+      "";
+
+    setConvertChecking(true);
+    let existingId: string | null = null;
+    if (otherEmail) {
+      try {
+        const snap = await getDocs(
+          query(
+            collection(db, "conversations"),
+            where("customerEmail", "==", otherEmail),
+            limit(1),
+          ),
+        );
+        if (!snap.empty) existingId = snap.docs[0].id;
+      } catch (err) {
+        console.warn("convertChat: lookup failed", err);
+      }
+    }
+    setConvertChecking(false);
+
+    if (existingId) {
+      toast({
+        title: "Customer already exists",
+        description: `Opening the existing conversation for ${otherName}.`,
+      });
+      navigate(`/conversations/${existingId}`);
+      return;
+    }
+    setConvertSeed({
+      name: otherName,
+      email: otherEmail,
+      message: lastMessage,
+      channel: "mobile",
+    });
+    setConvertOpen(true);
+  };
+
   const filteredPickerUsers = useMemo(() => {
     const q = pickerSearch.trim().toLowerCase();
     if (!q) return pickerUsers;
