@@ -52,6 +52,7 @@ import {
   Pencil,
   Send,
   Trash2,
+  UserPlus,
   Users as UsersIcon,
 } from "lucide-react";
 import {
@@ -66,6 +67,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useSupportUsers, isSupportByUid, isSupportByEmail } from "@/hooks/useSupportUsers";
 import { SupportBadge } from "@/components/SupportBadge";
 import HarmImpactChecklist from "@/components/HarmImpactChecklist";
+import NewConversationDialog, {
+  type NewConversationInitialValues,
+} from "@/components/NewConversationDialog";
+import { collection, getDocs, limit, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useNavigate } from "react-router-dom";
 
 const formatTime = (ts: any) => {
   try {
