@@ -632,30 +632,47 @@ const ChatPage: React.FC = () => {
                     )}
                   </div>
                 </div>
-                {isMod && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive gap-1.5">
-                        <Trash2 className="h-4 w-4" />
-                        Delete thread
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Remove this thread for everyone?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          The thread will disappear from both participants' chat lists. Message
-                          history is preserved server-side for audit, but no one will see it in
-                          the app.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={deleteThread}>Remove thread</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {!isCustomer && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={openConvertFromActive}
+                      disabled={convertChecking}
+                      title="Match this chat to an existing customer or start a new conversation pre-filled from this thread."
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      <span className="hidden sm:inline">
+                        {convertChecking ? "Checking…" : "Link to customer"}
+                      </span>
+                    </Button>
+                  )}
+                  {isMod && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive gap-1.5">
+                          <Trash2 className="h-4 w-4" />
+                          <span className="hidden sm:inline">Delete thread</span>
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Remove this thread for everyone?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            The thread will disappear from both participants' chat lists. Message
+                            history is preserved server-side for audit, but no one will see it in
+                            the app.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={deleteThread}>Remove thread</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </div>
               </header>
 
               {activeId && (
