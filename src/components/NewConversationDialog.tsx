@@ -29,6 +29,13 @@ interface NewConversationDialogProps {
   onOpenChange?: (v: boolean) => void;
   /** Pre-populate the form (e.g. from a chat thread the agent is converting). */
   initialValues?: NewConversationInitialValues;
+  /**
+   * Pre-populate the safeguarding checklist for the new conversation. When
+   * provided, the seed is written to `conversations/{id}/affirmations/harmImpact`
+   * immediately after the conversation doc is created so the agent sees
+   * pre-filled notes when they open the thread + checklist.
+   */
+  initialChecklist?: ChecklistSeed | null;
   /** Hide the built-in "+" trigger when the parent controls the dialog. */
   hideTrigger?: boolean;
   /** Called after a conversation is successfully created. */
@@ -39,6 +46,7 @@ const NewConversationDialog: React.FC<NewConversationDialogProps> = ({
   open: openProp,
   onOpenChange,
   initialValues,
+  initialChecklist,
   hideTrigger,
   onCreated,
 }) => {
