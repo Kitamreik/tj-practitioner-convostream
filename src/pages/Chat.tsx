@@ -889,6 +889,7 @@ const ChatPage: React.FC = () => {
           open={convertOpen}
           onOpenChange={setConvertOpen}
           initialValues={convertSeed}
+          initialChecklist={convertChecklistSeed}
           hideTrigger
           onCreated={async (id) => {
             // Persist the link on both docs so the relationship survives a
