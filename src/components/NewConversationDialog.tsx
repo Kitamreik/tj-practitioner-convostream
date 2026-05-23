@@ -238,6 +238,14 @@ const NewConversationDialog: React.FC<NewConversationDialogProps> = ({
         <DialogHeader>
           <DialogTitle>New Conversation</DialogTitle>
         </DialogHeader>
+        {hasSeed(initialChecklist) && (
+          <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+            Safeguarding checklist will be pre-filled from the chat thread
+            ({Object.keys(initialChecklist!.items).length} item
+            {Object.keys(initialChecklist!.items).length === 1 ? "" : "s"} seeded).
+            Review and tick after creating.
+          </div>
+        )}
         <form onSubmit={handleCreate} className="space-y-4 mt-2">
           <div className="space-y-2">
             <Label>Customer Name</Label>
