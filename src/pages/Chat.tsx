@@ -70,7 +70,7 @@ import HarmImpactChecklist from "@/components/HarmImpactChecklist";
 import NewConversationDialog, {
   type NewConversationInitialValues,
 } from "@/components/NewConversationDialog";
-import { collection, getDocs, limit, query, where } from "firebase/firestore";
+import { collection, doc, getDocs, limit, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useNavigate } from "react-router-dom";
 
