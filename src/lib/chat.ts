@@ -72,6 +72,16 @@ export interface ChatThread {
    */
   readState?: Record<string, Timestamp>;
   typingState?: Record<string, Timestamp>;
+  /**
+   * Set when an agent uses "Link to customer" from the chat header to
+   * connect this DM thread to a customer Conversation. Persisting the id
+   * here lets the chat header re-render the "Open linked conversation"
+   * shortcut after a refresh instead of forcing the agent to re-lookup the
+   * customer every time they open the thread.
+   */
+  linkedConversationId?: string | null;
+  linkedConversationLinkedAt?: Timestamp | null;
+  linkedConversationLinkedByUid?: string | null;
 }
 
 export interface ChatMessage {

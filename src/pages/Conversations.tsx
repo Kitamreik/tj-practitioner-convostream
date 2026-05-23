@@ -133,6 +133,8 @@ interface Conversation {
   archived?: boolean;
   deletedAt?: any;
   topic?: ConsultingTopic;
+  /** Set when an agent linked a chat thread to this customer conversation. */
+  linkedChatThreadId?: string | null;
 }
 
 /**
@@ -1570,6 +1572,16 @@ const Conversations: React.FC = () => {
               <div className="min-w-0">
                 <h3 className="truncate font-semibold text-foreground">{selected.customerName}</h3>
                 <p className="truncate text-xs text-muted-foreground">{selected.customerEmail}</p>
+                {selected.linkedChatThreadId && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/chat?thread=${selected.linkedChatThreadId}`)}
+                    className="mt-0.5 inline-flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/20"
+                    title="Open the team-chat thread linked to this customer."
+                  >
+                    Linked chat thread
+                  </button>
+                )}
               </div>
             </div>
             <div className="flex flex-shrink-0 flex-nowrap items-center justify-end gap-1.5 sm:gap-2">

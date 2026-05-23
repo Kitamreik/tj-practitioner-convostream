@@ -70,7 +70,7 @@ import HarmImpactChecklist from "@/components/HarmImpactChecklist";
 import NewConversationDialog, {
   type NewConversationInitialValues,
 } from "@/components/NewConversationDialog";
-import { collection, getDocs, limit, query, where } from "firebase/firestore";
+import { collection, doc, getDocs, limit, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useNavigate } from "react-router-dom";
 
@@ -214,6 +214,7 @@ const ChatPage: React.FC = () => {
     setConvertChecking(false);
 
     if (existingId) {
+      await persistLink(activeThread.id, existingId);
       toast({
         title: "Customer already exists",
         description: `Opening the existing conversation for ${otherName}.`,
@@ -228,6 +229,35 @@ const ChatPage: React.FC = () => {
       channel: "mobile",
     });
     setConvertOpen(true);
+  };
+
+  /**
+   * Persist the chat-thread ↔ customer-conversation link on both documents
+   * so the relationship survives a refresh and is visible from either side:
+   *   - chat thread shows "Open linked conversation" in its header
+   *   - conversation detail can render a "Linked chat thread" badge
+   *
+   * Errors are swallowed (best-effort) so a Firestore hiccup never blocks
+   * the agent from navigating to the linked conversation.
+   */
+  const persistLink = async (threadId: string, conversationId: string) => {
+    if (!user) return;
+    try {
+      await Promise.all([
+        updateDoc(doc(db, "chatThreads", threadId), {
+          linkedConversationId: conversationId,
+          linkedConversationLinkedAt: serverTimestamp(),
+          linkedConversationLinkedByUid: user.uid,
+        }),
+        updateDoc(doc(db, "conversations", conversationId), {
+          linkedChatThreadId: threadId,
+          linkedChatThreadLinkedAt: serverTimestamp(),
+          linkedChatThreadLinkedByUid: user.uid,
+        }),
+      ]);
+    } catch (err) {
+      console.warn("persistLink failed:", err);
+    }
   };
 
   const filteredPickerUsers = useMemo(() => {
@@ -633,7 +663,19 @@ const ChatPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {!isCustomer && (
+                  {!isCustomer && activeThread.linkedConversationId && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => navigate(`/conversations/${activeThread.linkedConversationId}`)}
+                      title="Open the customer conversation that's been linked to this chat thread."
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      <span className="hidden sm:inline">Open linked conversation</span>
+                    </Button>
+                  )}
+                  {!isCustomer && !activeThread.linkedConversationId && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -842,7 +884,10 @@ const ChatPage: React.FC = () => {
           onOpenChange={setConvertOpen}
           initialValues={convertSeed}
           hideTrigger
-          onCreated={(id) => {
+          onCreated={async (id) => {
+            // Persist the link on both docs so the relationship survives a
+            // refresh on either side (chat header + conversation detail).
+            if (activeThread) await persistLink(activeThread.id, id);
             toast({
               title: "Customer conversation created",
               description: "Opening the new thread on Conversations.",
