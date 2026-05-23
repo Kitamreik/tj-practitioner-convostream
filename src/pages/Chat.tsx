@@ -884,7 +884,10 @@ const ChatPage: React.FC = () => {
           onOpenChange={setConvertOpen}
           initialValues={convertSeed}
           hideTrigger
-          onCreated={(id) => {
+          onCreated={async (id) => {
+            // Persist the link on both docs so the relationship survives a
+            // refresh on either side (chat header + conversation detail).
+            if (activeThread) await persistLink(activeThread.id, id);
             toast({
               title: "Customer conversation created",
               description: "Opening the new thread on Conversations.",
