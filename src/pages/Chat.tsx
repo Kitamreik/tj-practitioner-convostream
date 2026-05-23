@@ -70,6 +70,7 @@ import HarmImpactChecklist from "@/components/HarmImpactChecklist";
 import NewConversationDialog, {
   type NewConversationInitialValues,
 } from "@/components/NewConversationDialog";
+import { extractChecklistSeed, type ChecklistSeed } from "@/lib/checklistSeed";
 import { collection, doc, getDocs, limit, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useNavigate } from "react-router-dom";
@@ -103,6 +104,7 @@ const ChatPage: React.FC = () => {
   // ---- Convert-to-conversation -----------------------------------------------
   const [convertOpen, setConvertOpen] = useState(false);
   const [convertSeed, setConvertSeed] = useState<NewConversationInitialValues>({});
+  const [convertChecklistSeed, setConvertChecklistSeed] = useState<ChecklistSeed | null>(null);
   const [convertChecking, setConvertChecking] = useState(false);
 
   /** True when the *other* participant of a thread has Support access. */
@@ -228,6 +230,10 @@ const ChatPage: React.FC = () => {
       message: lastMessage,
       channel: "mobile",
     });
+    // Heuristically scan the customer's recent messages for content that
+    // maps onto the four safeguarding checklist items so the new
+    // conversation opens with pre-extracted notes. Agent still confirms.
+    setConvertChecklistSeed(extractChecklistSeed(messages, user.uid));
     setConvertOpen(true);
   };
 
@@ -883,6 +889,7 @@ const ChatPage: React.FC = () => {
           open={convertOpen}
           onOpenChange={setConvertOpen}
           initialValues={convertSeed}
+          initialChecklist={convertChecklistSeed}
           hideTrigger
           onCreated={async (id) => {
             // Persist the link on both docs so the relationship survives a

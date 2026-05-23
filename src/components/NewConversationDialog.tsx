@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import type { ChecklistSeed } from "@/lib/checklistSeed";
+import { hasSeed } from "@/lib/checklistSeed";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +29,13 @@ interface NewConversationDialogProps {
   onOpenChange?: (v: boolean) => void;
   /** Pre-populate the form (e.g. from a chat thread the agent is converting). */
   initialValues?: NewConversationInitialValues;
+  /**
+   * Pre-populate the safeguarding checklist for the new conversation. When
+   * provided, the seed is written to `conversations/{id}/affirmations/harmImpact`
+   * immediately after the conversation doc is created so the agent sees
+   * pre-filled notes when they open the thread + checklist.
+   */
+  initialChecklist?: ChecklistSeed | null;
   /** Hide the built-in "+" trigger when the parent controls the dialog. */
   hideTrigger?: boolean;
   /** Called after a conversation is successfully created. */
@@ -36,6 +46,7 @@ const NewConversationDialog: React.FC<NewConversationDialogProps> = ({
   open: openProp,
   onOpenChange,
   initialValues,
+  initialChecklist,
   hideTrigger,
   onCreated,
 }) => {
@@ -171,10 +182,31 @@ const NewConversationDialog: React.FC<NewConversationDialogProps> = ({
             }
           : {}),
       });
+      // If the parent passed a checklist seed (e.g. converting a chat thread),
+      // persist it now so the safeguarding checklist on the new conversation
+      // opens with the pre-extracted notes. Best-effort — never blocks create.
+      if (hasSeed(initialChecklist)) {
+        try {
+          await setDoc(
+            doc(db, "conversations", convoRef.id, "affirmations", "harmImpact"),
+            {
+              items: initialChecklist!.items,
+              seededFrom: "chat-conversion",
+              updatedBy: profile?.displayName || profile?.uid || "agent",
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true },
+          );
+        } catch (seedErr) {
+          console.warn("checklist seed write failed:", seedErr);
+        }
+      }
       toast({
         title: "Conversation created",
         description: attachedDocName
           ? `Seeded from ${attachedDocName}.`
+          : hasSeed(initialChecklist)
+          ? "Safeguarding checklist pre-filled from chat."
           : undefined,
       });
       setOpen(false);
@@ -206,6 +238,14 @@ const NewConversationDialog: React.FC<NewConversationDialogProps> = ({
         <DialogHeader>
           <DialogTitle>New Conversation</DialogTitle>
         </DialogHeader>
+        {hasSeed(initialChecklist) && (
+          <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+            Safeguarding checklist will be pre-filled from the chat thread
+            ({Object.keys(initialChecklist!.items).length} item
+            {Object.keys(initialChecklist!.items).length === 1 ? "" : "s"} seeded).
+            Review and tick after creating.
+          </div>
+        )}
         <form onSubmit={handleCreate} className="space-y-4 mt-2">
           <div className="space-y-2">
             <Label>Customer Name</Label>
