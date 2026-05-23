@@ -3,7 +3,7 @@ import { collection, addDoc, doc, setDoc, serverTimestamp } from "firebase/fires
 import { db } from "@/lib/firebase";
 import type { ChecklistSeed } from "@/lib/checklistSeed";
 import { hasSeed } from "@/lib/checklistSeed";
-import { ShieldCheck } from "lucide-react";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
