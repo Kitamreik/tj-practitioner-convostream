@@ -182,10 +182,31 @@ const NewConversationDialog: React.FC<NewConversationDialogProps> = ({
             }
           : {}),
       });
+      // If the parent passed a checklist seed (e.g. converting a chat thread),
+      // persist it now so the safeguarding checklist on the new conversation
+      // opens with the pre-extracted notes. Best-effort — never blocks create.
+      if (hasSeed(initialChecklist)) {
+        try {
+          await setDoc(
+            doc(db, "conversations", convoRef.id, "affirmations", "harmImpact"),
+            {
+              items: initialChecklist!.items,
+              seededFrom: "chat-conversion",
+              updatedBy: profile?.displayName || profile?.uid || "agent",
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true },
+          );
+        } catch (seedErr) {
+          console.warn("checklist seed write failed:", seedErr);
+        }
+      }
       toast({
         title: "Conversation created",
         description: attachedDocName
           ? `Seeded from ${attachedDocName}.`
+          : hasSeed(initialChecklist)
+          ? "Safeguarding checklist pre-filled from chat."
           : undefined,
       });
       setOpen(false);
