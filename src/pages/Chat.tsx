@@ -214,6 +214,7 @@ const ChatPage: React.FC = () => {
     setConvertChecking(false);
 
     if (existingId) {
+      await persistLink(activeThread.id, existingId);
       toast({
         title: "Customer already exists",
         description: `Opening the existing conversation for ${otherName}.`,
@@ -228,6 +229,35 @@ const ChatPage: React.FC = () => {
       channel: "mobile",
     });
     setConvertOpen(true);
+  };
+
+  /**
+   * Persist the chat-thread ↔ customer-conversation link on both documents
+   * so the relationship survives a refresh and is visible from either side:
+   *   - chat thread shows "Open linked conversation" in its header
+   *   - conversation detail can render a "Linked chat thread" badge
+   *
+   * Errors are swallowed (best-effort) so a Firestore hiccup never blocks
+   * the agent from navigating to the linked conversation.
+   */
+  const persistLink = async (threadId: string, conversationId: string) => {
+    if (!user) return;
+    try {
+      await Promise.all([
+        updateDoc(doc(db, "chatThreads", threadId), {
+          linkedConversationId: conversationId,
+          linkedConversationLinkedAt: serverTimestamp(),
+          linkedConversationLinkedByUid: user.uid,
+        }),
+        updateDoc(doc(db, "conversations", conversationId), {
+          linkedChatThreadId: threadId,
+          linkedChatThreadLinkedAt: serverTimestamp(),
+          linkedChatThreadLinkedByUid: user.uid,
+        }),
+      ]);
+    } catch (err) {
+      console.warn("persistLink failed:", err);
+    }
   };
 
   const filteredPickerUsers = useMemo(() => {
