@@ -104,6 +104,7 @@ const ChatPage: React.FC = () => {
   // ---- Convert-to-conversation -----------------------------------------------
   const [convertOpen, setConvertOpen] = useState(false);
   const [convertSeed, setConvertSeed] = useState<NewConversationInitialValues>({});
+  const [convertChecklistSeed, setConvertChecklistSeed] = useState<ChecklistSeed | null>(null);
   const [convertChecking, setConvertChecking] = useState(false);
 
   /** True when the *other* participant of a thread has Support access. */
