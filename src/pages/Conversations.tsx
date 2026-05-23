@@ -133,6 +133,8 @@ interface Conversation {
   archived?: boolean;
   deletedAt?: any;
   topic?: ConsultingTopic;
+  /** Set when an agent linked a chat thread to this customer conversation. */
+  linkedChatThreadId?: string | null;
 }
 
 /**
