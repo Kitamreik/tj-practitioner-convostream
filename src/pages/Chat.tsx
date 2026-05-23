@@ -230,6 +230,10 @@ const ChatPage: React.FC = () => {
       message: lastMessage,
       channel: "mobile",
     });
+    // Heuristically scan the customer's recent messages for content that
+    // maps onto the four safeguarding checklist items so the new
+    // conversation opens with pre-extracted notes. Agent still confirms.
+    setConvertChecklistSeed(extractChecklistSeed(messages, user.uid));
     setConvertOpen(true);
   };
 
