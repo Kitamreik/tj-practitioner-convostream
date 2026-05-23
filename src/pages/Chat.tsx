@@ -663,7 +663,19 @@ const ChatPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {!isCustomer && (
+                  {!isCustomer && activeThread.linkedConversationId && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => navigate(`/conversations/${activeThread.linkedConversationId}`)}
+                      title="Open the customer conversation that's been linked to this chat thread."
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      <span className="hidden sm:inline">Open linked conversation</span>
+                    </Button>
+                  )}
+                  {!isCustomer && !activeThread.linkedConversationId && (
                     <Button
                       size="sm"
                       variant="outline"
