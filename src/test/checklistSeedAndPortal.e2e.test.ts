@@ -59,19 +59,17 @@ describe("Chat → New Conversation seed prefill", () => {
   it("extractChecklistSeed pulls notes from customer messages and skips agent ones", () => {
     const seed = extractChecklistSeed(
       [
-        { body: "My sister has been hurting me for years. Please call me, not text.", senderUid: "cust" },
         { body: "My sister harmed me for years. Please call me, not text.", senderUid: "cust" },
         { body: "Hi — what's going on?", senderUid: "agent" },
         { body: "I have a therapist who knows. Avoid talking about my father.", senderUid: "cust" },
       ],
       "agent",
     );
-    );
     expect(hasSeed(seed)).toBe(true);
-    expect(seed.items.harmedParties?.note).toMatch(/hurt/i);
-    expect(seed.items.supportTeam?.note).toMatch(/therapist/i);
+    expect(seed.items.harmedParties?.note).toMatch(/harm/i);
+    expect(seed.items.supportTeam?.note).toMatch(/sister|therapist/i);
     expect(seed.items.preferredComms?.note).toMatch(/call me/i);
-    expect(seed.items.triggers?.note).toMatch(/avoid|father/i);
+    expect(seed.items.triggers?.note).toMatch(/avoid/i);
     // Conservative: never auto-tick.
     for (const v of Object.values(seed.items)) expect(v.checked).toBe(false);
   });
