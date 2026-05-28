@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { collection, addDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { ChecklistSeed } from "@/lib/checklistSeed";
 import { hasSeed } from "@/lib/checklistSeed";
