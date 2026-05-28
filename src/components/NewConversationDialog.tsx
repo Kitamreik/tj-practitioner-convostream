@@ -184,21 +184,49 @@ const NewConversationDialog: React.FC<NewConversationDialogProps> = ({
       });
       // If the parent passed a checklist seed (e.g. converting a chat thread),
       // persist it now so the safeguarding checklist on the new conversation
-      // opens with the pre-extracted notes. Best-effort — never blocks create.
+      // opens with the pre-extracted notes. Defensive guards:
+      //   1. Validate the conversation id we got back — never write to an
+      //      empty/whitespace path (would land at the collection root).
+      //   2. Only write if no checklist doc exists OR the existing doc has no
+      //      items yet. This guarantees an agent edit can never be clobbered
+      //      by a late-arriving seed if the same dialog is reused.
       if (hasSeed(initialChecklist)) {
-        try {
-          await setDoc(
-            doc(db, "conversations", convoRef.id, "affirmations", "harmImpact"),
-            {
-              items: initialChecklist!.items,
-              seededFrom: "chat-conversion",
-              updatedBy: profile?.displayName || profile?.uid || "agent",
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true },
-          );
-        } catch (seedErr) {
-          console.warn("checklist seed write failed:", seedErr);
+        const convoId = convoRef.id?.trim();
+        if (!convoId) {
+          console.warn("[checklist-seed] aborting: empty conversation id");
+        } else {
+          try {
+            const seedRef = doc(db, "conversations", convoId, "affirmations", "harmImpact");
+            const existing = await getDoc(seedRef);
+            const existingItems = (existing.data() as { items?: Record<string, unknown> } | undefined)?.items;
+            const hasAgentEdits = !!existingItems && Object.keys(existingItems).length > 0;
+            if (hasAgentEdits) {
+              console.info("[checklist-seed] skipped — agent edits present", {
+                path: seedRef.path,
+                conversationId: convoId,
+              });
+            } else {
+              await setDoc(
+                seedRef,
+                {
+                  items: initialChecklist!.items,
+                  seededFrom: "chat-conversion",
+                  seededAt: serverTimestamp(),
+                  seededByUid: profile?.uid ?? null,
+                  updatedBy: profile?.displayName || profile?.uid || "agent",
+                  updatedAt: serverTimestamp(),
+                },
+                { merge: true },
+              );
+              console.info("[checklist-seed] wrote seed", {
+                path: seedRef.path,
+                conversationId: convoId,
+                itemKeys: Object.keys(initialChecklist!.items),
+              });
+            }
+          } catch (seedErr) {
+            console.warn("[checklist-seed] write failed:", seedErr);
+          }
         }
       }
       toast({
