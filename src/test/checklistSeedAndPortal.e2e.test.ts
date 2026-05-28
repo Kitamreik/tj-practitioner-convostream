@@ -60,10 +60,12 @@ describe("Chat → New Conversation seed prefill", () => {
     const seed = extractChecklistSeed(
       [
         { body: "My sister has been hurting me for years. Please call me, not text.", senderUid: "cust" },
+        { body: "My sister harmed me for years. Please call me, not text.", senderUid: "cust" },
         { body: "Hi — what's going on?", senderUid: "agent" },
         { body: "I have a therapist who knows. Avoid talking about my father.", senderUid: "cust" },
       ],
       "agent",
+    );
     );
     expect(hasSeed(seed)).toBe(true);
     expect(seed.items.harmedParties?.note).toMatch(/hurt/i);
