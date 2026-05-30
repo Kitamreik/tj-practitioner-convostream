@@ -214,57 +214,11 @@ const SettingsPage: React.FC = () => {
     document.body.style.userSelect = "none";
   };
 
-  // ---- Promote (webmaster only) ----
-  // The form takes a user identifier (email under the hood — required by the
-  // server callable to resolve the target uid), but the UI no longer mentions
-  // email so the language stays role/account-centric. Successful promotions
-  // are mirrored into `escalationRequests` with status "approved" so they
-  // surface in the Pending escalations history alongside admin-initiated
-  // requests. We only write the audit row after the callable succeeds — no
-  // hallucinated entries.
-  const [promoteIdentifier, setPromoteIdentifier] = useState("");
-  const [promoting, setPromoting] = useState(false);
+  // Promote-to-Webmaster has been removed from Settings entirely. Role
+  // changes are now handled through the Accounts panel + server-side
+  // callables (`promoteToWebmaster` / `demoteAgent`) and are no longer
+  // self-service from this surface.
 
-  const handlePromote = async () => {
-    const identifier = promoteIdentifier.trim().toLowerCase();
-    if (!identifier || !identifier.includes("@")) {
-      toast({
-        title: "Enter a valid account identifier",
-        description: "Use the account login (e.g. user@workspace).",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!user) {
-      toast({ title: "Not signed in", variant: "destructive" });
-      return;
-    }
-    setPromoting(true);
-    try {
-      const fn = httpsCallable<
-        { targetIdentifier: string; role: "webmaster" },
-        { ok: boolean; previousRole: string; newRole: string; escalationRequestId?: string }
-      >(
-        functions,
-        "promoteToWebmaster"
-      );
-      const res = await fn({ targetIdentifier: identifier, role: "webmaster" });
-
-      toast({
-        title: "Role granted",
-        description: `Account promoted ${res.data.previousRole} → ${res.data.newRole}; escalation log persisted.`,
-      });
-      setPromoteIdentifier("");
-    } catch (e: any) {
-      toast({
-        title: "Promotion failed",
-        description: e?.message || "Unable to grant role.",
-        variant: "destructive",
-      });
-    } finally {
-      setPromoting(false);
-    }
-  };
 
   // Provision Support account flow removed — Support is no longer a managed
   // role in this product. Webmasters grant access via the Accounts panel.
