@@ -90,19 +90,22 @@ service cloud.firestore {
       // fan-out broadcast notifications).
       allow read: if isInternal();
 
-      // Create: self-signup. The Cloud Function strips role; rules also forbid
-      // a client-supplied non-default role unless the caller is a webmaster.
-      allow create: if isSelf(uid)
+      // Create: self-signup OR webmaster seeding. The Cloud Function strips
+      // role; rules also forbid a client-supplied non-default role unless the
+      // caller is a webmaster. Webmasters can create synthetic profiles
+      // (e.g. demo seed data) at any uid.
+      allow create: if (isSelf(uid) || isWebmaster())
         && (
           !('role' in request.resource.data)
           || request.resource.data.role == 'agent'
           || request.resource.data.role == 'customer'
           || isWebmaster()
         )
-        && !('escalatedAccess' in request.resource.data)
-        && !('supportAccess' in request.resource.data)
+        && (isWebmaster() || !('escalatedAccess' in request.resource.data))
+        && (isWebmaster() || !('supportAccess' in request.resource.data))
         && (
-          !('approvalStatus' in request.resource.data)
+          isWebmaster()
+          || !('approvalStatus' in request.resource.data)
           || request.resource.data.approvalStatus == 'pending'
           // Customer self-signup is auto-approved (decision: "Auto-approved
           // but logged"); their signup row in customerSignupLog provides
@@ -110,6 +113,7 @@ service cloud.firestore {
           || (request.resource.data.get('role', '') == 'customer'
               && request.resource.data.approvalStatus == 'approved')
         );
+
 
       // Update: self can update profile fields but cannot mutate `role`,
       // `escalatedAccess`, `supportAccess`, or `approvalStatus`. Webmasters
