@@ -51,6 +51,7 @@ import PrivacyDataCard from "@/components/PrivacyDataCard";
 import AgentRosterPanel from "@/components/AgentRosterPanel";
 import SignupApprovalsPanel from "@/components/SignupApprovalsPanel";
 import AuthorizedDomainsPanel from "@/components/AuthorizedDomainsPanel";
+import DataSeedPanel from "@/components/DataSeedPanel";
 import CallRecordingSettings from "@/components/CallRecordingSettings";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -213,57 +214,11 @@ const SettingsPage: React.FC = () => {
     document.body.style.userSelect = "none";
   };
 
-  // ---- Promote (webmaster only) ----
-  // The form takes a user identifier (email under the hood — required by the
-  // server callable to resolve the target uid), but the UI no longer mentions
-  // email so the language stays role/account-centric. Successful promotions
-  // are mirrored into `escalationRequests` with status "approved" so they
-  // surface in the Pending escalations history alongside admin-initiated
-  // requests. We only write the audit row after the callable succeeds — no
-  // hallucinated entries.
-  const [promoteIdentifier, setPromoteIdentifier] = useState("");
-  const [promoting, setPromoting] = useState(false);
+  // Promote-to-Webmaster has been removed from Settings entirely. Role
+  // changes are now handled through the Accounts panel + server-side
+  // callables (`promoteToWebmaster` / `demoteAgent`) and are no longer
+  // self-service from this surface.
 
-  const handlePromote = async () => {
-    const identifier = promoteIdentifier.trim().toLowerCase();
-    if (!identifier || !identifier.includes("@")) {
-      toast({
-        title: "Enter a valid account identifier",
-        description: "Use the account login (e.g. user@workspace).",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!user) {
-      toast({ title: "Not signed in", variant: "destructive" });
-      return;
-    }
-    setPromoting(true);
-    try {
-      const fn = httpsCallable<
-        { targetIdentifier: string; role: "webmaster" },
-        { ok: boolean; previousRole: string; newRole: string; escalationRequestId?: string }
-      >(
-        functions,
-        "promoteToWebmaster"
-      );
-      const res = await fn({ targetIdentifier: identifier, role: "webmaster" });
-
-      toast({
-        title: "Role granted",
-        description: `Account promoted ${res.data.previousRole} → ${res.data.newRole}; escalation log persisted.`,
-      });
-      setPromoteIdentifier("");
-    } catch (e: any) {
-      toast({
-        title: "Promotion failed",
-        description: e?.message || "Unable to grant role.",
-        variant: "destructive",
-      });
-    } finally {
-      setPromoting(false);
-    }
-  };
 
   // Provision Support account flow removed — Support is no longer a managed
   // role in this product. Webmasters grant access via the Accounts panel.
@@ -1450,15 +1405,14 @@ const SettingsPage: React.FC = () => {
           { id: "overview", label: "Overview" },
           { id: "webmaster-contact", label: "Webmaster contact" },
           { id: "bg-gmail", label: "Background Gmail ingestion" },
-          { id: "promote", label: "Promote to Webmaster" },
           { id: "pending", label: "Pending escalations" },
           { id: "agents", label: "Agents" },
           { id: "accounts", label: "Accounts" },
           { id: "investigations", label: "Investigation requests" },
         ]
       : [{ id: "escalate", label: "Escalate to Webmaster" }]),
-    { id: "security", label: "Security" },
   ];
+
   const showSideNav = isWebmaster && !isMobile;
 
   return (
@@ -2019,44 +1973,9 @@ const SettingsPage: React.FC = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Webmaster-only: Promote */}
-        {isWebmaster && (
-          <div id="promote" className="rounded-xl border border-primary/30 bg-primary/5 p-4 sm:p-6">
-            <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-1">
-              <KeyRound className="h-5 w-5 text-primary" />
-              Promote to Webmaster
-            </h3>
-            <p className="text-xs text-muted-foreground mb-4">
-              Grants the target account full webmaster access. The change is recorded in
-              <code className="mx-1 rounded bg-muted px-1 py-0.5">roleGrants</code>,
-              signed server-side via the <code className="mx-1 rounded bg-muted px-1 py-0.5">_serverRoleWrite</code> sentinel,
-              and a matching entry is written to the Pending escalations history below for an end-to-end audit trail.
-            </p>
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="promote-identifier">Target account identifier</Label>
-                <Input
-                  id="promote-identifier"
-                  type="text"
-                  placeholder="account login (e.g. user@workspace)"
-                  value={promoteIdentifier}
-                  onChange={(e) => setPromoteIdentifier(e.target.value)}
-                  autoComplete="off"
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Use the identifier the user signs in with. The promotion is logged to the escalations history once granted.
-                </p>
-              </div>
-              <Button onClick={handlePromote} disabled={promoting || !promoteIdentifier.trim()} className="gap-2 w-full sm:w-auto">
-                <KeyRound className="h-4 w-4" />
-                {promoting ? "Granting…" : "Grant webmaster role"}
-              </Button>
-            </div>
-          </div>
-        )}
+        {/* Promote-to-Webmaster panel removed — role management lives in
+            the Accounts panel below (server-enforced). */}
 
-        {/* Provision Support account block removed — Support is no longer a
-            managed role. Webmasters grant individual access via Accounts. */}
 
 
         {isWebmaster && (
@@ -2303,6 +2222,7 @@ const SettingsPage: React.FC = () => {
         <SignupApprovalsPanel />
         <AgentRosterPanel />
         {isWebmaster && <AuthorizedDomainsPanel />}
+        {isWebmaster && <DataSeedPanel />}
 
         {/* Shared rename-agent dialog (controlled) */}
         {isWebmaster && (
@@ -2960,18 +2880,9 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Security */}
-        <div id="security" className="rounded-xl border border-border bg-card p-4 sm:p-6">
-          <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-4">
-            <Shield className="h-5 w-5 text-primary" />
-            Security
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Authentication is managed via Firebase. Use the Firebase Console to reset your password or enable MFA.
-            Role changes are server-enforced — the <code className="rounded bg-muted px-1 py-0.5">enforceUserRoleOnWrite</code> trigger
-            reverts any client-side tampering.
-          </p>
-        </div>
+        {/* Security panel removed — Firebase auth + server-side role
+            enforcement are documented in the project README. */}
+
       </div>
       </div>
     </div>
