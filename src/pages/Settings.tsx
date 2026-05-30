@@ -2880,18 +2880,9 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Security */}
-        <div id="security" className="rounded-xl border border-border bg-card p-4 sm:p-6">
-          <h3 className="flex items-center gap-2 text-lg font-semibold text-card-foreground mb-4">
-            <Shield className="h-5 w-5 text-primary" />
-            Security
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Authentication is managed via Firebase. Use the Firebase Console to reset your password or enable MFA.
-            Role changes are server-enforced — the <code className="rounded bg-muted px-1 py-0.5">enforceUserRoleOnWrite</code> trigger
-            reverts any client-side tampering.
-          </p>
-        </div>
+        {/* Security panel removed — Firebase auth + server-side role
+            enforcement are documented in the project README. */}
+
       </div>
       </div>
     </div>
