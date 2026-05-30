@@ -1405,15 +1405,14 @@ const SettingsPage: React.FC = () => {
           { id: "overview", label: "Overview" },
           { id: "webmaster-contact", label: "Webmaster contact" },
           { id: "bg-gmail", label: "Background Gmail ingestion" },
-          { id: "promote", label: "Promote to Webmaster" },
           { id: "pending", label: "Pending escalations" },
           { id: "agents", label: "Agents" },
           { id: "accounts", label: "Accounts" },
           { id: "investigations", label: "Investigation requests" },
         ]
       : [{ id: "escalate", label: "Escalate to Webmaster" }]),
-    { id: "security", label: "Security" },
   ];
+
   const showSideNav = isWebmaster && !isMobile;
 
   return (
