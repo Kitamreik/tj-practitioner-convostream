@@ -74,18 +74,52 @@ const NewConversationDialog: React.FC<NewConversationDialogProps> = ({
   const [extracting, setExtracting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ---- localStorage draft failsafe -----------------------------------------
+  // If a Firestore submit fails (permission, offline, rules), the user
+  // shouldn't lose what they typed. We mirror the form to localStorage on
+  // every change and hydrate from it on open. Cleared on successful create.
+  const DRAFT_KEY = profile?.uid
+    ? `ConvoHub.newConversation.draft.${profile.uid}`
+    : "ConvoHub.newConversation.draft.anon";
+
   // Re-seed the form when the parent feeds new pre-fill values (e.g. opening
   // the dialog from a different chat thread). We only sync when the dialog
-  // is opened to avoid clobbering an in-progress edit.
+  // is opened to avoid clobbering an in-progress edit. If no initialValues
+  // are provided, fall back to any locally-saved draft so an internal error
+  // on a previous attempt doesn't lose the agent's typing.
   useEffect(() => {
-    if (!open || !initialValues) return;
-    setName(initialValues.name ?? "");
-    setEmail(initialValues.email ?? "");
-    setPhone(initialValues.phone ?? "");
-    setMessage(initialValues.message ?? "");
-    if (initialValues.channel) setChannel(initialValues.channel);
+    if (!open) return;
+    if (initialValues) {
+      setName(initialValues.name ?? "");
+      setEmail(initialValues.email ?? "");
+      setPhone(initialValues.phone ?? "");
+      setMessage(initialValues.message ?? "");
+      if (initialValues.channel) setChannel(initialValues.channel);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Partial<{
+        name: string; email: string; phone: string; message: string; channel: string;
+      }>;
+      if (d.name) setName(d.name);
+      if (d.email) setEmail(d.email);
+      if (d.phone) setPhone(d.phone);
+      if (d.message) setMessage(d.message);
+      if (d.channel) setChannel(d.channel);
+    } catch { /* private mode / malformed */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Persist on every change while the dialog is open.
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const payload = JSON.stringify({ name, email, phone, message, channel });
+      localStorage.setItem(DRAFT_KEY, payload);
+    } catch { /* noop */ }
+  }, [open, name, email, phone, message, channel, DRAFT_KEY]);
 
   const reset = () => {
     setName("");
@@ -96,6 +130,7 @@ const NewConversationDialog: React.FC<NewConversationDialogProps> = ({
     setAttachedDocName(null);
     setAttachedDocTruncated(false);
     setExtractText(null);
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* noop */ }
   };
 
   /**
