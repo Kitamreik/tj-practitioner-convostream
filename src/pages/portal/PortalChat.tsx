@@ -103,14 +103,16 @@ const PortalChat: React.FC = () => {
     }
   };
 
-  const startThreadWith = async (agentUid: string, agentEmail: string) => {
+  const startThreadWith = async (agent: { uid: string; email: string; displayName: string }) => {
     if (!user || !profile) return;
     try {
       const id = await openOrCreateDmThread({
         selfUid: user.uid,
         selfEmail: profile.email || user.email || "",
-        otherUid: agentUid,
-        otherEmail: agentEmail,
+        selfName: profile.displayName || profile.email || "Customer",
+        otherUid: agent.uid,
+        otherEmail: agent.email,
+        otherName: agent.displayName || agent.email,
       });
       setActiveId(id);
       setPickerOpen(false);
