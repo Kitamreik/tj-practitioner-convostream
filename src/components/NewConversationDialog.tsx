@@ -276,7 +276,14 @@ const NewConversationDialog: React.FC<NewConversationDialogProps> = ({
       reset();
       onCreated?.(convoRef.id);
     } catch (err: any) {
-      toast({ title: "Failed to create conversation", description: err?.message, variant: "destructive" });
+      // Failure path — keep the localStorage draft so the agent can retry
+      // without retyping. Surface the kept-draft hint so they trust it.
+      console.warn("[new-conversation] create failed; draft retained:", err);
+      toast({
+        title: "Failed to create conversation",
+        description: (err?.message ? err.message + " — " : "") + "Your draft is saved on this device.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
