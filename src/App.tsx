@@ -38,6 +38,7 @@ import PortalLogin from "./pages/portal/PortalLogin";
 import PortalSignup from "./pages/portal/PortalSignup";
 import PortalConversations from "./pages/portal/PortalConversations";
 import PortalThread from "./pages/portal/PortalThread";
+import PortalChat from "./pages/portal/PortalChat";
 
 const queryClient = new QueryClient();
 
