@@ -130,14 +130,20 @@ const App = () => (
                 <Route path="/portal/login" element={<AuthRoute><PortalLogin /></AuthRoute>} />
                 <Route path="/portal/signup" element={<AuthRoute><PortalSignup /></AuthRoute>} />
                 <Route path="/portal" element={<Navigate to="/portal/chat" replace />} />
+                {/* Legacy redirect — customers used to land on a "Welcome"
+                    conversations console; their primary surface is now the
+                    Team Chat. PortalConversations is kept exported but no
+                    longer routed to keep historical bookmarks working. */}
+                <Route path="/portal/conversations" element={<Navigate to="/portal/chat" replace />} />
                 <Route
                   path="/portal/chat"
-                  element={<CustomerRoute><PortalConversations /></CustomerRoute>}
+                  element={<CustomerRoute><PortalChat /></CustomerRoute>}
                 />
                 <Route
                   path="/portal/conversations/:id"
                   element={<CustomerRoute><PortalThread /></CustomerRoute>}
                 />
+
                 <Route
                   element={
                     <ProtectedRoute>
