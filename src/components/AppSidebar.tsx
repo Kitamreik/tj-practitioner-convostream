@@ -23,7 +23,7 @@ import {
   MessagesSquare,
   Mic,
 } from "lucide-react";
-import WebmasterContactButtons from "@/components/WebmasterContactButtons";
+import EscalateWebmasterModal from "@/components/EscalateWebmasterModal";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -272,7 +272,7 @@ const AppSidebar: React.FC = () => {
       <div className="border-t border-sidebar-border p-3 space-y-2">
         {/* Direct line to the on-call webmaster — hidden for the webmaster
             themselves (the component handles that gating). */}
-        <WebmasterContactButtons className="w-full" />
+        <EscalateWebmasterModal className="w-full" />
 
         <Button
           variant="ghost"
