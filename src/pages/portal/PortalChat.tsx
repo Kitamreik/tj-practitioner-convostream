@@ -132,7 +132,7 @@ const PortalChat: React.FC = () => {
         senderUid: user.uid,
         senderEmail: profile.email || user.email || "",
         senderName: profile.displayName || profile.email || "Customer",
-        text,
+        body: text,
       });
       setDraft("");
       if (draftKey) {
@@ -242,7 +242,7 @@ const PortalChat: React.FC = () => {
                       <li key={a.uid}>
                         <button
                           type="button"
-                          onClick={() => startThreadWith(a.uid, a.email)}
+                          onClick={() => startThreadWith(a)}
                           className="flex w-full items-center justify-between rounded-md border border-transparent p-2 text-left hover:border-border hover:bg-accent/40"
                         >
                           <div>
@@ -281,7 +281,7 @@ const PortalChat: React.FC = () => {
                             {m.senderName || m.senderEmail}
                           </p>
                         )}
-                        <p className="whitespace-pre-wrap break-words">{m.deleted ? "(message removed)" : m.text}</p>
+                        <p className="whitespace-pre-wrap break-words">{m.deleted ? "(message removed)" : m.body}</p>
                       </div>
                     </div>
                   );
