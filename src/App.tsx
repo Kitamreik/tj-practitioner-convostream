@@ -36,8 +36,10 @@ import CookieConsent from "./components/CookieConsent";
 import FirestoreErrorBoundary from "./components/FirestoreErrorBoundary";
 import PortalLogin from "./pages/portal/PortalLogin";
 import PortalSignup from "./pages/portal/PortalSignup";
-import PortalConversations from "./pages/portal/PortalConversations";
+// PortalConversations is intentionally not imported — the customer landing
+// page is now PortalChat (Team Chat). The file is kept on disk for history.
 import PortalThread from "./pages/portal/PortalThread";
+import PortalChat from "./pages/portal/PortalChat";
 
 const queryClient = new QueryClient();
 
@@ -52,7 +54,7 @@ const ProtectedRoute: React.FC<{
   if (!user) return <Navigate to="/login" replace />;
   // Customers must never reach internal/agent routes — bounce them to the
   // customer portal instead.
-  if (profile?.role === "customer") return <Navigate to="/portal/conversations" replace />;
+  if (profile?.role === "customer") return <Navigate to="/portal/chat" replace />;
   // Gate: any signed-in user whose account is pending or rejected goes to the
   // /pending-approval landing page until a webmaster/admin reviews them.
   // Webmasters bypass the gate so they can always reach Settings to review.
@@ -76,7 +78,7 @@ const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, profile, loading } = useAuth();
   if (loading) return <div className="flex h-screen items-center justify-center text-muted-foreground">Loading...</div>;
   if (user) {
-    if (profile?.role === "customer") return <Navigate to="/portal/conversations" replace />;
+    if (profile?.role === "customer") return <Navigate to="/portal/chat" replace />;
     return <Navigate to="/" replace />;
   }
   return <>{children}</>;
@@ -128,15 +130,21 @@ const App = () => (
                 {/* ----------- Customer portal route tree ----------- */}
                 <Route path="/portal/login" element={<AuthRoute><PortalLogin /></AuthRoute>} />
                 <Route path="/portal/signup" element={<AuthRoute><PortalSignup /></AuthRoute>} />
-                <Route path="/portal" element={<Navigate to="/portal/conversations" replace />} />
+                <Route path="/portal" element={<Navigate to="/portal/chat" replace />} />
+                {/* Legacy redirect — customers used to land on a "Welcome"
+                    conversations console; their primary surface is now the
+                    Team Chat. PortalConversations is kept exported but no
+                    longer routed to keep historical bookmarks working. */}
+                <Route path="/portal/conversations" element={<Navigate to="/portal/chat" replace />} />
                 <Route
-                  path="/portal/conversations"
-                  element={<CustomerRoute><PortalConversations /></CustomerRoute>}
+                  path="/portal/chat"
+                  element={<CustomerRoute><PortalChat /></CustomerRoute>}
                 />
                 <Route
                   path="/portal/conversations/:id"
                   element={<CustomerRoute><PortalThread /></CustomerRoute>}
                 />
+
                 <Route
                   element={
                     <ProtectedRoute>

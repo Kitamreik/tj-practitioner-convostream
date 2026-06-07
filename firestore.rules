@@ -85,10 +85,11 @@ service cloud.firestore {
     // `role` or `escalatedAccess`. Webmasters can read any profile and are
     // the only ones allowed to write those privileged fields.
     match /users/{uid} {
-      // Any signed-in teammate can read profiles (used to render assignee
-      // names in /agents, /conversations, /agent-logs, /analytics, and to
-      // fan-out broadcast notifications).
-      allow read: if isInternal();
+      // Any signed-in user can read profile metadata. Internal users need
+      // this for assignee names + broadcasts; customers in the portal need
+      // it so the Team Chat picker can list available agents to DM. The
+      // user doc only carries name/email/role — no sensitive fields.
+      allow read: if isSignedIn();
 
       // Create: self-signup OR webmaster seeding. The Cloud Function strips
       // role; rules also forbid a client-supplied non-default role unless the
