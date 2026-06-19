@@ -162,6 +162,41 @@ const PortalChat: React.FC = () => {
     navigate("/portal/login", { replace: true });
   };
 
+  const openProfileEditor = () => {
+    setEditName(profile?.displayName || "");
+    setEditEmail(profile?.email || user?.email || "");
+    setProfileOpen(true);
+  };
+
+  const saveProfile = async () => {
+    if (!user) return;
+    setSavingProfile(true);
+    try {
+      const res = await updateCustomerProfile(user, { displayName: editName, email: editEmail });
+      if (res.emailError) {
+        toast({
+          title: "Email not updated",
+          description:
+            res.emailError === "auth/requires-recent-login"
+              ? "Please sign out and sign back in, then try again."
+              : res.emailError,
+          variant: "destructive",
+        });
+      }
+      if (res.displayNameUpdated || res.emailUpdated) {
+        toast({ title: "Profile updated" });
+      } else if (!res.emailError) {
+        toast({ title: "No changes to save" });
+      }
+      setProfileOpen(false);
+    } catch (err: any) {
+      toast({ title: "Couldn't save profile", description: err?.message, variant: "destructive" });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+
   const activeThread = threads.find((t) => t.id === activeId) || null;
   const otherName = (t: ChatThread) => {
     if (!user) return "Agent";
