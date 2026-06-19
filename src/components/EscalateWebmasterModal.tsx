@@ -76,6 +76,19 @@ const EscalateWebmasterModal: React.FC<Props> = ({ className }) => {
     } catch { /* private mode */ }
   }, [note, draftKey]);
 
+  // Auto-retry queued pushes when the device comes back online (or on mount
+  // if we're already online). Push itself is rule-gated to webmasters, so
+  // this loop is a no-op for non-webmaster signed-in users.
+  useEffect(() => {
+    if (!uid) return;
+    return installEscalationOnlineRetry(uid, {
+      onSynced: (count) => {
+        setEntries(listEscalationEntries(uid));
+        toast({ title: "Escalations synced", description: `${count} pending entr${count === 1 ? "y" : "ies"} pushed to Firestore.` });
+      },
+    });
+  }, [uid]);
+
   const pendingCount = useMemo(
     () => entries.filter((e) => e.syncedAt === null).length,
     [entries],
