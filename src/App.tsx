@@ -94,7 +94,35 @@ const CustomerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   if (loading) return <div className="flex h-screen items-center justify-center text-muted-foreground">Loading...</div>;
   if (!user) return <Navigate to="/portal/login" replace />;
   if (profile && profile.role !== "customer") return <Navigate to="/" replace />;
+  // Customer accounts wait for webmaster/admin approval before they can
+  // reach the Team Chat. Render a small pending screen instead of routing
+  // them out so they don't bounce back to the login page.
+  if (profile && profile.approvalStatus && profile.approvalStatus !== "approved") {
+    return <PortalPending status={profile.approvalStatus} note={profile.rejectionNote} />;
+  }
   return <>{children}</>;
+};
+
+const PortalPending: React.FC<{ status: "pending" | "rejected"; note?: string }> = ({ status, note }) => {
+  const { signOut } = useAuth();
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-6 text-center">
+      <h1 className="text-2xl font-semibold">
+        {status === "pending" ? "Account awaiting approval" : "Account not approved"}
+      </h1>
+      <p className="max-w-md text-sm text-muted-foreground">
+        {status === "pending"
+          ? "Thanks for signing up. A webmaster or admin will review your account and grant access to Team Chat shortly."
+          : note || "Please contact support if you believe this was a mistake."}
+      </p>
+      <button
+        onClick={() => signOut()}
+        className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
+      >
+        Sign out
+      </button>
+    </div>
+  );
 };
 
 /**
