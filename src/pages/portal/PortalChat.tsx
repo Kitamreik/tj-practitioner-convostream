@@ -17,8 +17,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, LogOut, MessageCircle, Send, UserPlus } from "lucide-react";
+import { ArrowLeft, LogOut, MessageCircle, Send, UserPlus, UserCog } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { updateCustomerProfile } from "@/lib/customerPortal";
 
 /**
  * PortalChat — the customer-facing portal landing page.
@@ -43,6 +46,10 @@ const PortalChat: React.FC = () => {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const draftKey = useMemo(
@@ -155,6 +162,41 @@ const PortalChat: React.FC = () => {
     navigate("/portal/login", { replace: true });
   };
 
+  const openProfileEditor = () => {
+    setEditName(profile?.displayName || "");
+    setEditEmail(profile?.email || user?.email || "");
+    setProfileOpen(true);
+  };
+
+  const saveProfile = async () => {
+    if (!user) return;
+    setSavingProfile(true);
+    try {
+      const res = await updateCustomerProfile(user, { displayName: editName, email: editEmail });
+      if (res.emailError) {
+        toast({
+          title: "Email not updated",
+          description:
+            res.emailError === "auth/requires-recent-login"
+              ? "Please sign out and sign back in, then try again."
+              : res.emailError,
+          variant: "destructive",
+        });
+      }
+      if (res.displayNameUpdated || res.emailUpdated) {
+        toast({ title: "Profile updated" });
+      } else if (!res.emailError) {
+        toast({ title: "No changes to save" });
+      }
+      setProfileOpen(false);
+    } catch (err: any) {
+      toast({ title: "Couldn't save profile", description: err?.message, variant: "destructive" });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+
   const activeThread = threads.find((t) => t.id === activeId) || null;
   const otherName = (t: ChatThread) => {
     if (!user) return "Agent";
@@ -182,11 +224,17 @@ const PortalChat: React.FC = () => {
               <p className="truncate text-xs text-muted-foreground">{profile?.email}</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={onSignOut} className="gap-2">
-            <LogOut className="h-4 w-4" /> Sign out
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={openProfileEditor} className="gap-2" aria-label="Edit profile">
+              <UserCog className="h-4 w-4" /> <span className="hidden sm:inline">Profile</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onSignOut} className="gap-2">
+              <LogOut className="h-4 w-4" /> <span className="hidden sm:inline">Sign out</span>
+            </Button>
+          </div>
         </div>
       </header>
+
 
       <main className="mx-auto max-w-3xl px-4 py-6">
         {!activeId ? (
@@ -315,7 +363,50 @@ const PortalChat: React.FC = () => {
           </section>
         )}
       </main>
+
+      <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit your profile</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="portal-edit-name">Name</Label>
+              <Input
+                id="portal-edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                maxLength={100}
+                autoComplete="name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="portal-edit-email">Email</Label>
+              <Input
+                id="portal-edit-email"
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                maxLength={255}
+                autoComplete="email"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Changing your email may require signing out and back in.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProfileOpen(false)} disabled={savingProfile}>
+              Cancel
+            </Button>
+            <Button onClick={saveProfile} disabled={savingProfile}>
+              {savingProfile ? "Saving…" : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+
   );
 };
 

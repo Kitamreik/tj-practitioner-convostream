@@ -110,9 +110,9 @@ describe("Login — Customer tab end to end contract", () => {
     expect(loginSrc).toMatch(/handleStaffSubmit/);
   });
 
-  it("customer sign-up uses signUpCustomer and routes to /portal/conversations", () => {
+  it("customer sign-up uses signUpCustomer and routes to /portal/chat (Team Chat)", () => {
     expect(loginSrc).toMatch(/signUpCustomer\(/);
-    expect(loginSrc).toMatch(/navigate\("\/portal\/conversations",\s*\{\s*replace:\s*true\s*\}\)/);
+    expect(loginSrc).toMatch(/navigate\("\/portal\/chat",\s*\{\s*replace:\s*true\s*\}\)/);
   });
 
   it("customer sign-in claims prior conversations to keep history consistent", () => {
@@ -122,7 +122,8 @@ describe("Login — Customer tab end to end contract", () => {
 
   it("signUpCustomer creates role=customer profile, logs the signup, then claims conversations", () => {
     expect(portalHelpersSrc).toMatch(/role:\s*["']customer["']/);
-    expect(portalHelpersSrc).toMatch(/approvalStatus:\s*["']approved["']/);
+    // Customers now wait for webmaster/admin approval — they are no longer auto-approved.
+    expect(portalHelpersSrc).toMatch(/approvalStatus:\s*["']pending["']/);
     expect(portalHelpersSrc).toMatch(/customerSignupLog/);
     expect(portalHelpersSrc).toMatch(/await claimConversationsForCustomer\(cred\.user\.uid,\s*email\)/);
   });

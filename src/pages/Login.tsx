@@ -85,7 +85,10 @@ const Login: React.FC = () => {
     try {
       if (isSignUp) {
         await signUpCustomer(email.trim(), password, displayName.trim());
-        toast({ title: "Account created", description: "Welcome — opening your conversations." });
+        toast({
+          title: "Account submitted",
+          description: "A webmaster or admin will approve your account shortly.",
+        });
       } else {
         const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
         // Best-effort: link any pre-existing conversations to this customer
@@ -93,7 +96,7 @@ const Login: React.FC = () => {
         void claimConversationsForCustomer(cred.user.uid, email.trim());
         toast({ title: "Welcome back" });
       }
-      navigate("/portal/conversations", { replace: true });
+      navigate("/portal/chat", { replace: true });
     } catch (error: any) {
       console.warn("Customer auth error:", error?.code || error?.message);
       toast({

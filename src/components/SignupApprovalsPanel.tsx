@@ -131,10 +131,13 @@ const SignupApprovalsPanel: React.FC = () => {
       ) : (
         <ul className="space-y-3">
           {pending.map((row) => {
-            const match = verifyAgainstRoster(
-              { displayName: row.displayName, email: row.email },
-              roster
-            );
+            const isCustomer = (row as PendingSignup & { role?: string }).role === "customer";
+            const match = isCustomer
+              ? { matched: true, matchedOn: "customer-signup" as const, entry: undefined }
+              : verifyAgainstRoster(
+                  { displayName: row.displayName, email: row.email },
+                  roster
+                );
             return (
               <li
                 key={row.uid}
@@ -149,7 +152,11 @@ const SignupApprovalsPanel: React.FC = () => {
                       <span className="font-medium text-foreground truncate">
                         {row.displayName}
                       </span>
-                      {match.matched ? (
+                      {isCustomer ? (
+                        <Badge variant="secondary" className="gap-1 text-[10px]">
+                          Customer signup
+                        </Badge>
+                      ) : match.matched ? (
                         <Badge variant="default" className="gap-1 text-[10px]">
                           <Check className="h-3 w-3" />
                           Roster match · {match.matchedOn}
