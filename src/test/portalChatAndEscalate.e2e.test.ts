@@ -79,9 +79,11 @@ describe("EscalateWebmasterModal — modal replaces inline buttons", () => {
     expect(modal).toMatch(/from "@\/components\/ui\/dialog"/);
   });
 
-  it("hides itself for customers and the webmaster", () => {
+  it("hides itself for customers (webmasters now see it for the push-to-Firestore action)", () => {
     expect(modal).toMatch(/profile\.role === "customer"/);
-    expect(modal).toMatch(/profile\.role === "webmaster"/);
+    // Webmasters intentionally see the modal so they can flush queued
+    // escalation entries with the Push button.
+    expect(modal).toMatch(/isWebmaster\s*=\s*profile\?\.role === "webmaster"/);
   });
 
   it("persists the incident note to localStorage as a failsafe", () => {

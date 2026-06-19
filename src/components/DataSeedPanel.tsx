@@ -52,7 +52,7 @@ const DataSeedPanel: React.FC = () => {
       setLastSummary(summary);
       toast({
         title: "Demo data seeded",
-        description: `Escalations: ${summary.escalations} · Signups: ${summary.signups} · Investigations: ${summary.investigations} · Customer signups: ${summary.customers}`,
+        description: `Escalations: ${summary.escalations} · Signups: ${summary.signups} · Investigations: ${summary.investigations} · Customer signups: ${summary.customers} · Rejected customers: ${summary.rejectedCustomers}`,
       });
     } catch (err: unknown) {
       toast({
@@ -135,7 +135,7 @@ const DataSeedPanel: React.FC = () => {
           <div className="rounded-md border border-border bg-muted/40 p-3 text-xs">
             Last seed: {lastSummary.escalations} escalations · {lastSummary.signups} pending
             signups · {lastSummary.investigations} investigations ·{" "}
-            {lastSummary.customers} customer signups. Open the panels above to verify
+            {lastSummary.customers} customer signups · {lastSummary.rejectedCustomers} rejected customers. Open the panels above to verify
             persistence.
           </div>
         )}
