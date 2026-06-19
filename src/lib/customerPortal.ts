@@ -1,16 +1,21 @@
 /**
  * Customer portal helpers.
  *
- * - `signUpCustomer` creates a Firebase Auth user with role="customer",
- *   auto-approved, and logs the signup to `customerSignupLog` for the admin
- *   activity feed (per the "Auto-approved but logged" decision).
+ * - `signUpCustomer` creates a Firebase Auth user with role="customer" and
+ *   `approvalStatus: "pending"`. A webmaster or admin must approve the
+ *   account from the Signup Approvals panel before the customer can reach
+ *   the Team Chat. The signup is logged to `customerSignupLog` for the
+ *   admin activity feed.
  * - `claimConversationsForCustomer` runs on every customer sign-in: any
  *   `conversations` doc whose `customerEmail` matches the verified email
  *   and which has no `customerUid` yet gets stamped with the customer's uid,
  *   so subsequent reads are cheap and Firestore rules can isolate by uid.
+ * - `updateCustomerProfile` lets a signed-in customer edit their display
+ *   name and email after the account is created.
  */
 import {
   createUserWithEmailAndPassword,
+  updateEmail,
   updateProfile,
   type User,
 } from "firebase/auth";
@@ -41,14 +46,16 @@ export async function signUpCustomer(
       /* non-fatal */
     }
   }
-  // Customer profile is auto-approved per the product decision.
+  // Customer profile starts pending — a webmaster or admin must approve
+  // it from the Signup Approvals panel before the Team Chat is unlocked.
   await setDoc(doc(db, "users", cred.user.uid), {
     uid: cred.user.uid,
     email: email.trim().toLowerCase(),
     role: "customer",
     displayName: displayName.trim() || email.split("@")[0],
     createdAt: serverTimestamp(),
-    approvalStatus: "approved",
+    approvalStatus: "pending",
+    signupSource: "portal-signup",
   });
   // Activity log for admins/webmasters — visible in the signup queue with a
   // distinct "customer-signup" channel so it doesn't pollute agent reviews.
@@ -63,6 +70,9 @@ export async function signUpCustomer(
   } catch (err) {
     console.warn("customerSignupLog write failed:", err);
   }
+  // Best-effort claim — safe even before approval; the rules still gate
+  // reads, but stamping the uid early means it Just Works on first
+  // approved sign-in.
   await claimConversationsForCustomer(cred.user.uid, email);
   return cred.user;
 }
@@ -121,4 +131,53 @@ export async function rateMessage(
     ratedByUid: payload.ratedByUid,
     ratedAt: serverTimestamp(),
   });
+}
+
+/**
+ * Update a signed-in customer's display name and/or email. Updates Firebase
+ * Auth first (since email changes can throw `auth/requires-recent-login`),
+ * then mirrors to the `users/{uid}` Firestore profile. Returns a structured
+ * result so the UI can show per-field success / failure.
+ */
+export async function updateCustomerProfile(
+  user: User,
+  patch: { displayName?: string; email?: string },
+): Promise<{ displayNameUpdated: boolean; emailUpdated: boolean; emailError?: string }> {
+  let displayNameUpdated = false;
+  let emailUpdated = false;
+  let emailError: string | undefined;
+
+  const nextName = patch.displayName?.trim();
+  const nextEmail = patch.email?.trim().toLowerCase();
+
+  if (nextName !== undefined && nextName !== (user.displayName ?? "")) {
+    await updateProfile(user, { displayName: nextName });
+    displayNameUpdated = true;
+  }
+
+  if (nextEmail && nextEmail !== (user.email ?? "").toLowerCase()) {
+    try {
+      await updateEmail(user, nextEmail);
+      emailUpdated = true;
+    } catch (err) {
+      emailError = (err as { code?: string; message?: string }).code
+        || (err as { message?: string }).message
+        || "Could not update email.";
+    }
+  }
+
+  // Mirror to Firestore — only patch what actually changed in Auth so we
+  // never get out of sync with the credential.
+  const profilePatch: Record<string, unknown> = { updatedAt: serverTimestamp() };
+  if (displayNameUpdated && nextName !== undefined) profilePatch.displayName = nextName;
+  if (emailUpdated && nextEmail) profilePatch.email = nextEmail;
+  if (Object.keys(profilePatch).length > 1) {
+    try {
+      await updateDoc(doc(db, "users", user.uid), profilePatch);
+    } catch (err) {
+      console.warn("updateCustomerProfile: Firestore mirror failed:", err);
+    }
+  }
+
+  return { displayNameUpdated, emailUpdated, emailError };
 }
