@@ -363,7 +363,50 @@ const PortalChat: React.FC = () => {
           </section>
         )}
       </main>
+
+      <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit your profile</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="portal-edit-name">Name</Label>
+              <Input
+                id="portal-edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                maxLength={100}
+                autoComplete="name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="portal-edit-email">Email</Label>
+              <Input
+                id="portal-edit-email"
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                maxLength={255}
+                autoComplete="email"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Changing your email may require signing out and back in.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProfileOpen(false)} disabled={savingProfile}>
+              Cancel
+            </Button>
+            <Button onClick={saveProfile} disabled={savingProfile}>
+              {savingProfile ? "Saving…" : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+
   );
 };
 
