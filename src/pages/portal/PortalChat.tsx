@@ -224,11 +224,17 @@ const PortalChat: React.FC = () => {
               <p className="truncate text-xs text-muted-foreground">{profile?.email}</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={onSignOut} className="gap-2">
-            <LogOut className="h-4 w-4" /> Sign out
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={openProfileEditor} className="gap-2" aria-label="Edit profile">
+              <UserCog className="h-4 w-4" /> <span className="hidden sm:inline">Profile</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onSignOut} className="gap-2">
+              <LogOut className="h-4 w-4" /> <span className="hidden sm:inline">Sign out</span>
+            </Button>
+          </div>
         </div>
       </header>
+
 
       <main className="mx-auto max-w-3xl px-4 py-6">
         {!activeId ? (
