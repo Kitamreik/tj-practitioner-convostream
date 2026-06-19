@@ -64,6 +64,31 @@ describe("Customer access boundary", () => {
     // Conversations have a customer branch that requires customerUid match.
     expect(rules).toMatch(/match \/conversations\/\{convoId\}[\s\S]*?customerUid/);
   });
+
+  it("Direct calls to Gmail-related endpoints are blocked for customers (not just UI)", () => {
+    const rules = read("firestore.rules");
+    // 1. The only Firestore-backed Gmail surface is the per-user
+    //    integrations subcollection where the Gmail API key/clientId is
+    //    persisted. Rule must require isSelf(uid) AND !isCustomer().
+    expect(rules).toMatch(
+      /match \/users\/\{uid\}\/integrations\/\{credId\}[\s\S]*?allow read, write: if isSelf\(uid\) && !isCustomer\(\)/
+    );
+    // 2. The shared integrations registry (used by GmailAPI.tsx to
+    //    discover saved credentials) is gated to isInternal — customers
+    //    can NEVER read or write it directly.
+    expect(rules).toMatch(/match \/integrations\/\{id\}[\s\S]*?allow read, write: if isInternal/);
+    // 3. The Gmail page itself is gated at the route layer by
+    //    ProtectedRoute(escalated) — customers are redirected before
+    //    GmailAPI.tsx (which holds the gapi.client.gmail calls) ever
+    //    mounts. Confirm both layers are still in place.
+    const app = read("src/App.tsx");
+    expect(app).toMatch(/path="\/gmail"\s+element=\{<ProtectedRoute escalated><GmailAPI/);
+    // 4. GmailAPI.tsx stores creds via saveIntegration → users/{uid}/integrations,
+    //    which the rule above blocks for customers. Ensure the page still
+    //    routes through the helper (rather than writing freehand).
+    const gmailPage = read("src/pages/GmailAPI.tsx");
+    expect(gmailPage).toMatch(/saveIntegration\(user\.uid,\s*"gmail-api"/);
+  });
 });
 
 describe("Customer profile editing — requires-recent-login handling", () => {
