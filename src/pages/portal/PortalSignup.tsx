@@ -25,8 +25,11 @@ const PortalSignup: React.FC = () => {
     setLoading(true);
     try {
       await signUpCustomer(email.trim(), password, name.trim());
-      toast({ title: "Welcome", description: "Your account is ready." });
-      navigate("/portal/conversations", { replace: true });
+      toast({
+        title: "Account submitted",
+        description: "A webmaster or admin will approve your account shortly.",
+      });
+      navigate("/portal/chat", { replace: true });
     } catch (err: any) {
       toast({
         title: "Could not create account",
