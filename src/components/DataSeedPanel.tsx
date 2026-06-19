@@ -52,7 +52,7 @@ const DataSeedPanel: React.FC = () => {
       setLastSummary(summary);
       toast({
         title: "Demo data seeded",
-        description: `Escalations: ${summary.escalations} · Signups: ${summary.signups} · Investigations: ${summary.investigations} · Customer signups: ${summary.customers}`,
+        description: `Escalations: ${summary.escalations} · Signups: ${summary.signups} · Investigations: ${summary.investigations} · Customer signups: ${summary.customers} · Rejected customers: ${summary.rejectedCustomers}`,
       });
     } catch (err: unknown) {
       toast({
