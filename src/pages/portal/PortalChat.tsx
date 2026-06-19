@@ -46,6 +46,10 @@ const PortalChat: React.FC = () => {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const draftKey = useMemo(
