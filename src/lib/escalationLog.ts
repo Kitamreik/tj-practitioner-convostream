@@ -134,3 +134,48 @@ export async function pushEscalationLogToFirestore(uid: string): Promise<number>
   writeAll(uid, all);
   return pushed;
 }
+
+/**
+ * Install a browser-wide "back online" listener that automatically
+ * retries `pushEscalationLogToFirestore(uid)` whenever the network
+ * returns. Also fires once on install if the device is already online
+ * and there are pending entries (covers the "tab regained focus after
+ * a Firestore outage" case). Returns a teardown function.
+ *
+ * Note: the Firestore push itself is still webmaster-only by rule, so
+ * for non-webmaster signed-in users this loop is effectively a no-op
+ * (entries stay in localStorage until a webmaster pushes them).
+ */
+export function installEscalationOnlineRetry(
+  uid: string,
+  opts: { onSynced?: (count: number) => void; onError?: (err: unknown) => void } = {},
+): () => void {
+  if (typeof window === "undefined") return () => {};
+
+  let inflight = false;
+  const attempt = async () => {
+    if (inflight) return;
+    if (listPendingEscalationEntries(uid).length === 0) return;
+    inflight = true;
+    try {
+      const count = await pushEscalationLogToFirestore(uid);
+      if (count > 0) opts.onSynced?.(count);
+    } catch (err) {
+      opts.onError?.(err);
+    } finally {
+      inflight = false;
+    }
+  };
+
+  const handler = () => { void attempt(); };
+  window.addEventListener("online", handler);
+
+  if (navigator.onLine !== false) {
+    void attempt();
+  }
+
+  return () => {
+    window.removeEventListener("online", handler);
+  };
+}
+
