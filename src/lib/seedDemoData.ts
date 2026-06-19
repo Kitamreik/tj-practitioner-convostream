@@ -40,7 +40,9 @@ export interface SeedSummary {
   escalations: number;
   signups: number;
   investigations: number;
+  customers: number;
 }
+
 
 /** Idempotent: uses fixed seed-* ids so re-runs overwrite cleanly. */
 export async function seedEscalationRequests(actor: SeedActor): Promise<number> {
