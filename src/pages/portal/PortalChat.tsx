@@ -17,8 +17,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, LogOut, MessageCircle, Send, UserPlus } from "lucide-react";
+import { ArrowLeft, LogOut, MessageCircle, Send, UserPlus, UserCog } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { updateCustomerProfile } from "@/lib/customerPortal";
 
 /**
  * PortalChat — the customer-facing portal landing page.
