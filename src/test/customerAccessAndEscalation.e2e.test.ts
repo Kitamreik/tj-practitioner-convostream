@@ -220,3 +220,50 @@ describe("Escalate to Webmaster — MVP localStorage + push to Firestore", () =>
     expect(modal).toMatch(/localStorage\.getItem\(draftKey/);
   });
 });
+
+describe("Escalate log — automatic online retry", () => {
+  it("escalationLog exports installEscalationOnlineRetry with the 'online' event handler", () => {
+    const lib = read("src/lib/escalationLog.ts");
+    expect(lib).toContain("export function installEscalationOnlineRetry");
+    expect(lib).toMatch(/window\.addEventListener\("online"/);
+    expect(lib).toMatch(/window\.removeEventListener\("online"/);
+    // Guards against re-entrant pushes.
+    expect(lib).toMatch(/let inflight = false/);
+    // Kick a one-shot retry on install if already online.
+    expect(lib).toMatch(/navigator\.onLine !== false/);
+  });
+
+  it("EscalateWebmasterModal installs the online retry while mounted", () => {
+    const modal = read("src/components/EscalateWebmasterModal.tsx");
+    expect(modal).toContain("installEscalationOnlineRetry");
+    expect(modal).toMatch(/installEscalationOnlineRetry\(uid,/);
+  });
+
+  it("installEscalationOnlineRetry is a no-op without a pending queue", async () => {
+    const mod = await import("@/lib/escalationLog");
+    const uid = "test-no-pending-" + Math.random().toString(36).slice(2);
+    let synced = 0;
+    const teardown = mod.installEscalationOnlineRetry(uid, { onSynced: (n) => (synced += n) });
+    // No pending entries → onSynced never fires.
+    await new Promise((r) => setTimeout(r, 10));
+    expect(synced).toBe(0);
+    teardown();
+  });
+
+  it("appendEscalationEntry persists to localStorage and listPendingEscalationEntries returns it", async () => {
+    const mod = await import("@/lib/escalationLog");
+    const uid = "test-pending-" + Math.random().toString(36).slice(2);
+    mod.appendEscalationEntry({
+      agentUid: uid,
+      agentName: "QA Agent",
+      agentEmail: "qa@example.com",
+      route: "/conversations",
+      note: "Synthetic incident for retry test.",
+    });
+    const pending = mod.listPendingEscalationEntries(uid);
+    expect(pending.length).toBe(1);
+    expect(pending[0].note).toContain("Synthetic incident");
+    expect(pending[0].syncedAt).toBeNull();
+    mod.clearEscalationEntries(uid);
+  });
+});
