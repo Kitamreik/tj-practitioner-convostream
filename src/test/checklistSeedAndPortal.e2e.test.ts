@@ -122,7 +122,8 @@ describe("Login — Customer tab end to end contract", () => {
 
   it("signUpCustomer creates role=customer profile, logs the signup, then claims conversations", () => {
     expect(portalHelpersSrc).toMatch(/role:\s*["']customer["']/);
-    expect(portalHelpersSrc).toMatch(/approvalStatus:\s*["']approved["']/);
+    // Customers now wait for webmaster/admin approval — they are no longer auto-approved.
+    expect(portalHelpersSrc).toMatch(/approvalStatus:\s*["']pending["']/);
     expect(portalHelpersSrc).toMatch(/customerSignupLog/);
     expect(portalHelpersSrc).toMatch(/await claimConversationsForCustomer\(cred\.user\.uid,\s*email\)/);
   });
