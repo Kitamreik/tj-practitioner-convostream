@@ -41,6 +41,7 @@ export interface SeedSummary {
   signups: number;
   investigations: number;
   customers: number;
+  rejectedCustomers: number;
 }
 
 
