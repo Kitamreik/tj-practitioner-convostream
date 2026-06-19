@@ -19,6 +19,7 @@ import { toast } from "@/hooks/use-toast";
 import {
   appendEscalationEntry,
   clearEscalationEntries,
+  installEscalationOnlineRetry,
   listEscalationEntries,
   listPendingEscalationEntries,
   pushEscalationLogToFirestore,
