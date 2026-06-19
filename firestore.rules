@@ -470,7 +470,11 @@ service cloud.firestore {
       allow read: if isWebmaster();
       allow create: if isSignedIn()
         && request.resource.data.agentUid == request.auth.uid
-        && request.resource.data.channel in ['call', 'text'];
+        && (
+          request.resource.data.channel in ['call', 'text']
+          // Webmasters may flush queued escalation entries from localStorage.
+          || (isWebmaster() && request.resource.data.channel == 'escalation')
+        );
       allow update, delete: if false;
     }
 
