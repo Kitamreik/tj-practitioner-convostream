@@ -169,14 +169,53 @@ export async function seedInvestigationRequests(actor: SeedActor): Promise<numbe
   return rows.length;
 }
 
+/**
+ * Idempotent pending customer signups so admins/webmasters can practice
+ * approving customer accounts without needing a real Firebase Auth user.
+ * These rows have role="customer" and `approvalStatus: "pending"` so they
+ * appear in the SignupApprovalsPanel alongside agent signups.
+ */
+export async function seedPendingCustomerSignups(): Promise<number> {
+  const rows = [
+    {
+      uid: "seed-customer-pending-1",
+      email: "river.nguyen@example.com",
+      displayName: "River Nguyen",
+      role: "customer",
+      approvalStatus: "pending",
+      signupSource: "portal-signup",
+    },
+    {
+      uid: "seed-customer-pending-2",
+      email: "morgan.silva@example.com",
+      displayName: "Morgan Silva",
+      role: "customer",
+      approvalStatus: "pending",
+      signupSource: "portal-signup",
+    },
+  ];
+  await Promise.all(
+    rows.map((r) =>
+      setDoc(
+        doc(db, "users", r.uid),
+        { ...r, ...SEED_FLAG, createdAt: serverTimestamp() },
+        { merge: true }
+      )
+    )
+  );
+  return rows.length;
+}
+
 export async function seedAllDemoData(actor: SeedActor): Promise<SeedSummary> {
-  const [escalations, signups, investigations] = await Promise.all([
+  const [escalations, signups, investigations, customers] = await Promise.all([
     seedEscalationRequests(actor),
     seedPendingSignups(),
     seedInvestigationRequests(actor),
+    seedPendingCustomerSignups(),
   ]);
-  return { escalations, signups, investigations };
+  return { escalations, signups, investigations, customers };
 }
+
 
 /**
  * Delete every users/{uid} doc with role === "customer" (and their Firebase
