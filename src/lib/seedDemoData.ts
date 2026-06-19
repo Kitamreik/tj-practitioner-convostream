@@ -207,14 +207,54 @@ export async function seedPendingCustomerSignups(): Promise<number> {
   return rows.length;
 }
 
+/**
+ * Idempotent rejected customer signups. These rows reproduce the "rejected"
+ * branch of the CustomerRoute gate so QA can confirm that a rejected
+ * customer NEVER reaches /portal/chat and stays on the PortalPending
+ * screen with the optional rejection note.
+ */
+export async function seedRejectedCustomerSignups(): Promise<number> {
+  const rows = [
+    {
+      uid: "seed-customer-rejected-1",
+      email: "rowan.case@example.com",
+      displayName: "Rowan Case",
+      role: "customer",
+      approvalStatus: "rejected",
+      rejectionNote: "Account flagged during identity review.",
+      signupSource: "portal-signup",
+    },
+    {
+      uid: "seed-customer-rejected-2",
+      email: "sky.davies@example.com",
+      displayName: "Sky Davies",
+      role: "customer",
+      approvalStatus: "rejected",
+      rejectionNote: "Duplicate of existing customer account.",
+      signupSource: "portal-signup",
+    },
+  ];
+  await Promise.all(
+    rows.map((r) =>
+      setDoc(
+        doc(db, "users", r.uid),
+        { ...r, ...SEED_FLAG, createdAt: serverTimestamp() },
+        { merge: true }
+      )
+    )
+  );
+  return rows.length;
+}
+
 export async function seedAllDemoData(actor: SeedActor): Promise<SeedSummary> {
-  const [escalations, signups, investigations, customers] = await Promise.all([
+  const [escalations, signups, investigations, customers, rejectedCustomers] = await Promise.all([
     seedEscalationRequests(actor),
     seedPendingSignups(),
     seedInvestigationRequests(actor),
     seedPendingCustomerSignups(),
+    seedRejectedCustomerSignups(),
   ]);
-  return { escalations, signups, investigations, customers };
+  return { escalations, signups, investigations, customers, rejectedCustomers };
 }
 
 
