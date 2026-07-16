@@ -29,7 +29,19 @@ function cache(enabled: boolean) {
 }
 
 export function subscribePortalEnabled(cb: (enabled: boolean) => void): () => void {
-  return onSnapshot(
+  // Cross-tab: any tab that writes the cache (via a Firestore snapshot or
+  // an explicit setPortalEnabled) will also fire a `storage` event in every
+  // OTHER open tab. Listening here means a signed-in customer sitting on a
+  // portal route in a second tab flips to PortalClosed immediately, without
+  // waiting for their own Firestore listener to receive the update.
+  const onStorage = (e: StorageEvent) => {
+    if (e.key !== LS_KEY) return;
+    cb(getCachedPortalEnabled());
+  };
+  if (typeof window !== "undefined") {
+    window.addEventListener("storage", onStorage);
+  }
+  const unsub = onSnapshot(
     doc(db, DOC_PATH.col, DOC_PATH.id),
     (snap) => {
       const enabled = snap.exists()
@@ -44,6 +56,12 @@ export function subscribePortalEnabled(cb: (enabled: boolean) => void): () => vo
       cb(getCachedPortalEnabled());
     }
   );
+  return () => {
+    if (typeof window !== "undefined") {
+      window.removeEventListener("storage", onStorage);
+    }
+    unsub();
+  };
 }
 
 export async function setPortalEnabled(enabled: boolean, actorUid: string): Promise<void> {
