@@ -12,6 +12,7 @@ import { db } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
 import { useBackgroundGmailPoller } from "@/hooks/useBackgroundGmailPoller";
 import { publishPresence } from "@/lib/agentPresence";
+import PendingDomainUndoBanner from "@/components/PendingDomainUndoBanner";
 
 const titleMap: Record<string, string> = {
   "/": "Conversations",
@@ -142,6 +143,7 @@ const AppLayout: React.FC = () => {
 
       <BottomNav />
       <PWAInstallBanner />
+      <PendingDomainUndoBanner />
     </div>
   );
 };

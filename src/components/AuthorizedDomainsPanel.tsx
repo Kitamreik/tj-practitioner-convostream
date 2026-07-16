@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ToastAction } from "@/components/ui/toast";
+import { queuePendingDomainUndo } from "@/lib/authorizedDomainUndo";
 
 /**
  * Webmaster-only panel for managing Firebase Auth authorized domains.
@@ -97,8 +98,13 @@ const AuthorizedDomainsPanel: React.FC = () => {
       const res = await fn({ domain });
       setDomains(res.data.domains ?? []);
 
-      // Show an Undo toast — clicking it re-adds the domain via the same
-      // callable. We keep a small window before "committing" the removal.
+      // Persist the removal for 240s so the global <PendingDomainUndoBanner />
+      // keeps the undo affordance visible even after the webmaster navigates
+      // away from Settings.
+      queuePendingDomainUndo(domain);
+
+      // Show a shorter Undo toast — clicking it re-adds the domain via the
+      // same callable. The banner keeps the longer 240s undo window.
       toast({
         title: "Domain removed",
         description: domain,
