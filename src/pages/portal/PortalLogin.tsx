@@ -24,7 +24,7 @@ const PortalLogin: React.FC = () => {
       const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
       // Best-effort: link any pre-existing conversations to this customer.
       void claimConversationsForCustomer(cred.user.uid, email.trim());
-      navigate("/portal/conversations", { replace: true });
+      navigate("/portal/chat", { replace: true });
     } catch (err: any) {
       toast({
         title: "Sign in failed",

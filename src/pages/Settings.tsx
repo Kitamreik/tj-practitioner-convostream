@@ -51,6 +51,7 @@ import PrivacyDataCard from "@/components/PrivacyDataCard";
 import AgentRosterPanel from "@/components/AgentRosterPanel";
 import SignupApprovalsPanel from "@/components/SignupApprovalsPanel";
 import AuthorizedDomainsPanel from "@/components/AuthorizedDomainsPanel";
+import CustomerPortalTogglePanel from "@/components/CustomerPortalTogglePanel";
 import DataSeedPanel from "@/components/DataSeedPanel";
 import CallRecordingSettings from "@/components/CallRecordingSettings";
 import { Link } from "react-router-dom";
@@ -2222,6 +2223,7 @@ const SettingsPage: React.FC = () => {
         <SignupApprovalsPanel />
         <AgentRosterPanel />
         {isWebmaster && <AuthorizedDomainsPanel />}
+        {isWebmaster && <CustomerPortalTogglePanel />}
         {isWebmaster && <DataSeedPanel />}
 
         {/* Shared rename-agent dialog (controlled) */}

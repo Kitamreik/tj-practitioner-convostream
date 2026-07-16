@@ -720,6 +720,18 @@ service cloud.firestore {
       allow read: if isWebmaster() || isSelf(uid);
       allow write: if isSelf(uid) && !isCustomer();
     }
+
+    // -------- systemConfig/{docId} — webmaster-managed toggles --------
+    // Currently holds `portal` doc with `customerPortalEnabled` (bool). Read is
+    // public so the unauthenticated /portal/login screen can render a
+    // "portal closed" state without needing to sign in. Writes are locked to
+    // webmasters — this switch decides whether new customers can reach the
+    // Team Chat surface at all.
+    match /systemConfig/{docId} {
+      allow read: if true;
+      allow write: if isWebmaster();
+    }
   }
   }
 }
+
