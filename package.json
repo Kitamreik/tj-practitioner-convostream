@@ -98,10 +98,26 @@
     "vitest": "^3.2.4"
   },
   "overrides": {
-    "websocket-driver": ">=0.7.5"
+    "websocket-driver": ">=0.7.5",
+    "fast-uri": ">=4.1.0",
+    "brace-expansion": ">=2.0.2",
+    "glob": ">=10.4.5",
+    "@babel/plugin-transform-modules-systemjs": ">=7.28.4",
+    "rollup": ">=4.51.0",
+    "ajv": ">=8.20.0",
+    "picomatch": ">=4.0.3",
+    "minimatch": ">=9.0.5"
   },
   "resolutions": {
-    "websocket-driver": ">=0.7.5"
+    "websocket-driver": ">=0.7.5",
+    "fast-uri": ">=4.1.0",
+    "brace-expansion": ">=2.0.2",
+    "glob": ">=10.4.5",
+    "@babel/plugin-transform-modules-systemjs": ">=7.28.4",
+    "rollup": ">=4.51.0",
+    "ajv": ">=8.20.0",
+    "picomatch": ">=4.0.3",
+    "minimatch": ">=9.0.5"
   },
   "trustedDependencies": [],
   "patchedDependencies": {}
