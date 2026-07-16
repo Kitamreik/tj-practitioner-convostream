@@ -51,6 +51,7 @@ import PrivacyDataCard from "@/components/PrivacyDataCard";
 import AgentRosterPanel from "@/components/AgentRosterPanel";
 import SignupApprovalsPanel from "@/components/SignupApprovalsPanel";
 import AuthorizedDomainsPanel from "@/components/AuthorizedDomainsPanel";
+import CustomerPortalTogglePanel from "@/components/CustomerPortalTogglePanel";
 import DataSeedPanel from "@/components/DataSeedPanel";
 import CallRecordingSettings from "@/components/CallRecordingSettings";
 import { Link } from "react-router-dom";
