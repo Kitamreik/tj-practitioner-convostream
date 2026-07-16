@@ -42,6 +42,7 @@ import PortalSignup from "./pages/portal/PortalSignup";
 import PortalThread from "./pages/portal/PortalThread";
 import PortalChat from "./pages/portal/PortalChat";
 import { subscribePortalEnabled, getCachedPortalEnabled } from "@/lib/portalStatus";
+import { useCustomerPortalKillNotification } from "@/hooks/useCustomerPortalKillNotification";
 
 const queryClient = new QueryClient();
 
@@ -131,6 +132,9 @@ const PortalPublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }
 const CustomerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, profile, loading } = useAuth();
   const portalEnabled = usePortalEnabled();
+  // Real-time toast when a webmaster flips the portal OFF while this
+  // customer is signed in. The redirect happens on the next line.
+  useCustomerPortalKillNotification(portalEnabled, profile?.role);
   if (loading) return <div className="flex h-screen items-center justify-center text-muted-foreground">Loading...</div>;
   if (!portalEnabled) return <PortalClosed />;
   if (!user) return <Navigate to="/portal/login" replace />;

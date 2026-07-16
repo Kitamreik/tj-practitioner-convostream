@@ -304,3 +304,216 @@ describe("Customer portal kill switch — signed-in customer is blocked immediat
     expect(app).toMatch(/path="\/portal\/conversations\/:id"[\s\S]{0,120}<CustomerRoute>/);
   });
 });
+
+// -------------------------------------------------------------------------
+// 5. TTL boundary — Undo disappears exactly at the 240s mark
+// -------------------------------------------------------------------------
+describe("Undo TTL boundary — Undo option ends precisely at 240s", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    clearAllPendingDomainUndos();
+  });
+  afterEach(() => localStorage.clear());
+
+  it("keeps the entry visible up to and including the millisecond before expiry", () => {
+    const t0 = 10_000_000;
+    const entry = queuePendingDomainUndo("edge.example.com", t0);
+    const boundary = entry.expiresAt; // t0 + 240_000
+
+    // 1 ms before expiry — banner would still show Undo.
+    const before = listPendingDomainUndos(boundary - 1);
+    expect(before.find((e) => e.domain === "edge.example.com")).toBeDefined();
+  });
+
+  it("removes the entry at exactly the 240s boundary and never resurrects it", () => {
+    const t0 = 10_000_000;
+    const entry = queuePendingDomainUndo("edge.example.com", t0);
+    const boundary = entry.expiresAt;
+
+    // At t = expiresAt the filter `expiresAt > now` becomes false — the
+    // banner's Undo button must disappear immediately.
+    const at = listPendingDomainUndos(boundary);
+    expect(at.find((e) => e.domain === "edge.example.com")).toBeUndefined();
+
+    // 1ms and 1s after: still gone, and pruned from storage.
+    expect(
+      listPendingDomainUndos(boundary + 1).find((e) => e.domain === "edge.example.com")
+    ).toBeUndefined();
+    expect(
+      listPendingDomainUndos(boundary + 1_000).find((e) => e.domain === "edge.example.com")
+    ).toBeUndefined();
+    expect(localStorage.getItem("ConvoHub.authorizedDomain.undo.v1"))
+      .not.toContain("edge.example.com");
+  });
+
+  it("mirrors the banner's own live filter — `expiresAt > now`", () => {
+    // Anchor the boundary logic to the banner source so a future refactor
+    // that flips the comparison to `>=` is caught immediately.
+    const src = read("src/components/PendingDomainUndoBanner.tsx");
+    expect(src).toMatch(/entries\.filter\(\(e\) => e\.expiresAt > now\)/);
+  });
+});
+
+// -------------------------------------------------------------------------
+// 6. Countdown restoration after a full page refresh
+// -------------------------------------------------------------------------
+describe("Undo countdown restoration after a full page refresh", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    clearAllPendingDomainUndos();
+  });
+  afterEach(() => localStorage.clear());
+
+  it("recomputes the remaining seconds from the persisted expiresAt, not from removedAt", () => {
+    const removedAt = 20_000_000;
+    queuePendingDomainUndo("refresh.example.com", removedAt);
+
+    // Simulate a full page refresh 100s later: nothing in memory, only
+    // the localStorage row survives. A fresh subscriber has to read the
+    // same expiresAt and compute the correct remaining window.
+    const reloadedAt = removedAt + 100_000;
+    const entries = listPendingDomainUndos(reloadedAt);
+    const entry = entries.find((e) => e.domain === "refresh.example.com");
+    expect(entry).toBeDefined();
+    expect(entry!.expiresAt).toBe(removedAt + UNDO_TTL_MS);
+
+    // Remaining seconds displayed by the banner:
+    //   Math.max(0, Math.ceil((expiresAt - now) / 1000))
+    const remaining = Math.max(0, Math.ceil((entry!.expiresAt - reloadedAt) / 1000));
+    expect(remaining).toBe(140); // 240 - 100
+  });
+
+  it("expires automatically at the correct TTL even if the tab was never focused", () => {
+    const removedAt = 30_000_000;
+    queuePendingDomainUndo("stale-refresh.example.com", removedAt);
+
+    // "Refresh" happens 241s later — past the TTL.
+    const reloadedAt = removedAt + UNDO_TTL_MS + 1_000;
+    const entries = listPendingDomainUndos(reloadedAt);
+    expect(entries.find((e) => e.domain === "stale-refresh.example.com")).toBeUndefined();
+    // Reading also prunes the row from storage on the next tab lifetime.
+    expect(localStorage.getItem("ConvoHub.authorizedDomain.undo.v1"))
+      .not.toContain("stale-refresh.example.com");
+  });
+
+  it("banner reads the persisted expiresAt directly and renders a live countdown", () => {
+    const src = read("src/components/PendingDomainUndoBanner.tsx");
+    // The countdown is derived from expiresAt, not stored as a mutable
+    // "secondsLeft" number — that's what makes it correct across refresh.
+    expect(src).toMatch(/Math\.ceil\(\(entry\.expiresAt - now\) \/ 1000\)/);
+    // A 1s ticker keeps the visible number in sync with wall-clock time.
+    expect(src).toContain('setInterval(() => setNow(Date.now()), 1000)');
+  });
+});
+
+// -------------------------------------------------------------------------
+// 7. Real-time customer notification on portal-off + cross-tab redirect
+// -------------------------------------------------------------------------
+describe("Real-time notification when the customer portal is toggled off", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("customer-only: fires a toast on the true→false transition", async () => {
+    const { toast } = await import("@/hooks/use-toast");
+    const spy = vi.spyOn(toast as any, "call" as any);
+    // vi.spyOn on the function itself is awkward — spy on the module export.
+    const useToastMod = await import("@/hooks/use-toast");
+    const toastSpy = vi.spyOn(useToastMod, "toast");
+    const { useCustomerPortalKillNotification } = await import(
+      "@/hooks/useCustomerPortalKillNotification"
+    );
+
+    const Harness: React.FC<{ enabled: boolean; role: string }> = ({ enabled, role }) => {
+      useCustomerPortalKillNotification(enabled, role);
+      return <div>ok</div>;
+    };
+
+    const { rerender } = render(<Harness enabled={true} role="customer" />);
+    expect(toastSpy).not.toHaveBeenCalled();
+
+    // Flip OFF — should fire exactly one toast.
+    rerender(<Harness enabled={false} role="customer" />);
+    expect(toastSpy).toHaveBeenCalledTimes(1);
+    expect(toastSpy.mock.calls[0][0]).toMatchObject({
+      title: expect.stringMatching(/portal/i),
+      variant: "destructive",
+    });
+
+    // Flip ON again — no additional toast on recovery.
+    rerender(<Harness enabled={true} role="customer" />);
+    expect(toastSpy).toHaveBeenCalledTimes(1);
+
+    // Unused reference kept to satisfy linter for the first spy attempt.
+    void spy;
+  });
+
+  it("non-customer roles never see the kill-switch toast", async () => {
+    const useToastMod = await import("@/hooks/use-toast");
+    const toastSpy = vi.spyOn(useToastMod, "toast");
+    const { useCustomerPortalKillNotification } = await import(
+      "@/hooks/useCustomerPortalKillNotification"
+    );
+
+    const Harness: React.FC<{ enabled: boolean; role: string }> = ({ enabled, role }) => {
+      useCustomerPortalKillNotification(enabled, role);
+      return <div>ok</div>;
+    };
+    const { rerender } = render(<Harness enabled={true} role="webmaster" />);
+    rerender(<Harness enabled={false} role="webmaster" />);
+    expect(toastSpy).not.toHaveBeenCalled();
+  });
+
+  it("CustomerRoute mounts the notifier hook alongside the redirect guard", () => {
+    const app = read("src/App.tsx");
+    expect(app).toContain("useCustomerPortalKillNotification");
+    // The hook is called with the live enabled flag AND the current
+    // profile role so it can no-op for non-customers.
+    expect(app).toMatch(/useCustomerPortalKillNotification\(portalEnabled, profile\?\.role\)/);
+  });
+
+  it("portalStatus subscribes to cross-tab `storage` events so every open tab flips at once", () => {
+    const lib = read("src/lib/portalStatus.ts");
+    // Firestore onSnapshot handles the tab that initiated the change.
+    expect(lib).toContain('addEventListener("storage"');
+    expect(lib).toContain("getCachedPortalEnabled()");
+    // Cleanup removes the storage listener when the subscriber unmounts.
+    expect(lib).toContain('removeEventListener("storage"');
+  });
+
+  it("cross-tab: a storage event carrying the disabled cache flips subscribers to false", () => {
+    // Seed the cache to "enabled=true", then simulate another tab writing
+    // "0" and dispatching a StorageEvent for the portal-enabled key. The
+    // subscriber must invoke its callback with `false` — this is the exact
+    // path that makes a second open tab redirect immediately.
+    localStorage.setItem("ConvoHub.portalEnabled.v1", "1");
+    const seen: boolean[] = [];
+
+    // Import lazily so the module-level LS_KEY constant is already defined.
+    return import("@/lib/portalStatus").then(({ subscribePortalEnabled }) => {
+      // We can't actually reach Firestore in the test env, but the storage
+      // listener is registered synchronously before onSnapshot resolves.
+      const unsub = subscribePortalEnabled((v) => seen.push(v));
+
+      // Another tab: write the disabled flag and fire the storage event
+      // that the browser would normally deliver.
+      localStorage.setItem("ConvoHub.portalEnabled.v1", "0");
+      act(() => {
+        window.dispatchEvent(
+          new StorageEvent("storage", {
+            key: "ConvoHub.portalEnabled.v1",
+            newValue: "0",
+            oldValue: "1",
+            storageArea: localStorage,
+          })
+        );
+      });
+
+      // The storage-triggered callback reads the cached value and pushes
+      // `false` into our recorder.
+      expect(seen).toContain(false);
+      unsub();
+    });
+  });
+});
