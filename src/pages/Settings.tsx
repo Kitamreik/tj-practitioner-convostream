@@ -2223,6 +2223,7 @@ const SettingsPage: React.FC = () => {
         <SignupApprovalsPanel />
         <AgentRosterPanel />
         {isWebmaster && <AuthorizedDomainsPanel />}
+        {isWebmaster && <CustomerPortalTogglePanel />}
         {isWebmaster && <DataSeedPanel />}
 
         {/* Shared rename-agent dialog (controlled) */}

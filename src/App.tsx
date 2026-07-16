@@ -40,8 +40,31 @@ import PortalSignup from "./pages/portal/PortalSignup";
 // page is now PortalChat (Team Chat). The file is kept on disk for history.
 import PortalThread from "./pages/portal/PortalThread";
 import PortalChat from "./pages/portal/PortalChat";
+import { subscribePortalEnabled, getCachedPortalEnabled } from "@/lib/portalStatus";
 
 const queryClient = new QueryClient();
+
+/**
+ * Subscribes to the webmaster-controlled customer-portal switch. Consumed by
+ * the portal route guards below so a "closed" portal renders a maintenance
+ * screen everywhere at once. Falls back to the cached value while the
+ * Firestore snapshot is in flight.
+ */
+const usePortalEnabled = (): boolean => {
+  const [enabled, setEnabled] = useState<boolean>(() => getCachedPortalEnabled());
+  useEffect(() => subscribePortalEnabled(setEnabled), []);
+  return enabled;
+};
+
+const PortalClosed: React.FC = () => (
+  <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-6 text-center">
+    <h1 className="text-2xl font-semibold">Customer portal is closed</h1>
+    <p className="max-w-md text-sm text-muted-foreground">
+      The customer portal is temporarily unavailable. Please check back shortly or contact
+      your account manager if this is urgent.
+    </p>
+  </div>
+);
 
 const ProtectedRoute: React.FC<{
   children: React.ReactNode;
@@ -52,23 +75,26 @@ const ProtectedRoute: React.FC<{
   const { user, profile, loading } = useAuth();
   if (loading) return <div className="flex h-screen items-center justify-center text-muted-foreground">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
+  // Session integrity: if we're not loading but never resolved a profile
+  // document, the user is signed in without a valid Firestore record. Send
+  // them back to sign-in rather than exposing profile-scoped pages.
+  if (!profile) return <Navigate to="/login" replace />;
   // Customers must never reach internal/agent routes — bounce them to the
   // customer portal instead.
-  if (profile?.role === "customer") return <Navigate to="/portal/chat" replace />;
+  if (profile.role === "customer") return <Navigate to="/portal/chat" replace />;
   // Gate: any signed-in user whose account is pending or rejected goes to the
   // /pending-approval landing page until a webmaster/admin reviews them.
   // Webmasters bypass the gate so they can always reach Settings to review.
   if (
-    profile &&
     profile.role !== "webmaster" &&
     profile.approvalStatus &&
     profile.approvalStatus !== "approved"
   ) {
     return <Navigate to="/pending-approval" replace />;
   }
-  if (roles && profile && !roles.includes(profile.role)) return <Navigate to="/" replace />;
+  if (roles && !roles.includes(profile.role)) return <Navigate to="/" replace />;
   if (escalated) {
-    const allowed = profile?.role === "webmaster" || profile?.escalatedAccess === true;
+    const allowed = profile.role === "webmaster" || profile.escalatedAccess === true;
     if (!allowed) return <Navigate to="/settings" replace />;
   }
   return <>{children}</>;
@@ -85,19 +111,36 @@ const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 /**
+ * Public /portal/login and /portal/signup pages — gated by both the auth
+ * status AND the webmaster portal switch. When the portal is closed the
+ * page is replaced with a maintenance notice so no one can create or sign
+ * into a customer account until it's reopened.
+ */
+const PortalPublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const enabled = usePortalEnabled();
+  if (!enabled) return <PortalClosed />;
+  return <AuthRoute>{children}</AuthRoute>;
+};
+
+/**
  * Customer-only gate for /portal/* routes. Sends unauthenticated users to
  * the customer sign-in page and bounces internal roles (agent/admin/
  * webmaster) back to the staff app so the portal is purely customer-facing.
  */
 const CustomerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, profile, loading } = useAuth();
+  const portalEnabled = usePortalEnabled();
   if (loading) return <div className="flex h-screen items-center justify-center text-muted-foreground">Loading...</div>;
+  if (!portalEnabled) return <PortalClosed />;
   if (!user) return <Navigate to="/portal/login" replace />;
-  if (profile && profile.role !== "customer") return <Navigate to="/" replace />;
+  // Session integrity — same guard as ProtectedRoute: never render
+  // profile-scoped UI when the profile snapshot is missing.
+  if (!profile) return <Navigate to="/portal/login" replace />;
+  if (profile.role !== "customer") return <Navigate to="/" replace />;
   // Customer accounts wait for webmaster/admin approval before they can
   // reach the Team Chat. Render a small pending screen instead of routing
   // them out so they don't bounce back to the login page.
-  if (profile && profile.approvalStatus && profile.approvalStatus !== "approved") {
+  if (profile.approvalStatus && profile.approvalStatus !== "approved") {
     return <PortalPending status={profile.approvalStatus} note={profile.rejectionNote} />;
   }
   return <>{children}</>;
