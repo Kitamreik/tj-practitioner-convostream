@@ -200,8 +200,8 @@ const App = () => (
                     is missing or the account was rejected. Requires sign-in. */}
                 <Route path="/pending-approval" element={<PendingApproval />} />
                 {/* ----------- Customer portal route tree ----------- */}
-                <Route path="/portal/login" element={<AuthRoute><PortalLogin /></AuthRoute>} />
-                <Route path="/portal/signup" element={<AuthRoute><PortalSignup /></AuthRoute>} />
+                <Route path="/portal/login" element={<PortalPublicRoute><PortalLogin /></PortalPublicRoute>} />
+                <Route path="/portal/signup" element={<PortalPublicRoute><PortalSignup /></PortalPublicRoute>} />
                 <Route path="/portal" element={<Navigate to="/portal/chat" replace />} />
                 {/* Legacy redirect — customers used to land on a "Welcome"
                     conversations console; their primary surface is now the
