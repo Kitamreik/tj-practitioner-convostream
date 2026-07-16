@@ -42,6 +42,7 @@ import PortalSignup from "./pages/portal/PortalSignup";
 import PortalThread from "./pages/portal/PortalThread";
 import PortalChat from "./pages/portal/PortalChat";
 import { subscribePortalEnabled, getCachedPortalEnabled } from "@/lib/portalStatus";
+import { useCustomerPortalKillNotification } from "@/hooks/useCustomerPortalKillNotification";
 
 const queryClient = new QueryClient();
 
