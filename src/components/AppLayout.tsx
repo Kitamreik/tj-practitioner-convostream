@@ -143,6 +143,7 @@ const AppLayout: React.FC = () => {
 
       <BottomNav />
       <PWAInstallBanner />
+      <PendingDomainUndoBanner />
     </div>
   );
 };
